@@ -1,0 +1,19 @@
+.DS_Store
+.build/
+build/
+DerivedData/
+dist/
+xcuserdata/
+*.xcuserstate
+*.xcresult
+
+# Local profiler reports can contain serial numbers and other identifiers.
+LocalReports/
+LocalSnapshots/
+*.spx
+*.system-profiler.json
+System-Profiler-*.json
+
+# Local Codex and project-memory state is never part of the public repository.
+.codex/
+memory.md
