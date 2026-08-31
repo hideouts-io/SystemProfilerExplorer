@@ -81,7 +81,7 @@ fi
 
 mkdir -p -- "${STAGING_DIRECTORY}" "${DIST_DIRECTORY}"
 ditto "${BUILT_APP}" "${STAGED_APP}"
-codesign --force --sign - --timestamp=none "${STAGED_APP}"
+codesign --force --sign - --timestamp=none --options runtime "${STAGED_APP}"
 
 plutil -lint "${INFO_PLIST}" >/dev/null
 codesign --verify --deep --strict --verbose=2 "${STAGED_APP}"

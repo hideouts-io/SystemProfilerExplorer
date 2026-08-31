@@ -95,6 +95,7 @@ private struct SystemProfilerPayload: Decodable {
         var decodedSections: [String: [ProfileValue]] = [:]
         var invalidIdentifiers: Set<String> = []
         let supportedIdentifiers: Set<String> = Set(SystemProfilerDataType.allCases.map(\.rawValue))
+        decodedSections.reserveCapacity(container.allKeys.count)
 
         for key in container.allKeys {
             let value: ProfileValue = try container.decode(ProfileValue.self, forKey: key)

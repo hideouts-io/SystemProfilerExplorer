@@ -12,6 +12,7 @@ indirect enum ProfileValue: Sendable, Equatable, Codable {
     init(from decoder: Decoder) throws {
         if let objectContainer = try? decoder.container(keyedBy: DynamicCodingKey.self) {
             var object: [String: ProfileValue] = [:]
+            object.reserveCapacity(objectContainer.allKeys.count)
 
             for key in objectContainer.allKeys {
                 object[key.stringValue] = try objectContainer.decode(ProfileValue.self, forKey: key)
@@ -23,6 +24,10 @@ indirect enum ProfileValue: Sendable, Equatable, Codable {
 
         if var arrayContainer = try? decoder.unkeyedContainer() {
             var values: [ProfileValue] = []
+
+            if let valueCount = arrayContainer.count {
+                values.reserveCapacity(valueCount)
+            }
 
             while !arrayContainer.isAtEnd {
                 values.append(try arrayContainer.decode(ProfileValue.self))
@@ -36,14 +41,14 @@ indirect enum ProfileValue: Sendable, Equatable, Codable {
 
         if singleValueContainer.decodeNil() {
             self = .null
+        } else if let value = try? singleValueContainer.decode(String.self) {
+            self = .string(value)
         } else if let value = try? singleValueContainer.decode(Bool.self) {
             self = .boolean(value)
         } else if let value = try? singleValueContainer.decode(Int64.self) {
             self = .integer(value)
         } else if let value = try? singleValueContainer.decode(Double.self) {
             self = .decimal(value)
-        } else if let value = try? singleValueContainer.decode(String.self) {
-            self = .string(value)
         } else {
             throw DecodingError.dataCorruptedError(
                 in: singleValueContainer,

@@ -1,7 +1,7 @@
 # System Profiler Explorer
 
 <p align="center">
-  <img src="SystemProfilerExplorer/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png" width="220" alt="System Profiler Explorer application icon">
+  <img src="docs/images/system-profiler-explorer-logo.png" width="300" alt="System Profiler Explorer logo">
 </p>
 
 <p align="center">
@@ -11,8 +11,9 @@
 <p align="center">
   <img alt="Platform: macOS 13 or later" src="https://img.shields.io/badge/macOS-13%2B-1f6feb?logo=apple">
   <img alt="Architectures: Apple silicon and Intel" src="https://img.shields.io/badge/architecture-arm64%20%7C%20x86__64-6f42c1">
-  <img alt="Release: v0.1.0" src="https://img.shields.io/badge/release-v0.1.0-2da44e">
+  <img alt="Release: v0.1.1" src="https://img.shields.io/badge/release-v0.1.1-2da44e">
   <img alt="Privacy: local only" src="https://img.shields.io/badge/privacy-local--only-0f766e">
+  <img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-f59e0b">
 </p>
 
 > [!IMPORTANT]
@@ -24,7 +25,7 @@
 - [Screenshots](#screenshots)
 - [Coverage](#coverage)
 - [How it works](#how-it-works)
-- [Download v0.1.0](#download-v010)
+- [Download v0.1.1](#download-v011)
 - [Install and run](#install-and-run)
 - [Open the app safely when Gatekeeper intervenes](#open-the-app-safely-when-gatekeeper-intervenes)
 - [Use the app](#use-the-app)
@@ -51,6 +52,7 @@ The app can scan this Mac directly or import an existing raw JSON report. Proces
 - Complete Reports scan plus focused, faster subject scans
 - Collapsible records and explanations with source provenance
 - Search across names, values, fields, and explanations
+- Precomputed report indexing and debounced, cancellable search for large inventories
 - Explained-only and privacy-sensitive filters
 - Local JSON import, redacted or full export, and saved-report comparison
 - Responsive 100-record paging for large software and full-system sections
@@ -118,22 +120,22 @@ Live scan on this Mac                     Existing JSON report
 
 The parser preserves structured values instead of flattening away their source context. Exact field explanations are used where the schema is known; careful data-type context is used for changing or hardware-specific schemas. Unknown fields remain visible and are labeled as unrecognized rather than assigned an invented meaning.
 
-## Download v0.1.0
+## Download v0.1.1
 
-Download the universal macOS build from [Releases v0.1.0](https://github.com/hideouts-io/SystemProfilerExplorer/releases/tag/v0.1.0):
+Download the universal macOS build from [Releases v0.1.1](https://github.com/hideouts-io/SystemProfilerExplorer/releases/tag/v0.1.1):
 
-- [SystemProfilerExplorer-0.1.0-macOS-universal.zip](https://github.com/hideouts-io/SystemProfilerExplorer/releases/download/v0.1.0/SystemProfilerExplorer-0.1.0-macOS-universal.zip)
-- [SHA-256 checksum](https://github.com/hideouts-io/SystemProfilerExplorer/releases/download/v0.1.0/SystemProfilerExplorer-0.1.0-macOS-universal.zip.sha256)
+- [SystemProfilerExplorer-0.1.1-macOS-universal.zip](https://github.com/hideouts-io/SystemProfilerExplorer/releases/download/v0.1.1/SystemProfilerExplorer-0.1.1-macOS-universal.zip)
+- [SHA-256 checksum](https://github.com/hideouts-io/SystemProfilerExplorer/releases/download/v0.1.1/SystemProfilerExplorer-0.1.1-macOS-universal.zip.sha256)
 
-The bundle supports macOS 13 or later on Apple silicon and Intel Macs. Version 0.1.0 is ad hoc signed and is not Apple-notarized, so Gatekeeper may require a one-time approval after download.
+The bundle supports macOS 13 or later on Apple silicon and Intel Macs. Version 0.1.1 is ad hoc signed and is not Apple-notarized, so Gatekeeper may require a one-time approval after download.
 
 ## Install and run
 
-1. Download both the ZIP and checksum file from the v0.1.0 release.
+1. Download both the ZIP and checksum file from the v0.1.1 release.
 2. In Terminal, change to the download directory and verify the archive:
 
    ```sh
-   shasum -a 256 -c SystemProfilerExplorer-0.1.0-macOS-universal.zip.sha256
+   shasum -a 256 -c SystemProfilerExplorer-0.1.1-macOS-universal.zip.sha256
    ```
 
    Continue only if the result ends with `OK`.
@@ -145,7 +147,7 @@ No administrator password is required to run the app. Some profiler sections can
 
 ## Open the app safely when Gatekeeper intervenes
 
-Because v0.1.0 is not notarized, macOS may say that Apple cannot check it for malicious software or that the developer cannot be verified. First verify the SHA-256 checksum above. Then use one of Apple’s one-app approval paths:
+Because v0.1.1 is not notarized, macOS may say that Apple cannot check it for malicious software or that the developer cannot be verified. First verify the SHA-256 checksum above. Then use one of Apple’s one-app approval paths:
 
 - In Finder, Control-click `SystemProfilerExplorer.app`, choose **Open**, then confirm **Open**; or
 - Try to open the app once, open **System Settings → Privacy & Security**, and choose **Open Anyway** for System Profiler Explorer.
@@ -208,13 +210,15 @@ xcodebuild -project SystemProfilerExplorer.xcodeproj \
   build test
 ```
 
-Build the same universal ZIP and checksum layout used by the v0.1.0 release:
+Build the same universal ZIP and checksum layout used by the v0.1.1 release:
 
 ```sh
 ./scripts/build-release.sh
 ```
 
 Generated assets are written under the ignored `dist/` directory. The script verifies the app metadata, strict code-signature integrity, `arm64` and `x86_64` slices, minimum macOS version, and SHA-256 manifest. It produces an ad hoc signed development distribution; Developer ID signing and Apple notarization require the maintainer’s Apple Developer credentials and are not simulated by the script.
+
+In Codex, the local **Run** action uses `script/build_and_run.sh` to build, ad hoc sign, and open a Debug app without requiring an Apple Developer certificate.
 
 ## Privacy and interpretation boundaries
 
@@ -235,8 +239,10 @@ SystemProfilerExplorer/
 ├── SystemProfilerExplorer/          SwiftUI app, collection, parsing, and explanations
 ├── SystemProfilerExplorerTests/     Behavior, integration, import, export, and coverage tests
 ├── docs/images/                     Sanitized README screenshots
+├── script/                          Local Codex build-and-run action
 ├── scripts/                         Publication and universal-release checks
 ├── SystemProfilerExplorer.xcodeproj Checked-in Xcode project
+├── LICENSE                           MIT open-source license
 └── project.yml                      XcodeGen project source
 ```
 
@@ -246,4 +252,4 @@ Before proposing a change, read [CONTRIBUTING.md](CONTRIBUTING.md) for developme
 
 ## License
 
-No open-source license has been selected yet. Until a `LICENSE` file is added, copyright remains with the project owner and no permission is granted to copy, modify, or redistribute the source beyond rights provided by applicable law.
+System Profiler Explorer is open-source software released under the [MIT License](LICENSE). You may use, copy, modify, distribute, sublicense, and sell the software, including for commercial purposes, as long as copies or substantial portions retain the copyright and license notice. The software is provided without warranty.

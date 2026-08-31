@@ -17,6 +17,7 @@
 		329EAAA4FAD74DC9148A730D /* AccessibilityExplanations.swift in Sources */ = {isa = PBXBuildFile; fileRef = D67584376B2445EF1DF746DE /* AccessibilityExplanations.swift */; };
 		3BB6F3037F308543FDC4591D /* AppShellView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A3008441F4CF445712380CF6 /* AppShellView.swift */; };
 		41A352BEAE8240924801481C /* AdditionalExplanationCoverageTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E4302147D18912C4D6C9E8F /* AdditionalExplanationCoverageTests.swift */; };
+		43B69F7D2EFAB09618000574 /* ReportPresentationIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = 816C80DD50958035415A3529 /* ReportPresentationIndex.swift */; };
 		4C6AEC9AD43A0BD4C212E779 /* SubjectScanConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4A6D99245031E028E535B9A /* SubjectScanConfiguration.swift */; };
 		4CF762F76B57796EE1586919 /* SystemProfilerParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = CEE75C08C482A71C55927F92 /* SystemProfilerParser.swift */; };
 		4CFABDB46C5DB9C9E2604484 /* FieldPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7F55B0C200350A7BDF3138C /* FieldPresentation.swift */; };
@@ -42,6 +43,7 @@
 		BA15D11C2B1F8A45A42D8163 /* ReportExportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 906F79EA77C101E1546B8F65 /* ReportExportView.swift */; };
 		BC67CE18C6DA76A591EA7E42 /* SystemProfilerCollector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5FD7DA4AC0CB6A6333C76FAF /* SystemProfilerCollector.swift */; };
 		BD25DDA86CD52506A4CE4FA8 /* ReportComparisonView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C19D421A0C7E053E97CA1F4B /* ReportComparisonView.swift */; };
+		C061B1DCEDE78F4DAD5F5AE4 /* ReportPresentationIndexTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9FAAE3107D80F2D5A01EB9E4 /* ReportPresentationIndexTests.swift */; };
 		C15BD4AD7197D4362945DB47 /* ScanState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A51AB239BF7150A0E3357EE /* ScanState.swift */; };
 		C7F0D4506B289938656B482F /* FindingExplanationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C07BC8D04FF0E86C064BB078 /* FindingExplanationTests.swift */; };
 		CC1F6D06FA7EF572773312ED /* SoftwareOverviewExplanations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1136F0DA91026DF37C2AD945 /* SoftwareOverviewExplanations.swift */; };
@@ -95,6 +97,7 @@
 		6E222A00A58DD54B121B5C45 /* ReportComparisonTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportComparisonTests.swift; sourceTree = "<group>"; };
 		7621156215030CAD16E34AA4 /* FieldExplanation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FieldExplanation.swift; sourceTree = "<group>"; };
 		78AF3F713C4A791BA1C636FA /* ContextualFieldExplanations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContextualFieldExplanations.swift; sourceTree = "<group>"; };
+		816C80DD50958035415A3529 /* ReportPresentationIndex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportPresentationIndex.swift; sourceTree = "<group>"; };
 		82152FCD1497390C093BD2C2 /* SystemProfilerDataType.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemProfilerDataType.swift; sourceTree = "<group>"; };
 		8505130DACF0A97EEDC12B7C /* SecurityExplanations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecurityExplanations.swift; sourceTree = "<group>"; };
 		85DA6EDB8AC82F8BF886BEC8 /* SystemProfilerRequest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemProfilerRequest.swift; sourceTree = "<group>"; };
@@ -103,6 +106,7 @@
 		899804108CD311079A137AB0 /* FindingQueryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FindingQueryTests.swift; sourceTree = "<group>"; };
 		8AF48C92BB49A1D7C2BF3D06 /* PowerExplanationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PowerExplanationTests.swift; sourceTree = "<group>"; };
 		906F79EA77C101E1546B8F65 /* ReportExportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportExportView.swift; sourceTree = "<group>"; };
+		9FAAE3107D80F2D5A01EB9E4 /* ReportPresentationIndexTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportPresentationIndexTests.swift; sourceTree = "<group>"; };
 		A3008441F4CF445712380CF6 /* AppShellView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppShellView.swift; sourceTree = "<group>"; };
 		A41D28EAF13861F9094CAD7B /* HardwareExplanations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HardwareExplanations.swift; sourceTree = "<group>"; };
 		A7BB7A4A978DF3E2E8C0900A /* LegacyAndSyncExplanations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LegacyAndSyncExplanations.swift; sourceTree = "<group>"; };
@@ -182,6 +186,7 @@
 				DA1EB2E581B4CA679420FA2F /* RawReportImportTests.swift */,
 				6E222A00A58DD54B121B5C45 /* ReportComparisonTests.swift */,
 				3E73B22531517F3BAC6F760D /* ReportExportTests.swift */,
+				9FAAE3107D80F2D5A01EB9E4 /* ReportPresentationIndexTests.swift */,
 				E2856D3BC6853702F365B33C /* SecurityExplanationTests.swift */,
 				BE97DBED35D8D7601108A901 /* SoftwareExplanationTests.swift */,
 				FB55F1B2791C2A64C4652248 /* SystemProfilerIntegrationTests.swift */,
@@ -194,6 +199,7 @@
 			children = (
 				E7F55B0C200350A7BDF3138C /* FieldPresentation.swift */,
 				B1B26F129A3201DCF9011C3C /* FindingQuery.swift */,
+				816C80DD50958035415A3529 /* ReportPresentationIndex.swift */,
 				DB8345DEE454EBABB298A6CB /* ReportSummary.swift */,
 			);
 			path = Presentation;
@@ -422,6 +428,7 @@
 				0A011607BE0CD75C104AD226 /* RawReportImportTests.swift in Sources */,
 				6AFEF28B8B5EA72FC7640F1B /* ReportComparisonTests.swift in Sources */,
 				F5357BDDB3EE70861FC3E3B9 /* ReportExportTests.swift in Sources */,
+				C061B1DCEDE78F4DAD5F5AE4 /* ReportPresentationIndexTests.swift in Sources */,
 				54693181DC78DF8337FB044C /* SecurityExplanationTests.swift in Sources */,
 				85B49F4087AE29C92D16AE3B /* SoftwareExplanationTests.swift in Sources */,
 				8009FECBA1511AE14C4EEF1A /* SystemProfilerIntegrationTests.swift in Sources */,
@@ -453,6 +460,7 @@
 				BD25DDA86CD52506A4CE4FA8 /* ReportComparisonView.swift in Sources */,
 				545C1EA0D69409AB8EE0DF25 /* ReportExport.swift in Sources */,
 				BA15D11C2B1F8A45A42D8163 /* ReportExportView.swift in Sources */,
+				43B69F7D2EFAB09618000574 /* ReportPresentationIndex.swift in Sources */,
 				B145A972D8BC9EB8A309C214 /* ReportSummary.swift in Sources */,
 				C15BD4AD7197D4362945DB47 /* ScanState.swift in Sources */,
 				06011960E1B3DC38DFF2638C /* SecureElementAndSmartCardExplanations.swift in Sources */,
@@ -553,18 +561,18 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "System Profiler Explorer";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
-				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © 2026 hideouts-io.";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.1.0;
+				MARKETING_VERSION = 0.1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.netctl.SystemProfilerExplorer;
 				SDKROOT = macosx;
 			};
@@ -612,18 +620,18 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 2;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = "System Profiler Explorer";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
-				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © 2026 hideouts-io.";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MARKETING_VERSION = 0.1.0;
+				MARKETING_VERSION = 0.1.1;
 				PRODUCT_BUNDLE_IDENTIFIER = com.netctl.SystemProfilerExplorer;
 				SDKROOT = macosx;
 			};

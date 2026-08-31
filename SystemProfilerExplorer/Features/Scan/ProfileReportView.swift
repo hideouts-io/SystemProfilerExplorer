@@ -23,15 +23,68 @@ struct ProfileReportView: View {
     @State private var reportComparison: ReportComparison?
     @State private var comparisonErrorMessage: String?
     @State private var comparisonTask: Task<Void, Never>?
+    @State private var presentationIndex: ReportPresentationIndex?
+    @State private var displayedQueryResult: ReportQueryResult?
+    @State private var isPreparingIndex: Bool = true
+    @State private var isSearching: Bool = false
+    @State private var indexingErrorMessage: String?
+    @State private var queryTask: Task<Void, Never>?
 
     var body: some View {
-        let currentQuery: FindingQuery = query
-        let summary: ReportSummary = reportSummary(report)
-        let matchCount: Int = currentQuery.isActive
-            ? matchingFindingCount(report, query: currentQuery)
-            : summary.findingCount
+        Group {
+            if let presentationIndex, let displayedQueryResult {
+                indexedReportContent(
+                    presentationIndex: presentationIndex,
+                    queryResult: displayedQueryResult
+                )
+            } else if let indexingErrorMessage {
+                ReportIndexingFailureView(
+                    message: indexingErrorMessage,
+                    retry: retryIndexing
+                )
+            } else {
+                ReportIndexingView()
+            }
+        }
+        .task(id: report.completedAt) {
+            await preparePresentationIndex()
+        }
+        .onChange(of: query) { newQuery in
+            scheduleQuery(newQuery)
+        }
+        .onDisappear {
+            queryTask?.cancel()
+            comparisonTask?.cancel()
+        }
+        .sheet(isPresented: $isShowingExportReview) {
+            ReportExportReviewView(report: report)
+        }
+        .sheet(item: $reportComparison) { comparison in
+            ReportComparisonView(comparison: comparison)
+        }
+        .fileImporter(
+            isPresented: $isShowingComparisonImporter,
+            allowedContentTypes: [.json],
+            allowsMultipleSelection: false,
+            onCompletion: importComparisonBaseline
+        )
+        .alert("Comparison Failed", isPresented: comparisonErrorBinding) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(comparisonErrorMessage ?? "The reports could not be compared.")
+        }
+    }
+
+    @ViewBuilder
+    private func indexedReportContent(
+        presentationIndex: ReportPresentationIndex,
+        queryResult: ReportQueryResult
+    ) -> some View {
+        let summary: ReportSummary = presentationIndex.summary
+        let matchCount: Int = queryResult.findingCount
+        let displayedQuery: FindingQuery = queryResult.query
         let automaticallyExpandResults: Bool = shouldAutomaticallyExpandResults(
-            query: currentQuery,
+            query: displayedQuery,
             matchCount: matchCount
         )
 
@@ -42,7 +95,11 @@ struct ProfileReportView: View {
                 LargeReportNotice()
             }
 
-            FindingControls(searchText: $searchText, selectedFilter: $selectedFilter)
+            FindingControls(
+                searchText: $searchText,
+                selectedFilter: $selectedFilter,
+                isSearching: isSearching
+            )
 
             HStack {
                 Text("Export and comparison use the complete collected report.")
@@ -83,7 +140,7 @@ struct ProfileReportView: View {
                     Text(resultDescription(
                         matchCount: matchCount,
                         totalCount: summary.findingCount,
-                        query: currentQuery
+                        query: displayedQuery
                     ))
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -93,30 +150,13 @@ struct ProfileReportView: View {
                 ForEach(report.sections) { section in
                     ProfileSectionView(
                         section: section,
-                        query: currentQuery,
+                        queryResult: queryResult,
                         automaticallyExpandResults: automaticallyExpandResults
                     )
                 }
             }
 
             ScanProvenanceView(report: report)
-        }
-        .sheet(isPresented: $isShowingExportReview) {
-            ReportExportReviewView(report: report)
-        }
-        .sheet(item: $reportComparison) { comparison in
-            ReportComparisonView(comparison: comparison)
-        }
-        .fileImporter(
-            isPresented: $isShowingComparisonImporter,
-            allowedContentTypes: [.json],
-            allowsMultipleSelection: false,
-            onCompletion: importComparisonBaseline
-        )
-        .alert("Comparison Failed", isPresented: comparisonErrorBinding) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(comparisonErrorMessage ?? "The reports could not be compared.")
         }
     }
 
@@ -133,6 +173,83 @@ struct ProfileReportView: View {
                 }
             }
         )
+    }
+
+    private func preparePresentationIndex() async {
+        let currentReport: SystemProfilerReport = report
+        let currentQuery: FindingQuery = query
+
+        queryTask?.cancel()
+        isPreparingIndex = true
+        isSearching = false
+        indexingErrorMessage = nil
+        presentationIndex = nil
+        displayedQueryResult = nil
+
+        do {
+            let indexTask: Task<(ReportPresentationIndex, ReportQueryResult), any Error> = Task.detached(
+                priority: .userInitiated
+            ) {
+                let index: ReportPresentationIndex = try makeReportPresentationIndex(currentReport)
+                let result: ReportQueryResult = try index.queryResult(for: currentQuery)
+                return (index, result)
+            }
+            let prepared: (ReportPresentationIndex, ReportQueryResult) = try await withTaskCancellationHandler {
+                try await indexTask.value
+            } onCancel: {
+                indexTask.cancel()
+            }
+
+            try Task.checkCancellation()
+            presentationIndex = prepared.0
+            displayedQueryResult = prepared.1
+        } catch is CancellationError {
+            return
+        } catch {
+            indexingErrorMessage = "The report could not be prepared for display. \(String(reflecting: error))"
+        }
+
+        isPreparingIndex = false
+    }
+
+    private func retryIndexing() {
+        Task {
+            await preparePresentationIndex()
+        }
+    }
+
+    private func scheduleQuery(_ newQuery: FindingQuery) {
+        guard !isPreparingIndex, let presentationIndex else {
+            return
+        }
+
+        queryTask?.cancel()
+        isSearching = true
+
+        queryTask = Task {
+            do {
+                try await Task.sleep(for: .milliseconds(250))
+                let searchTask: Task<ReportQueryResult, any Error> = Task.detached(priority: .userInitiated) {
+                    try presentationIndex.queryResult(for: newQuery)
+                }
+                let result: ReportQueryResult = try await withTaskCancellationHandler {
+                    try await searchTask.value
+                } onCancel: {
+                    searchTask.cancel()
+                }
+
+                try Task.checkCancellation()
+                displayedQueryResult = result
+                isSearching = false
+                queryTask = nil
+            } catch is CancellationError {
+                return
+            } catch {
+                indexingErrorMessage = "The report search failed. \(String(reflecting: error))"
+                isSearching = false
+                queryTask = nil
+            }
+        }
     }
 
     private func importComparisonBaseline(_ result: Result<[URL], any Error>) {
@@ -234,6 +351,51 @@ private struct LargeReportNotice: View {
     }
 }
 
+private struct ReportIndexingView: View {
+    var body: some View {
+        VStack(spacing: 14) {
+            ProgressView()
+                .controlSize(.large)
+            Text("Preparing Report")
+                .font(.headline)
+            Text("Building a local search index so large reports remain responsive.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 44)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
+        .accessibilityIdentifier("report-index-progress")
+    }
+}
+
+private struct ReportIndexingFailureView: View {
+    let message: String
+    let retry: () -> Void
+
+    var body: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "exclamationmark.triangle")
+                .font(.system(size: 28))
+                .foregroundStyle(.orange)
+            Text("Report Preparation Failed")
+                .font(.headline)
+            Text(message)
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .textSelection(.enabled)
+            Button("Try Again", action: retry)
+                .accessibilityIdentifier("retry-report-index")
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 38)
+        .padding(.horizontal, 24)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
+        .accessibilityIdentifier("report-index-failure")
+    }
+}
+
 private struct ReportSummaryStrip: View {
     let summary: ReportSummary
 
@@ -305,6 +467,7 @@ private struct SummaryCard: View {
 private struct FindingControls: View {
     @Binding var searchText: String
     @Binding var selectedFilter: FindingFilter
+    let isSearching: Bool
 
     var body: some View {
         HStack(spacing: 12) {
@@ -314,6 +477,12 @@ private struct FindingControls: View {
                 TextField("Search values and explanations", text: $searchText)
                     .textFieldStyle(.plain)
                     .accessibilityIdentifier("finding-search")
+
+                if isSearching {
+                    ProgressView()
+                        .controlSize(.small)
+                        .accessibilityLabel("Searching report")
+                }
 
                 if !searchText.isEmpty {
                     Button {
@@ -372,16 +541,14 @@ private struct NoMatchingFindingsView: View {
 
 private struct ProfileSectionView: View {
     let section: SystemProfilerSection
-    let query: FindingQuery
+    let queryResult: ReportQueryResult
     let automaticallyExpandResults: Bool
 
     @State private var visibleRecordLimit: Int = recordPageSize
 
     var body: some View {
-        let selection: MatchingRecordSelection = matchingRecordSelection(
-            items: section.items,
-            dataType: section.dataType,
-            query: query,
+        let selection: MatchingRecordSelection = queryResult.recordSelection(
+            for: section.dataType,
             visibleLimit: visibleRecordLimit
         )
         let visibleRecords: [ProfileRecord] = profileRecords(selection)
@@ -405,7 +572,7 @@ private struct ProfileSectionView: View {
                             depth: 0,
                             dataType: section.dataType,
                             path: [],
-                            query: query,
+                            query: queryResult.query,
                             automaticallyExpandResults: automaticallyExpandResults
                         )
 
@@ -437,7 +604,7 @@ private struct ProfileSectionView: View {
                         .stroke(Color(nsColor: .separatorColor).opacity(0.5), lineWidth: 1)
                 }
             }
-            .onChange(of: query) { _ in
+            .onChange(of: queryResult.query) { _ in
                 visibleRecordLimit = recordPageSize
             }
         }

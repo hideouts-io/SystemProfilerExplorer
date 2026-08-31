@@ -28,38 +28,35 @@ trap cleanup EXIT
 
 cd "${PROJECT_ROOT}"
 
-find . \
-    -path './.git' -prune -o \
-    -type f \( \
-        -name '*.spx' -o \
-        -name '*.system-profiler.json' -o \
-        -name 'System-Profiler-*.json' -o \
-        -name '*.xcuserstate' -o \
-        -name '.DS_Store' -o \
-        -iname 'memory.md' \
-    \) -print > "${FORBIDDEN_PATHS_FILE}"
+git ls-files --cached --others --exclude-standard -z > "${CANDIDATE_FILES_FILE}"
 
-for local_directory in LocalReports LocalSnapshots DerivedData build .build .codex; do
-    if [[ -e "${local_directory}" && ! -d "${local_directory}" ]]; then
-        echo "Publication check failed: ${local_directory} exists but is not a directory." >&2
-        exit 1
+while IFS= read -r -d '' file_path; do
+    file_name="$(basename -- "${file_path}")"
+    lowercase_file_name="$(printf '%s' "${file_name}" | tr '[:upper:]' '[:lower:]')"
+
+    case "/${file_path}/" in
+        */LocalReports/*|*/LocalSnapshots/*|*/DerivedData/*|*/build/*|*/.build/*|*/.codex/*|*/xcuserdata/*)
+            printf '%s\n' "${file_path}" >> "${FORBIDDEN_PATHS_FILE}"
+            continue
+            ;;
+    esac
+
+    case "${file_name}" in
+        *.spx|*.system-profiler.json|System-Profiler-*.json|*.xcuserstate|.DS_Store)
+            printf '%s\n' "${file_path}" >> "${FORBIDDEN_PATHS_FILE}"
+            ;;
+    esac
+
+    if [[ "${lowercase_file_name}" == "memory.md" ]]; then
+        printf '%s\n' "${file_path}" >> "${FORBIDDEN_PATHS_FILE}"
     fi
-
-    if [[ -d "${local_directory}" ]]; then
-        find "${local_directory}" -type f -print >> "${FORBIDDEN_PATHS_FILE}"
-    fi
-done
-
-find . -path './.git' -prune -o -path '*/xcuserdata/*' -type f -print \
-    >> "${FORBIDDEN_PATHS_FILE}"
+done < "${CANDIDATE_FILES_FILE}"
 
 if [[ -s "${FORBIDDEN_PATHS_FILE}" ]]; then
     echo "Publication check failed: private or generated artifacts are present:" >&2
     sort -u "${FORBIDDEN_PATHS_FILE}" >&2
     exit 1
 fi
-
-git ls-files --cached --others --exclude-standard -z > "${CANDIDATE_FILES_FILE}"
 
 scan_pattern() {
     local pattern="$1"
