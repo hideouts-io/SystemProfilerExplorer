@@ -105,11 +105,11 @@ func syncServicesExplanation(path: [String], reportedValue: String) -> FieldExpl
     switch softwareField(path) {
     case "contents":
         return FieldExplanation(
-            title: "Sync Record Contents",
-            meaning: "This describes content represented by the retained Sync Services record or log item.",
-            significance: "It can identify which synchronization domain or data category an entry concerns.",
-            interpretation: "A description is not proof that synchronization completed, reached a remote service, or that the underlying content still exists.",
-            privacy: "Sync contents can reveal accounts, applications, devices, or personal data categories. Redact them unless directly relevant."
+            title: "Diagnostic Log Contents",
+            meaning: "This is diagnostic text included in the report's Sync Services section. A system.log entry can contain messages from many applications, not just synchronization activity.",
+            significance: "Use the timestamp and process name on each line to understand which application reported an event. Repeated lines can describe steps in a single operation rather than separate problems.",
+            interpretation: "The report section is not proof that synchronization or transmission occurred. A log is a retained excerpt, not a complete record of activity or a safety assessment.",
+            privacy: "Logs can reveal account names, paths, attachment names, and application activity. Review the original text before sharing."
         )
     case "description":
         return FieldExplanation(

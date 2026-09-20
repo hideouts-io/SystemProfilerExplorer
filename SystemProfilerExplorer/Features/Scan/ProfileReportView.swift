@@ -29,6 +29,12 @@ struct ProfileReportView: View {
     @State private var isSearching: Bool = false
     @State private var indexingErrorMessage: String?
     @State private var queryTask: Task<Void, Never>?
+    @State private var isShowingSkippedCollection: Bool = false
+    @State private var isShowingSnapshotTimeline: Bool = false
+    @State private var isShowingSystemReview: Bool = false
+    @State private var highlightedSourcePath: String?
+    @AppStorage("bookmarked-finding-source-paths") private var storedBookmarks: String = ""
+    @AppStorage("recent-finding-searches") private var storedRecentSearches: String = ""
 
     var body: some View {
         Group {
@@ -62,6 +68,21 @@ struct ProfileReportView: View {
         .sheet(item: $reportComparison) { comparison in
             ReportComparisonView(comparison: comparison)
         }
+        .sheet(isPresented: $isShowingSkippedCollection) {
+            SkippedCollectionView(
+                coverage: collectionCoverage(for: report),
+                standardError: report.standardError
+            )
+        }
+        .sheet(isPresented: $isShowingSnapshotTimeline) {
+            SnapshotTimelineView(currentReport: report)
+        }
+        .sheet(isPresented: $isShowingSystemReview) {
+            SystemReviewSummaryView(
+                report: report,
+                selectedSourcePaths: bookmarkedSourcePaths
+            )
+        }
         .fileImporter(
             isPresented: $isShowingComparisonImporter,
             allowedContentTypes: [.json],
@@ -89,6 +110,11 @@ struct ProfileReportView: View {
         )
 
         VStack(alignment: .leading, spacing: 16) {
+            CollectionCoverageCard(
+                coverage: collectionCoverage(for: report),
+                showSkippedCollection: { isShowingSkippedCollection = true }
+            )
+
             ReportSummaryStrip(summary: summary)
 
             if summary.findingCount >= largeReportFindingThreshold {
@@ -98,11 +124,19 @@ struct ProfileReportView: View {
             FindingControls(
                 searchText: $searchText,
                 selectedFilter: $selectedFilter,
-                isSearching: isSearching
+                isSearching: isSearching,
+                recentSearches: recentSearches,
+                applyRecentSearch: applyRecentSearch
+            )
+
+            FindingBookmarkBar(
+                bookmarkCount: bookmarkedSourcePaths.count,
+                bookmarkedSourcePaths: bookmarkedSourcePaths,
+                openSourceLocation: openSourceLocation
             )
 
             HStack {
-                Text("Export and comparison use the complete collected report.")
+                Text("Raw JSON export stays separate from local review summaries and snapshots.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Spacer()
@@ -123,6 +157,22 @@ struct ProfileReportView: View {
                 .buttonStyle(.bordered)
                 .disabled(isPreparingComparison)
                 .accessibilityIdentifier("compare-report")
+
+                Button {
+                    isShowingSnapshotTimeline = true
+                } label: {
+                    Label("Snapshots", systemImage: "clock.arrow.circlepath")
+                }
+                .buttonStyle(.bordered)
+                .accessibilityIdentifier("open-snapshots")
+
+                Button {
+                    isShowingSystemReview = true
+                } label: {
+                    Label("Review Summary", systemImage: "doc.text.magnifyingglass")
+                }
+                .buttonStyle(.bordered)
+                .accessibilityIdentifier("open-system-review")
 
                 Button {
                     isShowingExportReview = true
@@ -151,7 +201,11 @@ struct ProfileReportView: View {
                     ProfileSectionView(
                         section: section,
                         queryResult: queryResult,
-                        automaticallyExpandResults: automaticallyExpandResults
+                        automaticallyExpandResults: automaticallyExpandResults,
+                        bookmarkedSourcePaths: bookmarkedSourcePaths,
+                        toggleBookmark: toggleBookmark,
+                        openSourceLocation: openSourceLocation,
+                        highlightedSourcePath: highlightedSourcePath
                     )
                 }
             }
@@ -242,6 +296,7 @@ struct ProfileReportView: View {
                 displayedQueryResult = result
                 isSearching = false
                 queryTask = nil
+                recordRecentSearch(newQuery)
             } catch is CancellationError {
                 return
             } catch {
@@ -321,6 +376,52 @@ struct ProfileReportView: View {
     private func clearQuery() {
         searchText = ""
         selectedFilter = .all
+        highlightedSourcePath = nil
+    }
+
+    private var bookmarkedSourcePaths: Set<String> {
+        Set(storedBookmarks.split(separator: "\n").map(String.init))
+    }
+
+    private var recentSearches: [String] {
+        storedRecentSearches
+            .split(separator: "\n")
+            .map(String.init)
+    }
+
+    private func toggleBookmark(_ sourcePath: String) {
+        var paths: Set<String> = bookmarkedSourcePaths
+
+        if paths.contains(sourcePath) {
+            paths.remove(sourcePath)
+        } else {
+            paths.insert(sourcePath)
+        }
+
+        storedBookmarks = paths.sorted().joined(separator: "\n")
+    }
+
+    private func openSourceLocation(_ sourcePath: String) {
+        selectedFilter = .all
+        highlightedSourcePath = sourcePath
+        searchText = sourcePath
+    }
+
+    private func applyRecentSearch(_ search: String) {
+        highlightedSourcePath = nil
+        searchText = search
+    }
+
+    private func recordRecentSearch(_ findingQuery: FindingQuery) {
+        let search: String = findingQuery.normalizedText
+        guard !search.isEmpty else {
+            return
+        }
+
+        let updatedSearches: [String] = ([search] + recentSearches.filter { $0 != search })
+            .prefix(8)
+            .map { $0 }
+        storedRecentSearches = updatedSearches.joined(separator: "\n")
     }
 }
 
@@ -348,6 +449,184 @@ private struct LargeReportNotice: View {
                 .stroke(Color.accentColor.opacity(0.2), lineWidth: 1)
         }
         .accessibilityIdentifier("large-report-notice")
+    }
+}
+
+private struct CollectionCoverageCard: View {
+    let coverage: CollectionCoverage
+    let showSkippedCollection: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 13) {
+            HStack(alignment: .firstTextBaseline) {
+                Label("Collection coverage", systemImage: "checklist")
+                    .font(.headline)
+                Spacer()
+                Text(coverage.source.title)
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.secondary)
+            }
+
+            HStack(spacing: 10) {
+                CollectionCoverageMetric(
+                    title: "Collected",
+                    count: coverage.collectedCount,
+                    symbolName: CollectionDataTypeStatus.collected.symbolName,
+                    tint: .green
+                )
+                CollectionCoverageMetric(
+                    title: "No records",
+                    count: coverage.emptyCount,
+                    symbolName: CollectionDataTypeStatus.empty.symbolName,
+                    tint: .secondary
+                )
+                CollectionCoverageMetric(
+                    title: "Skipped",
+                    count: coverage.skippedCount,
+                    symbolName: CollectionDataTypeStatus.skipped.symbolName,
+                    tint: .orange
+                )
+            }
+
+            HStack(spacing: 10) {
+                CollectionCoverageMetric(
+                    title: "Unavailable",
+                    count: coverage.unavailableCount,
+                    symbolName: CollectionDataTypeStatus.unavailable.symbolName,
+                    tint: .orange
+                )
+                CollectionCoverageMetric(
+                    title: "Timed out",
+                    count: coverage.timedOutCount,
+                    symbolName: CollectionDataTypeStatus.timedOut.symbolName,
+                    tint: .orange
+                )
+                CollectionCoverageMetric(
+                    title: "Permission",
+                    count: coverage.permissionLimitedCount,
+                    symbolName: CollectionDataTypeStatus.permissionLimited.symbolName,
+                    tint: .orange
+                )
+            }
+
+            Text(coverageExplanation)
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            if !coverage.incompleteEntries.isEmpty {
+                Button(action: showSkippedCollection) {
+                    Label(
+                        "View Incomplete Collection (\(coverage.incompleteEntries.count))",
+                        systemImage: "list.bullet.rectangle"
+                    )
+                }
+                .buttonStyle(.bordered)
+                .accessibilityIdentifier("view-incomplete-collection")
+            }
+        }
+        .padding(16)
+        .background(Color.orange.opacity(0.055), in: RoundedRectangle(cornerRadius: 14))
+        .overlay {
+            RoundedRectangle(cornerRadius: 14)
+                .stroke(Color.orange.opacity(0.2), lineWidth: 1)
+        }
+        .accessibilityIdentifier("collection-coverage")
+    }
+
+    private var coverageExplanation: String {
+        switch coverage.source {
+        case .liveScan:
+            if !coverage.incompleteEntries.isEmpty {
+                return "Incomplete sections were requested but did not return JSON. Unavailable, timeout, and permission labels require matching diagnostic text; otherwise the app records them as skipped rather than inventing a cause."
+            }
+
+            return "Every requested data type returned JSON. No records means system_profiler returned an empty section, not that collection was skipped."
+
+        case .importedReport:
+            return "This imported JSON does not preserve the original command scope. Coverage reflects only the data types included by the source file."
+        }
+    }
+}
+
+private struct CollectionCoverageMetric: View {
+    let title: String
+    let count: Int
+    let symbolName: String
+    let tint: Color
+
+    var body: some View {
+        HStack(spacing: 7) {
+            Image(systemName: symbolName)
+                .foregroundStyle(tint)
+            Text("\(count) \(title)")
+                .font(.subheadline.weight(.medium))
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 11)
+        .padding(.vertical, 9)
+        .background(.quaternary.opacity(0.55), in: RoundedRectangle(cornerRadius: 9))
+    }
+}
+
+private struct SkippedCollectionView: View {
+    @Environment(\.dismiss) private var dismiss
+
+    let coverage: CollectionCoverage
+    let standardError: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: 7) {
+                Text("Incomplete Collection")
+                    .font(.title2.weight(.semibold))
+                Text("These data types were requested during the live scan but system_profiler did not return JSON for them.")
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(20)
+
+            List {
+                Section("Incomplete data types") {
+                    ForEach(coverage.incompleteEntries) { entry in
+                        VStack(alignment: .leading, spacing: 3) {
+                            Label(entry.dataType.title, systemImage: entry.status.symbolName)
+                                .foregroundStyle(entry.status == .skipped ? .orange : .red)
+                            Text(entry.dataType.rawValue)
+                                .font(.caption.monospaced())
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(.vertical, 3)
+                    }
+                }
+
+                Section("Interpretation") {
+                    Text("A missing section is not evidence that the associated hardware, service, or setting is absent. When a timeout, permission, or unavailable label appears, it is derived from system_profiler diagnostic text for the scan and may not identify an individual data type. Otherwise the app records the section as skipped rather than assigning a cause without evidence.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+
+                if !standardError.isEmpty {
+                    Section("system_profiler diagnostic output") {
+                        Text(standardError)
+                            .font(.caption.monospaced())
+                            .textSelection(.enabled)
+                    }
+                }
+            }
+
+            Divider()
+
+            HStack {
+                Spacer()
+                Button("Done", action: dismiss.callAsFunction)
+                    .keyboardShortcut(.defaultAction)
+            }
+            .padding(14)
+        }
+        .frame(minWidth: 580, minHeight: 460)
+        .accessibilityIdentifier("skipped-collection-sheet")
     }
 }
 
@@ -468,6 +747,8 @@ private struct FindingControls: View {
     @Binding var searchText: String
     @Binding var selectedFilter: FindingFilter
     let isSearching: Bool
+    let recentSearches: [String]
+    let applyRecentSearch: (String) -> Void
 
     var body: some View {
         HStack(spacing: 12) {
@@ -504,6 +785,22 @@ private struct FindingControls: View {
                     .stroke(Color(nsColor: .separatorColor).opacity(0.55), lineWidth: 1)
             }
 
+            Menu {
+                if recentSearches.isEmpty {
+                    Text("Recent searches appear here.")
+                } else {
+                    ForEach(recentSearches, id: \.self) { search in
+                        Button(search) {
+                            applyRecentSearch(search)
+                        }
+                    }
+                }
+            } label: {
+                Label("Recent", systemImage: "clock.arrow.circlepath")
+            }
+            .menuStyle(.borderlessButton)
+            .accessibilityIdentifier("recent-finding-searches")
+
             Picker("Finding filter", selection: $selectedFilter) {
                 ForEach(FindingFilter.allCases) { filter in
                     Label(filter.title, systemImage: filter.symbolName)
@@ -514,6 +811,44 @@ private struct FindingControls: View {
             .frame(width: 330)
             .accessibilityIdentifier("finding-filter")
         }
+    }
+}
+
+private struct FindingBookmarkBar: View {
+    let bookmarkCount: Int
+    let bookmarkedSourcePaths: Set<String>
+    let openSourceLocation: (String) -> Void
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Label(
+                "\(bookmarkCount) \(bookmarkCount == 1 ? "bookmark" : "bookmarks")",
+                systemImage: bookmarkCount == 0 ? "bookmark" : "bookmark.fill"
+            )
+            .font(.subheadline.weight(.medium))
+            .foregroundStyle(bookmarkCount == 0 ? .secondary : Color.accentColor)
+
+            Text("Bookmark a finding to include it in a System Review Summary.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+
+            Spacer()
+
+            if !bookmarkedSourcePaths.isEmpty {
+                Menu("Open Bookmark") {
+                    ForEach(bookmarkedSourcePaths.sorted(), id: \.self) { sourcePath in
+                        Button(sourcePath) {
+                            openSourceLocation(sourcePath)
+                        }
+                    }
+                }
+                .accessibilityIdentifier("open-bookmarked-finding")
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 9)
+        .background(Color.accentColor.opacity(0.055), in: RoundedRectangle(cornerRadius: 10))
+        .accessibilityIdentifier("finding-bookmarks")
     }
 }
 
@@ -543,6 +878,10 @@ private struct ProfileSectionView: View {
     let section: SystemProfilerSection
     let queryResult: ReportQueryResult
     let automaticallyExpandResults: Bool
+    let bookmarkedSourcePaths: Set<String>
+    let toggleBookmark: (String) -> Void
+    let openSourceLocation: (String) -> Void
+    let highlightedSourcePath: String?
 
     @State private var visibleRecordLimit: Int = recordPageSize
 
@@ -558,6 +897,7 @@ private struct ProfileSectionView: View {
                 HStack {
                     Text(dataTypeTitle(section.dataType))
                         .font(.title3.weight(.semibold))
+                    FindingCountBadge(count: queryResult.findingCount(for: section.dataType))
                     Spacer()
                     Text(recordDescription(selection: selection))
                         .font(.caption)
@@ -573,7 +913,11 @@ private struct ProfileSectionView: View {
                             dataType: section.dataType,
                             path: [],
                             query: queryResult.query,
-                            automaticallyExpandResults: automaticallyExpandResults
+                            automaticallyExpandResults: automaticallyExpandResults,
+                            bookmarkedSourcePaths: bookmarkedSourcePaths,
+                            toggleBookmark: toggleBookmark,
+                            openSourceLocation: openSourceLocation,
+                            highlightedSourcePath: highlightedSourcePath
                         )
 
                         if record.id != visibleRecords.last?.id {
@@ -632,6 +976,20 @@ private struct ProfileSectionView: View {
     }
 }
 
+private struct FindingCountBadge: View {
+    let count: Int
+
+    var body: some View {
+        Text("\(count.formatted()) findings")
+            .font(.caption.weight(.medium).monospacedDigit())
+            .foregroundStyle(Color.accentColor)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(Color.accentColor.opacity(0.11), in: Capsule())
+            .accessibilityLabel("\(count) findings in this section")
+    }
+}
+
 private struct ProfileValueDisclosure: View {
     let label: String
     let value: ProfileValue
@@ -640,6 +998,10 @@ private struct ProfileValueDisclosure: View {
     let path: [String]
     let query: FindingQuery
     let automaticallyExpandResults: Bool
+    let bookmarkedSourcePaths: Set<String>
+    let toggleBookmark: (String) -> Void
+    let openSourceLocation: (String) -> Void
+    let highlightedSourcePath: String?
 
     @State private var isManuallyExpanded: Bool = false
 
@@ -657,13 +1019,17 @@ private struct ProfileValueDisclosure: View {
                             dataType: dataType,
                             path: path + [field.key],
                             query: descendantQuery,
-                            automaticallyExpandResults: automaticallyExpandResults
+                            automaticallyExpandResults: automaticallyExpandResults,
+                            bookmarkedSourcePaths: bookmarkedSourcePaths,
+                            toggleBookmark: toggleBookmark,
+                            openSourceLocation: openSourceLocation,
+                            highlightedSourcePath: highlightedSourcePath
                         )
                     }
                 }
                 .padding(.top, 6)
             } label: {
-                ProfileGroupLabel(label: label, count: fields.count, depth: depth)
+                ProfileGroupLabel(label: friendlyReportGroupName(label), count: fields.count, depth: depth)
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 11)
@@ -680,47 +1046,53 @@ private struct ProfileValueDisclosure: View {
                             dataType: dataType,
                             path: path + ["[]"],
                             query: descendantQuery,
-                            automaticallyExpandResults: automaticallyExpandResults
+                            automaticallyExpandResults: automaticallyExpandResults,
+                            bookmarkedSourcePaths: bookmarkedSourcePaths,
+                            toggleBookmark: toggleBookmark,
+                            openSourceLocation: openSourceLocation,
+                            highlightedSourcePath: highlightedSourcePath
                         )
                     }
                 }
                 .padding(.top, 6)
             } label: {
-                ProfileGroupLabel(label: label, count: items.count, depth: depth)
+                ProfileGroupLabel(label: friendlyReportGroupName(label), count: items.count, depth: depth)
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 11)
 
         case let .string(value):
-            ScalarProfileRow(
-                presentation: fieldPresentation(dataType: dataType, path: path, scalar: .string(value)),
-                depth: depth
-            )
+            scalarRow(scalar: .string(value))
         case let .integer(value):
-            ScalarProfileRow(
-                presentation: fieldPresentation(dataType: dataType, path: path, scalar: .integer(value)),
-                depth: depth
-            )
+            scalarRow(scalar: .integer(value))
         case let .decimal(value):
-            ScalarProfileRow(
-                presentation: fieldPresentation(dataType: dataType, path: path, scalar: .decimal(value)),
-                depth: depth
-            )
+            scalarRow(scalar: .decimal(value))
         case let .boolean(value):
-            ScalarProfileRow(
-                presentation: fieldPresentation(dataType: dataType, path: path, scalar: .boolean(value)),
-                depth: depth
-            )
+            scalarRow(scalar: .boolean(value))
         case .null:
-            ScalarProfileRow(
-                presentation: fieldPresentation(dataType: dataType, path: path, scalar: .null),
-                depth: depth
-            )
+            scalarRow(scalar: .null)
         }
     }
 
     private var descendantQuery: FindingQuery {
         queryForDescendants(parentLabel: label, query: query)
+    }
+
+    private func scalarRow(scalar: ProfileScalar) -> ScalarProfileRow {
+        let presentation: FieldPresentation = fieldPresentation(
+            dataType: dataType,
+            path: path,
+            scalar: scalar
+        )
+
+        return ScalarProfileRow(
+            presentation: presentation,
+            depth: depth,
+            isBookmarked: bookmarkedSourcePaths.contains(presentation.sourcePath),
+            toggleBookmark: toggleBookmark,
+            openSourceLocation: openSourceLocation,
+            isHighlighted: highlightedSourcePath == presentation.sourcePath
+        )
     }
 
     private var expansionBinding: Binding<Bool> {
@@ -781,6 +1153,10 @@ private struct ProfileFieldRow: View {
     let path: [String]
     let query: FindingQuery
     let automaticallyExpandResults: Bool
+    let bookmarkedSourcePaths: Set<String>
+    let toggleBookmark: (String) -> Void
+    let openSourceLocation: (String) -> Void
+    let highlightedSourcePath: String?
 
     var body: some View {
         ProfileValueDisclosure(
@@ -790,7 +1166,11 @@ private struct ProfileFieldRow: View {
             dataType: dataType,
             path: path,
             query: query,
-            automaticallyExpandResults: automaticallyExpandResults
+            automaticallyExpandResults: automaticallyExpandResults,
+            bookmarkedSourcePaths: bookmarkedSourcePaths,
+            toggleBookmark: toggleBookmark,
+            openSourceLocation: openSourceLocation,
+            highlightedSourcePath: highlightedSourcePath
         )
 
         if shouldShowDivider(after: value) {
@@ -823,39 +1203,90 @@ private struct ProfileGroupLabel: View {
 private struct ScalarProfileRow: View {
     let presentation: FieldPresentation
     let depth: Int
+    let isBookmarked: Bool
+    let toggleBookmark: (String) -> Void
+    let openSourceLocation: (String) -> Void
+    let isHighlighted: Bool
 
     var body: some View {
         DisclosureGroup {
-            if let explanation = presentation.explanation {
-                FieldExplanationView(presentation: presentation, explanation: explanation)
+            if presentation.isLogContent {
+                DiagnosticLogView(presentation: presentation, openSourceLocation: openSourceLocation)
+            } else if let explanation = presentation.explanation {
+                FieldExplanationView(
+                    presentation: presentation,
+                    explanation: explanation,
+                    openSourceLocation: openSourceLocation
+                )
             } else {
-                MissingExplanationView(presentation: presentation)
+                MissingExplanationView(
+                    presentation: presentation,
+                    openSourceLocation: openSourceLocation
+                )
             }
         } label: {
-            HStack(alignment: .firstTextBaseline, spacing: 20) {
-                Text(presentation.title)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: 280, alignment: .leading)
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(presentation.title)
+                        .foregroundStyle(.secondary)
+                    ExplanationCoverageBadge(coverage: explanationCoverage(for: presentation))
+                }
+                .frame(maxWidth: 280, alignment: .leading)
+
                 Spacer(minLength: 12)
-                Text(presentation.displayedValue)
+
+                Text(presentation.isLogContent ? "Log excerpt • expand to review" : presentation.displayedValue)
                     .font(.body.monospaced())
                     .textSelection(.enabled)
                     .multilineTextAlignment(.trailing)
+
+                Button {
+                    toggleBookmark(presentation.sourcePath)
+                } label: {
+                    Image(systemName: isBookmarked ? "bookmark.fill" : "bookmark")
+                }
+                .buttonStyle(.borderless)
+                .foregroundStyle(isBookmarked ? Color.accentColor : .secondary)
+                .accessibilityLabel(isBookmarked ? "Remove bookmark" : "Bookmark finding")
+                .accessibilityIdentifier("bookmark-\(presentation.sourcePath)")
             }
         }
         .padding(.leading, CGFloat(depth * 14))
         .padding(.horizontal, 14)
         .padding(.vertical, 9)
+        .background(isHighlighted ? Color.accentColor.opacity(0.14) : Color.clear, in: RoundedRectangle(cornerRadius: 9))
         .accessibilityIdentifier("finding-\(presentation.sourcePath)")
+    }
+}
+
+private struct ExplanationCoverageBadge: View {
+    let coverage: ExplanationCoverage
+
+    var body: some View {
+        Label(coverage.title, systemImage: coverage.symbolName)
+            .font(.caption2.weight(.medium))
+            .foregroundStyle(coverageColor)
+            .lineLimit(1)
+    }
+
+    private var coverageColor: Color {
+        switch coverage {
+        case .curatedField: .blue
+        case .generalDataTypeContext: .blue
+        case .unrecognizedField: .secondary
+        }
     }
 }
 
 private struct FieldExplanationView: View {
     let presentation: FieldPresentation
     let explanation: FieldExplanation
+    let openSourceLocation: (String) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
+            ExplanationCoverageDetail(coverage: explanationCoverage(for: presentation))
+
             ExplanationSection(
                 title: "What it means",
                 symbolName: "text.book.closed",
@@ -892,10 +1323,37 @@ private struct FieldExplanationView: View {
             .font(.caption)
             .foregroundStyle(.secondary)
             .textSelection(.enabled)
+
+            Button {
+                openSourceLocation(presentation.sourcePath)
+            } label: {
+                Label("Show Raw Source Location", systemImage: "arrow.turn.down.right")
+            }
+            .buttonStyle(.bordered)
+            .accessibilityIdentifier("open-raw-source-\(presentation.sourcePath)")
         }
         .padding(14)
         .background(Color.accentColor.opacity(0.055), in: RoundedRectangle(cornerRadius: 11))
         .padding(.top, 8)
+    }
+}
+
+private struct ExplanationCoverageDetail: View {
+    let coverage: ExplanationCoverage
+
+    var body: some View {
+        HStack(spacing: 7) {
+            Image(systemName: coverage.symbolName)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(coverage.title)
+                    .font(.caption.weight(.semibold))
+                Text(coverage.detail)
+                    .font(.caption2)
+            }
+        }
+        .foregroundStyle(.secondary)
+        .padding(9)
+        .background(.quaternary.opacity(0.55), in: RoundedRectangle(cornerRadius: 8))
     }
 }
 
@@ -920,10 +1378,11 @@ private struct ExplanationSection: View {
 
 private struct MissingExplanationView: View {
     let presentation: FieldPresentation
+    let openSourceLocation: (String) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Label("No curated explanation yet", systemImage: "questionmark.circle")
+            Label("Unrecognized field", systemImage: "questionmark.circle")
                 .font(.subheadline.weight(.semibold))
             Text("The value is preserved exactly as system_profiler reported it. The app does not infer a meaning for an unrecognized field.")
                 .font(.callout)
@@ -932,6 +1391,13 @@ private struct MissingExplanationView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .textSelection(.enabled)
+
+            Button {
+                openSourceLocation(presentation.sourcePath)
+            } label: {
+                Label("Show Raw Source Location", systemImage: "arrow.turn.down.right")
+            }
+            .buttonStyle(.bordered)
         }
         .padding(14)
         .background(.quaternary.opacity(0.45), in: RoundedRectangle(cornerRadius: 11))

@@ -45,7 +45,9 @@ System Profiler Explorer is a native SwiftUI application that runs Apple’s rea
 
 The app can scan this Mac directly or import an existing raw JSON report. Processing stays on the Mac: there is no account, analytics SDK, cloud service, or network upload.
 
-### Release highlights
+### Current source features
+
+The features below describe the current source on `main`. The downloadable v0.1.1 release predates the collection-health, comparison dashboard, snapshot, review-summary, and diagnostic-log improvements; build from source to use them until a newer release is published.
 
 - All 50 `system_profiler` data types represented by the app’s current macOS toolchain
 - Eight readable subject tabs: Overview, Hardware, Storage, Network, Software, Security, Power, and Reports
@@ -54,6 +56,13 @@ The app can scan this Mac directly or import an existing raw JSON report. Proces
 - Search across names, values, fields, and explanations
 - Precomputed report indexing and debounced, cancellable search for large inventories
 - Explained-only and privacy-sensitive filters
+- Section and subject finding badges, recent-search history, source-location links, and persistent bookmarks
+- First-class **What Changed?** workspace for saved-report comparison, with added/removed/changed cards, evidence-ranked review groups, and plain-language difference explanations
+- **Highlights** workspace for bounded cross-section context: startup disk/encryption, interfaces/network configuration, management profiles, and battery/power settings
+- Local named snapshot history with timestamps, full/redacted storage choices, retention controls, and one-click baseline comparison
+- A focused Markdown or PDF System Review Summary built from bookmarked findings; raw JSON remains a separate export
+- Visible explanation-coverage labels: curated explanation, general data-type context, or unrecognized field
+- Compact diagnostic-log rows, background AVE/HEVC pattern summaries, and paged original text with explicit interpretation limits
 - Local JSON import, redacted or full export, and saved-report comparison
 - Responsive 100-record paging for large software and full-system sections
 - Universal application bundle for Apple silicon and Intel Macs
@@ -80,7 +89,9 @@ Each recognized finding separates meaning, significance, interpretation limits, 
 
 ## Coverage
 
-The focused tabs organize commonly reviewed findings by subject. Reports is the exhaustive view: it requests every supported data type, preserves sections even when the Mac returns no records, and displays collection coverage and errors rather than silently treating missing data as absence.
+The focused tabs organize commonly reviewed findings by subject. Reports is the exhaustive view: it requests every supported data type, preserves sections even when the Mac returns no records, and displays collection coverage rather than silently treating missing data as absence. The separate **Highlights** and **What Changed?** workspaces analyze an already collected report; neither launches a hidden scan nor merges data from different collection times.
+
+For every live scan, each requested data type is marked as **Collected**, **No records**, **Skipped**, **Unavailable**, **Timed out**, or **Permission-limited**. **No records** means `system_profiler` returned an empty section. **Unavailable**, **Timed out**, and **Permission-limited** are shown only when matching diagnostic text supports that scan-level label; otherwise the app records a missing JSON section as **Skipped** instead of guessing a cause. Use **View Incomplete Collection** in the Collection coverage card to inspect every incomplete data type and the diagnostic output from `system_profiler`. Imported JSON does not preserve its original command scope, so it reports only the data types present in that source file.
 
 | Tab | Purpose |
 | --- | --- |
@@ -115,7 +126,7 @@ Live scan on this Mac                     Existing JSON report
               │                             │
               └──────────────┬──────────────┘
                              ▼
-                 Search, export, and compare
+       Search, bookmark, snapshot, export, and compare
 ```
 
 The parser preserves structured values instead of flattening away their source context. Exact field explanations are used where the schema is known; careful data-type context is used for changing or hardware-specific schemas. Unknown fields remain visible and are labeled as unrecognized rather than assigned an invented meaning.
@@ -172,7 +183,33 @@ Open System Profiler Explorer, choose **Import JSON…**, and select the file. T
 
 ### Search and filter
 
-Search matches displayed values, source fields, record names, and explanation text. Use **Explained** to focus on interpreted fields or **Privacy** to review values that deserve care before sharing.
+Search matches displayed values, source fields, record names, and explanation text. Use **Explained** to focus on interpreted fields or **Privacy** to review values that deserve care before sharing. The recent-search menu keeps the last eight searched terms. Section headings and subject tabs show finding counts, making large reports easier to triage.
+
+### Bookmark and trace a finding
+
+Use the bookmark button beside a finding to include it in a focused review. **Open Bookmark** takes you directly back to a saved source field, while **Show Raw Source Location** filters to and highlights the underlying `system_profiler` field. Array-shaped paths use `[]` to identify the raw field schema; record context remains visible in the surrounding disclosure.
+
+Every finding also labels the scope of its explanation:
+
+- **Curated explanation** is a maintained field-specific entry in the app’s catalog.
+- **General data-type context** is careful context for an evolving or hardware-specific section, rather than a claim that Apple’s exact field schema is known.
+- **Unrecognized field** preserves the reported value without an invented interpretation.
+
+### Understand diagnostic logs
+
+Expand **Diagnostic Log Contents** to review recognized AVE/HEVC encoder patterns. The summary separates observed log counts and process labels from possible image-processing explanations and facts the excerpt cannot establish. Process labels are not signature verification; encoding does not by itself establish recording or transmission. Explanation badges describe coverage, not a safety verdict.
+
+Analysis is limited to the first two million characters and explicitly labels partial results. **View original log text** preserves the entire field in 12,000-character pages. Unsupported patterns remain available without an invented diagnosis. Logs can include private paths and attachment names; review them before sharing.
+
+### Save a local snapshot
+
+Choose **Snapshots** in any collected report to save a named baseline. A **Full values** snapshot stays local and enables one-click comparison with the currently open report. A **Redacted values** snapshot replaces scalar values before storage and is intentionally not comparable. Choose a retention policy of 5, 10, 25, or all snapshots; the app removes the oldest local snapshots beyond that limit.
+
+Snapshots are stored under this Mac’s Application Support directory, never in the repository or a cloud account. Treat full snapshots as sensitive system inventory.
+
+### Review Highlights
+
+Choose **Highlights** to inspect relationships inside one collected report. The app can connect startup-disk fields with FileVault/encryption fields, interfaces with VPN/proxy/DNS configuration, profiles with management indicators, and battery-health fields with power settings. Every card exposes its raw source fields and an interpretation limit. A configured VPN, profile, or encryption field is configuration evidence; it does not prove traffic, control, user activity, or compromise.
 
 ### Export and compare
 
@@ -182,6 +219,10 @@ The export review offers two explicit choices:
 - **Full private report** preserves exact values and metadata for private analysis and future comparison.
 
 A current scan can be compared with a compatible full report created from the same subject or full-report scope. Named records are matched independently of order; unnamed records and array elements are matched by position. Added, removed, and changed values identify structured differences, not their cause or security impact.
+
+The **What Changed?** tab makes this comparison a primary workspace. It accepts a full private saved report, then presents clear added, removed, and changed totals. Differences are grouped as **Review First**, **Worth Reviewing**, or **Informational** to guide triage—not to assign a threat level. Expand a difference for its baseline/current values, raw source location, and a plain-language explanation grounded in the app’s explanation catalog.
+
+For a polished, focused document, bookmark the findings to include and choose **Review Summary**. The app exports Markdown or PDF containing only those selected findings, their source locations and explanation-coverage labels, collection limits (including skipped sections), and an explicit privacy warning. It never folds raw JSON into this summary; use **Export Report** separately when raw evidence is required.
 
 ## Build from source
 

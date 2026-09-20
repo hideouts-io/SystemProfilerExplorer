@@ -10,6 +10,11 @@ struct ReportPresentationIndex: Sendable, Equatable {
             return ReportQueryResult(
                 query: query,
                 findingCount: summary.findingCount,
+                findingCountsByDataType: Dictionary(
+                    uniqueKeysWithValues: sections.map { section in
+                        (section.dataType, section.findingCount)
+                    }
+                ),
                 matchingRecordIndices: Dictionary(
                     uniqueKeysWithValues: sections.map { section in
                         (section.dataType, section.records.map(\.index))
@@ -20,10 +25,12 @@ struct ReportPresentationIndex: Sendable, Equatable {
 
         var findingCount: Int = 0
         var matchingRecordIndices: [SystemProfilerDataType: [Int]] = [:]
+        var findingCountsByDataType: [SystemProfilerDataType: Int] = [:]
         var inspectedFindingCount: Int = 0
 
         for section in sections {
             var recordIndices: [Int] = []
+            var sectionFindingCount: Int = 0
 
             for record in section.records {
                 var recordFindingCount: Int = 0
@@ -52,14 +59,17 @@ struct ReportPresentationIndex: Sendable, Equatable {
 
                 recordIndices.append(record.index)
                 findingCount += recordFindingCount
+                sectionFindingCount += recordFindingCount
             }
 
             matchingRecordIndices[section.dataType] = recordIndices
+            findingCountsByDataType[section.dataType] = sectionFindingCount
         }
 
         return ReportQueryResult(
             query: query,
             findingCount: findingCount,
+            findingCountsByDataType: findingCountsByDataType,
             matchingRecordIndices: matchingRecordIndices
         )
     }
@@ -68,6 +78,7 @@ struct ReportPresentationIndex: Sendable, Equatable {
 struct ReportQueryResult: Sendable, Equatable {
     let query: FindingQuery
     let findingCount: Int
+    fileprivate let findingCountsByDataType: [SystemProfilerDataType: Int]
     fileprivate let matchingRecordIndices: [SystemProfilerDataType: [Int]]
 
     func recordSelection(
@@ -82,6 +93,10 @@ struct ReportQueryResult: Sendable, Equatable {
             visibleIndices: Array(indices.prefix(visibleLimit)),
             matchingCount: indices.count
         )
+    }
+
+    func findingCount(for dataType: SystemProfilerDataType) -> Int {
+        findingCountsByDataType[dataType] ?? 0
     }
 }
 
@@ -120,7 +135,11 @@ func makeReportPresentationIndex(_ report: SystemProfilerReport) throws -> Repor
         }
 
         indexedSections.append(
-            IndexedReportSection(dataType: section.dataType, records: indexedRecords)
+            IndexedReportSection(
+                dataType: section.dataType,
+                records: indexedRecords,
+                findingCount: indexedRecords.reduce(0) { $0 + $1.findings.count }
+            )
         )
     }
 
@@ -139,6 +158,7 @@ func makeReportPresentationIndex(_ report: SystemProfilerReport) throws -> Repor
 fileprivate struct IndexedReportSection: Sendable, Equatable {
     let dataType: SystemProfilerDataType
     let records: [IndexedReportRecord]
+    let findingCount: Int
 }
 
 fileprivate struct IndexedReportRecord: Sendable, Equatable {

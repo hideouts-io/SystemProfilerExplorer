@@ -2,8 +2,6 @@ import Foundation
 
 enum SystemProfilerParsingError: LocalizedError, Equatable {
     case invalidJSON(reason: String)
-    case emptyDocument
-    case missingDataType(identifier: String)
     case noSupportedDataTypes
     case invalidDataTypeSection(identifier: String)
 
@@ -11,10 +9,6 @@ enum SystemProfilerParsingError: LocalizedError, Equatable {
         switch self {
         case let .invalidJSON(reason):
             "system_profiler returned JSON that could not be decoded. \(reason)"
-        case .emptyDocument:
-            "system_profiler returned a JSON document without any data-type sections."
-        case let .missingDataType(identifier):
-            "system_profiler did not return the required \(identifier) section."
         case .noSupportedDataTypes:
             "The JSON document does not contain a supported system_profiler data-type section. Select JSON created by system_profiler with the -json option."
         case let .invalidDataTypeSection(identifier):
@@ -27,13 +21,9 @@ struct SystemProfilerParser: Sendable {
     func parse(_ execution: SystemProfilerExecution) throws -> SystemProfilerReport {
         let payload: SystemProfilerPayload = try decodePayload(execution.standardOutput)
 
-        guard !payload.sections.isEmpty else {
-            throw SystemProfilerParsingError.emptyDocument
-        }
-
-        let sections: [SystemProfilerSection] = try execution.request.dataTypes.map { dataType in
+        let sections: [SystemProfilerSection] = execution.request.dataTypes.compactMap { dataType in
             guard let items = payload.sections[dataType.rawValue] else {
-                throw SystemProfilerParsingError.missingDataType(identifier: dataType.rawValue)
+                return nil
             }
 
             return SystemProfilerSection(dataType: dataType, items: items)

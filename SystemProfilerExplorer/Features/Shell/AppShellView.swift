@@ -5,8 +5,9 @@ struct AppShellView: View {
     private let collector: any SystemProfilerCollecting
     private let parser: SystemProfilerParser
 
-    @State private var selectedSubject: ProfilerSubject = .overview
+    @State private var selectedWorkspace: AppWorkspace = .subject(.overview)
     @State private var reports: [ProfilerSubject: SystemProfilerReport] = [:]
+    @State private var collectionHealth: [ProfilerSubject: CollectionAttemptHealth] = [:]
     @State private var scanState: ScanState = .idle
     @State private var scanTask: Task<Void, Never>?
     @State private var isShowingRawReportImporter: Bool = false
@@ -21,25 +22,20 @@ struct AppShellView: View {
             AppHeader(
                 scanState: scanState,
                 selectedSubject: selectedSubject,
-                canScan: scanConfiguration(for: selectedSubject) != nil,
+                canScan: selectedSubject.flatMap(scanConfiguration(for:)) != nil,
                 canImport: selectedSubject == .reports,
                 startScan: startScan,
                 importReport: showRawReportImporter,
                 cancelScan: cancelScan
             )
             Divider()
-            SubjectTabBar(
-                selectedSubject: $selectedSubject,
-                scannedSubjects: Set(reports.keys)
+            WorkspaceTabBar(
+                selectedWorkspace: $selectedWorkspace,
+                reports: reports,
+                collectionHealth: collectionHealth
             )
             Divider()
-            SubjectWorkspace(
-                subject: selectedSubject,
-                report: reports[selectedSubject],
-                scanState: scanState,
-                startScan: startScan,
-                importReport: showRawReportImporter
-            )
+            workspaceContent
         }
         .background(Color(nsColor: .windowBackgroundColor))
         .fileImporter(
@@ -51,14 +47,14 @@ struct AppShellView: View {
     }
 
     private func startScan() {
-        let subject: ProfilerSubject = selectedSubject
-
-        guard let configuration = scanConfiguration(for: subject) else {
+        guard case let .subject(subject) = selectedWorkspace,
+              let configuration = scanConfiguration(for: subject) else {
             return
         }
 
         scanTask?.cancel()
         scanState = .running(subject: subject)
+        collectionHealth[subject] = .running
 
         scanTask = Task {
             do {
@@ -68,19 +64,25 @@ struct AppShellView: View {
 
                 reports[subject] = report
                 scanState = .completed(subject: subject, date: report.completedAt)
+                collectionHealth[subject] = .completed
             } catch is CancellationError {
                 scanState = .cancelled(subject: subject)
+                collectionHealth[subject] = .notCollected
             } catch let error as SystemProfilerRequestError {
                 scanState = .failed(subject: subject, message: error.localizedDescription)
+                collectionHealth[subject] = .failed
             } catch let error as SystemProfilerCollectorError {
                 scanState = .failed(subject: subject, message: error.localizedDescription)
+                collectionHealth[subject] = collectionAttemptHealth(for: error)
             } catch let error as SystemProfilerParsingError {
                 scanState = .failed(subject: subject, message: error.localizedDescription)
+                collectionHealth[subject] = .failed
             } catch {
                 scanState = .failed(
                     subject: subject,
                     message: "The scan failed with an unexpected error: \(String(reflecting: error))"
                 )
+                collectionHealth[subject] = .failed
             }
 
             scanTask = nil
@@ -106,6 +108,7 @@ struct AppShellView: View {
                     subject: .reports,
                     message: "Expected one system_profiler JSON file, but the picker returned \(urls.count)."
                 )
+                collectionHealth[.reports] = .failed
                 return
             }
 
@@ -123,6 +126,7 @@ struct AppShellView: View {
                 subject: .reports,
                 message: "The report picker failed. \(String(reflecting: error))"
             )
+            collectionHealth[.reports] = .failed
         }
     }
 
@@ -130,8 +134,9 @@ struct AppShellView: View {
         let reportParser: SystemProfilerParser = parser
 
         scanTask?.cancel()
-        selectedSubject = .reports
+        selectedWorkspace = .subject(.reports)
         scanState = .importing(subject: .reports)
+        collectionHealth[.reports] = .running
 
         scanTask = Task {
             do {
@@ -143,23 +148,59 @@ struct AppShellView: View {
                 try Task.checkCancellation()
                 reports[.reports] = report
                 scanState = .completed(subject: .reports, date: report.completedAt)
+                collectionHealth[.reports] = .imported
             } catch is CancellationError {
                 scanState = .cancelled(subject: .reports)
+                collectionHealth[.reports] = .notCollected
             } catch let error as SystemProfilerParsingError {
                 scanState = .failed(subject: .reports, message: error.localizedDescription)
+                collectionHealth[.reports] = .failed
             } catch let error as CocoaError {
                 scanState = .failed(
                     subject: .reports,
                     message: "The selected report could not be read. \(error.localizedDescription)"
                 )
+                collectionHealth[.reports] = .failed
             } catch {
                 scanState = .failed(
                     subject: .reports,
                     message: "The selected report could not be imported. \(String(reflecting: error))"
                 )
+                collectionHealth[.reports] = .failed
             }
 
             scanTask = nil
+        }
+    }
+
+    private var selectedSubject: ProfilerSubject? {
+        guard case let .subject(subject) = selectedWorkspace else {
+            return nil
+        }
+
+        return subject
+    }
+
+    @ViewBuilder
+    private var workspaceContent: some View {
+        switch selectedWorkspace {
+        case let .subject(subject):
+            SubjectWorkspace(
+                subject: subject,
+                report: reports[subject],
+                scanState: scanState,
+                collectionHealth: collectionHealth[subject] ?? .notCollected,
+                startScan: startScan,
+                importReport: showRawReportImporter
+            )
+        case .highlights:
+            WorkspaceScrollContainer {
+                SystemHighlightsWorkspaceView(reports: reports)
+            }
+        case .changes:
+            WorkspaceScrollContainer {
+                WhatChangedDashboardView(reports: reports)
+            }
         }
     }
 }
@@ -177,7 +218,7 @@ private func readSecurityScopedData(_ url: URL) throws -> Data {
 
 private struct AppHeader: View {
     let scanState: ScanState
-    let selectedSubject: ProfilerSubject
+    let selectedSubject: ProfilerSubject?
     let canScan: Bool
     let canImport: Bool
     let startScan: () -> Void
@@ -222,7 +263,7 @@ private struct AppHeader: View {
                     .accessibilityIdentifier("import-raw-report")
                 }
 
-                if canScan {
+                if canScan, let selectedSubject {
                     Button(action: startScan) {
                         Label("Scan \(selectedSubject.title)", systemImage: "play.fill")
                     }
@@ -244,9 +285,10 @@ private struct AppHeader: View {
     }
 }
 
-private struct SubjectTabBar: View {
-    @Binding var selectedSubject: ProfilerSubject
-    let scannedSubjects: Set<ProfilerSubject>
+private struct WorkspaceTabBar: View {
+    @Binding var selectedWorkspace: AppWorkspace
+    let reports: [ProfilerSubject: SystemProfilerReport]
+    let collectionHealth: [ProfilerSubject: CollectionAttemptHealth]
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
@@ -254,11 +296,26 @@ private struct SubjectTabBar: View {
                 ForEach(ProfilerSubject.allCases) { subject in
                     SubjectTab(
                         subject: subject,
-                        isSelected: selectedSubject == subject,
-                        hasReport: scannedSubjects.contains(subject),
-                        select: { selectedSubject = subject }
+                        isSelected: selectedWorkspace == .subject(subject),
+                        report: reports[subject],
+                        collectionHealth: collectionHealth[subject] ?? .notCollected,
+                        select: { selectedWorkspace = .subject(subject) }
                     )
                 }
+
+                Divider()
+                    .frame(height: 22)
+
+                WorkspaceTab(
+                    workspace: .highlights,
+                    isSelected: selectedWorkspace == .highlights,
+                    select: { selectedWorkspace = .highlights }
+                )
+                WorkspaceTab(
+                    workspace: .changes,
+                    isSelected: selectedWorkspace == .changes,
+                    select: { selectedWorkspace = .changes }
+                )
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 9)
@@ -270,7 +327,8 @@ private struct SubjectTabBar: View {
 private struct SubjectTab: View {
     let subject: ProfilerSubject
     let isSelected: Bool
-    let hasReport: Bool
+    let report: SystemProfilerReport?
+    let collectionHealth: CollectionAttemptHealth
     let select: () -> Void
 
     var body: some View {
@@ -278,11 +336,24 @@ private struct SubjectTab: View {
             HStack(spacing: 6) {
                 Label(subject.title, systemImage: subject.symbolName)
 
-                if hasReport {
+                if let report {
+                    Text(reportSummary(report).findingCount.formatted())
+                        .font(.caption2.weight(.semibold).monospacedDigit())
+                        .foregroundStyle(isSelected ? Color.accentColor : .secondary)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 2)
+                        .background(.quaternary, in: Capsule())
+                        .accessibilityLabel("\(reportSummary(report).findingCount) findings")
+
                     Image(systemName: "checkmark.circle.fill")
                         .font(.caption2)
                         .foregroundStyle(.green)
                         .accessibilityLabel("Scan available")
+                } else if collectionHealth != .notCollected {
+                    Image(systemName: collectionHealth.symbolName)
+                        .font(.caption2)
+                        .foregroundStyle(collectionHealthTint)
+                        .accessibilityLabel(collectionHealth.title)
                 }
             }
                 .font(.subheadline.weight(isSelected ? .semibold : .medium))
@@ -300,12 +371,43 @@ private struct SubjectTab: View {
     private var tabBackground: some ShapeStyle {
         isSelected ? Color.accentColor.opacity(0.14) : Color.clear
     }
+
+    private var collectionHealthTint: Color {
+        switch collectionHealth {
+        case .completed, .imported: .green
+        case .running: .secondary
+        case .timedOut, .permissionLimited, .unavailable, .failed: .orange
+        case .notCollected: .secondary
+        }
+    }
+}
+
+private struct WorkspaceTab: View {
+    let workspace: AppWorkspace
+    let isSelected: Bool
+    let select: () -> Void
+
+    var body: some View {
+        Button(action: select) {
+            Label(workspace.title, systemImage: workspace.symbolName)
+                .font(.subheadline.weight(isSelected ? .semibold : .medium))
+                .foregroundStyle(isSelected ? Color.accentColor : Color.primary)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(isSelected ? Color.accentColor.opacity(0.14) : Color.clear)
+                .contentShape(RoundedRectangle(cornerRadius: 9))
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("workspace-tab-\(workspace.id)")
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
 }
 
 private struct SubjectWorkspace: View {
     let subject: ProfilerSubject
     let report: SystemProfilerReport?
     let scanState: ScanState
+    let collectionHealth: CollectionAttemptHealth
     let startScan: () -> Void
     let importReport: () -> Void
 
@@ -317,7 +419,11 @@ private struct SubjectWorkspace: View {
                 if isScanning(subject, scanState: scanState) {
                     ScanningCard(subject: subject, scanState: scanState)
                 } else if let failureMessage = failureMessage(subject, scanState: scanState) {
-                    ScanFailureCard(message: failureMessage, retryScan: startScan)
+                    ScanFailureCard(
+                        message: failureMessage,
+                        collectionHealth: collectionHealth,
+                        retryScan: startScan
+                    )
                 } else if let report {
                     ProfileReportView(report: report)
                 } else {
@@ -335,6 +441,19 @@ private struct SubjectWorkspace: View {
             .frame(maxWidth: .infinity, alignment: .top)
         }
         .accessibilityIdentifier("subject-workspace-\(subject.rawValue)")
+    }
+}
+
+private struct WorkspaceScrollContainer<Content: View>: View {
+    @ViewBuilder let content: () -> Content
+
+    var body: some View {
+        ScrollView {
+            content()
+                .frame(maxWidth: 980, alignment: .leading)
+                .padding(32)
+                .frame(maxWidth: .infinity, alignment: .top)
+        }
     }
 }
 
@@ -467,6 +586,7 @@ private struct ScanningCard: View {
 
 private struct ScanFailureCard: View {
     let message: String
+    let collectionHealth: CollectionAttemptHealth
     let retryScan: () -> Void
 
     var body: some View {
@@ -474,6 +594,14 @@ private struct ScanFailureCard: View {
             Label("The scan could not be completed", systemImage: "exclamationmark.triangle.fill")
                 .font(.headline)
                 .foregroundStyle(.red)
+
+            Label(collectionHealth.title, systemImage: collectionHealth.symbolName)
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(.orange)
+
+            Text(collectionHealthDetail)
+                .font(.callout)
+                .foregroundStyle(.secondary)
 
             Text(message)
                 .foregroundStyle(.secondary)
@@ -488,6 +616,19 @@ private struct ScanFailureCard: View {
         .overlay {
             RoundedRectangle(cornerRadius: 14)
                 .stroke(Color.red.opacity(0.25), lineWidth: 1)
+        }
+    }
+
+    private var collectionHealthDetail: String {
+        switch collectionHealth {
+        case .timedOut:
+            "Collection reached its deadline and was terminated. No partial JSON report is presented as complete."
+        case .permissionLimited:
+            "The command reported a permission-related failure. This tab has no complete collection result."
+        case .unavailable:
+            "The requested collection did not return usable JSON. This does not prove the related hardware or service is absent."
+        case .failed, .notCollected, .running, .completed, .imported:
+            "This tab has no complete collection result. Review the error details before interpreting absent findings."
         }
     }
 }

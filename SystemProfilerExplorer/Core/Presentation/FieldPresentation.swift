@@ -19,11 +19,49 @@ enum ProfileScalar: Sendable, Equatable {
 }
 
 struct FieldPresentation: Sendable, Equatable {
+    let dataType: SystemProfilerDataType
     let title: String
     let displayedValue: String
     let rawValue: String
     let sourcePath: String
     let explanation: FieldExplanation?
+
+    var isLogContent: Bool {
+        (dataType == .logs || dataType == .syncServices) && sourcePath.hasSuffix(".contents")
+    }
+}
+
+enum ExplanationCoverage: String, Sendable, Equatable {
+    case curatedField
+    case generalDataTypeContext
+    case unrecognizedField
+
+    var title: String {
+        switch self {
+        case .curatedField: "Curated explanation"
+        case .generalDataTypeContext: "General data-type context"
+        case .unrecognizedField: "Unrecognized field"
+        }
+    }
+
+    var detail: String {
+        switch self {
+        case .curatedField:
+            "This field matches a maintained explanation in the app's catalog. This describes explanation coverage, not a safety verdict."
+        case .generalDataTypeContext:
+            "This explanation is general context for the reported data type; Apple can add or change individual fields."
+        case .unrecognizedField:
+            "The value is shown exactly as reported because this field is not recognized by the app's explanation catalog."
+        }
+    }
+
+    var symbolName: String {
+        switch self {
+        case .curatedField: "text.book.closed"
+        case .generalDataTypeContext: "text.book.closed"
+        case .unrecognizedField: "questionmark.circle"
+        }
+    }
 }
 
 func fieldPresentation(
@@ -40,16 +78,42 @@ func fieldPresentation(
     let finalKey: String = path.last(where: { $0 != "[]" }) ?? dataType.rawValue
 
     return FieldPresentation(
+        dataType: dataType,
         title: fieldExplanation?.title ?? displayName(for: finalKey),
-        displayedValue: formattedValue(scalar, path: path),
+        displayedValue: (dataType == .logs || dataType == .syncServices) && finalKey == "contents"
+            ? rawValue : formattedValue(scalar, path: path),
         rawValue: rawValue,
         sourcePath: ([dataType.rawValue] + path).joined(separator: "."),
         explanation: fieldExplanation
     )
 }
 
+func explanationCoverage(for presentation: FieldPresentation) -> ExplanationCoverage {
+    guard presentation.explanation != nil else {
+        return .unrecognizedField
+    }
+
+    switch presentation.dataType {
+    case .hardware, .storage, .power, .network, .ethernet, .wifi, .bluetooth,
+         .networkLocation, .networkVolumes, .software, .applications, .developerTools,
+         .extensions, .frameworks, .fonts, .installHistory, .international,
+         .preferencePanes, .printerSoftware, .legacySoftware, .startupItems,
+         .syncServices, .firewall, .secureElement, .smartCards,
+         .configurationProfiles, .managedClient, .universalAccess:
+        return .curatedField
+    default:
+        return .generalDataTypeContext
+    }
+}
+
 func displayName(for key: String) -> String {
-    key
+    switch key {
+    case "log_tree_name": return "Diagnostic Logs"
+    case "summary_tree_name": return "Overview"
+    default: break
+    }
+
+    return key
         .trimmingCharacters(in: CharacterSet(charactersIn: "_"))
         .replacingOccurrences(of: "_", with: " ")
         .split(separator: " ")
