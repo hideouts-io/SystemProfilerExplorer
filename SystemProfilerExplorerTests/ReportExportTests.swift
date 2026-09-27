@@ -41,6 +41,55 @@ struct ReportExportTests {
     }
 
     @Test
+    func redactedExportRemovesNamesUsedAsDictionaryKeys() throws {
+        let report = SystemProfilerReport(
+            sections: [
+                SystemProfilerSection(
+                    dataType: .bluetooth,
+                    items: [
+                        .object([
+                            "controller_properties": .object(["controller_state": .string("attrib_on")]),
+                            "device_not_connected": .array([
+                                .object(["Alex’s AirPods Pro": .object(["device_minorType": .string("Headphones")])]),
+                                .object(["Keyboard": .object(["device_vendorID": .string("0x004C")])])
+                            ])
+                        ])
+                    ]
+                ),
+                SystemProfilerSection(
+                    dataType: .firewall,
+                    items: [
+                        .object([
+                            "spfirewall_applications": .object([
+                                "ABCDE12345.com.example.helper": .string("spfirewall_block_all"),
+                                "Dropbox": .string("spfirewall_allow_all")
+                            ]),
+                            "spfirewall_globalstate": .string("spfirewall_globalstate_limit_connections")
+                        ])
+                    ]
+                )
+            ],
+            commandArguments: ["-json", "SPBluetoothDataType", "SPFirewallDataType"],
+            standardError: "",
+            startedAt: Date(timeIntervalSince1970: 1_700_000_000),
+            completedAt: Date(timeIntervalSince1970: 1_700_000_005)
+        )
+
+        let data: Data = try encodeReportExport(makeRedactedReportExport(report))
+        let encodedText: String = String(decoding: data, as: UTF8.self)
+        let decoded: ReportExportEnvelope = try decodeReportExport(data)
+
+        for name in ["AirPods", "Alex", "Keyboard", "ABCDE12345", "com.example.helper", "Dropbox"] {
+            #expect(!encodedText.contains(name), "Redacted export still contains \(name)")
+        }
+
+        #expect(encodedText.contains("controller_state"))
+        #expect(encodedText.contains("device_minorType"))
+        #expect(encodedText.contains("spfirewall_globalstate"))
+        #expect(decoded.report.sections.allSatisfy(sectionIsFullyRedacted))
+    }
+
+    @Test
     func decoderRejectsUnsupportedReportFormatVersion() throws {
         let validExport: ReportExportEnvelope = makeFullReportExport(sampleReport())
         let unsupportedExport = ReportExportEnvelope(

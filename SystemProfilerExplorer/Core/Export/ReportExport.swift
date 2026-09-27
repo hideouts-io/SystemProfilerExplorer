@@ -122,14 +122,61 @@ func redactedReportExportFilename(completedAt: Date) -> String {
 }
 
 private func redactProfileValue(_ value: ProfileValue) -> ProfileValue {
+    redactProfileValue(value, keysAreNames: false)
+}
+
+/// Some system_profiler dictionaries use names as keys: Bluetooth devices are keyed by
+/// device name and firewall rules by app identifier. Those keys are redacted too.
+private func redactProfileValue(_ value: ProfileValue, keysAreNames: Bool) -> ProfileValue {
     switch value {
     case let .object(object):
-        .object(object.mapValues(redactProfileValue))
+        return .object(redactedObject(object, keysAreNames: keysAreNames))
     case let .array(values):
-        .array(values.map(redactProfileValue))
+        return .array(values.map { item in
+            redactProfileValue(item, keysAreNames: isSingleNamedEntry(item))
+        })
     case .string, .integer, .decimal, .boolean, .null:
-        .string(redactedProfileValue)
+        return .string(redactedProfileValue)
     }
+}
+
+private func redactedObject(
+    _ object: [String: ProfileValue],
+    keysAreNames: Bool
+) -> [String: ProfileValue] {
+    var redacted: [String: ProfileValue] = [:]
+    redacted.reserveCapacity(object.count)
+
+    for (position, key) in object.keys.sorted().enumerated() {
+        guard let value = object[key] else {
+            preconditionFailure("The redacted profiler object changed during traversal.")
+        }
+
+        let redactedKey: String = keysAreNames || keyLooksLikeIdentifier(key)
+            ? "\(redactedProfileValue) \(position + 1)"
+            : key
+        redacted[redactedKey] = redactProfileValue(value, keysAreNames: nameKeyedContainers.contains(key))
+    }
+
+    return redacted
+}
+
+private let nameKeyedContainers: Set<String> = ["spfirewall_applications"]
+
+/// Matches array items shaped like `{ "Device Name": { ...fields } }`.
+private func isSingleNamedEntry(_ value: ProfileValue) -> Bool {
+    guard case let .object(object) = value,
+          object.count == 1,
+          case .object? = object.values.first else {
+        return false
+    }
+
+    return true
+}
+
+/// Bundle identifiers, Team ID prefixes, and addresses are never schema keys.
+private func keyLooksLikeIdentifier(_ key: String) -> Bool {
+    key.contains(".") || key.contains("@")
 }
 
 private func profileScalarCount(_ value: ProfileValue) -> Int {
