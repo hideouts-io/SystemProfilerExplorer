@@ -6,6 +6,7 @@ struct SnapshotTimelineView: View {
     @Environment(\.dismiss) private var dismiss
     @AppStorage("snapshot-retention") private var storedRetention: String = SnapshotRetention.ten.rawValue
     @State private var snapshots: [SystemProfilerSnapshot] = []
+    @State private var unreadableSnapshotFileNames: [String] = []
     @State private var snapshotName: String = ""
     @State private var selectedPrivacy: SnapshotPrivacy = .full
     @State private var isLoading: Bool = true
@@ -30,6 +31,10 @@ struct SnapshotTimelineView: View {
                     )
 
                     SnapshotPrivacyWarning()
+
+                    if !unreadableSnapshotFileNames.isEmpty {
+                        UnreadableSnapshotsNotice(fileNames: unreadableSnapshotFileNames)
+                    }
 
                     if isLoading {
                         HStack(spacing: 10) {
@@ -129,11 +134,11 @@ struct SnapshotTimelineView: View {
         isLoading = true
 
         do {
-            let loadedSnapshots: [SystemProfilerSnapshot] = try await Task.detached(priority: .userInitiated) {
+            let history: SnapshotHistory = try await Task.detached(priority: .userInitiated) {
                 let store: SnapshotStore = try snapshotStore()
-                return try store.loadSnapshots()
+                return try store.loadSnapshotHistory()
             }.value
-            snapshots = loadedSnapshots
+            applySnapshotHistory(history)
         } catch is CancellationError {
             return
         } catch {
@@ -141,6 +146,11 @@ struct SnapshotTimelineView: View {
         }
 
         isLoading = false
+    }
+
+    private func applySnapshotHistory(_ history: SnapshotHistory) {
+        snapshots = history.snapshots
+        unreadableSnapshotFileNames = history.unreadableFileNames
     }
 
     private func saveSnapshot() {
@@ -153,7 +163,7 @@ struct SnapshotTimelineView: View {
 
         Task {
             do {
-                let updatedSnapshots: [SystemProfilerSnapshot] = try await Task.detached(priority: .userInitiated) {
+                let history: SnapshotHistory = try await Task.detached(priority: .userInitiated) {
                     let store: SnapshotStore = try snapshotStore()
                     _ = try store.saveSnapshot(
                         name: name,
@@ -161,9 +171,9 @@ struct SnapshotTimelineView: View {
                         report: report,
                         retention: selectedRetention
                     )
-                    return try store.loadSnapshots()
+                    return try store.loadSnapshotHistory()
                 }.value
-                snapshots = updatedSnapshots
+                applySnapshotHistory(history)
                 snapshotName = ""
             } catch is CancellationError {
                 isSaving = false
@@ -207,18 +217,42 @@ struct SnapshotTimelineView: View {
 
         Task {
             do {
-                let updatedSnapshots: [SystemProfilerSnapshot] = try await Task.detached(priority: .userInitiated) {
+                let history: SnapshotHistory = try await Task.detached(priority: .userInitiated) {
                     let store: SnapshotStore = try snapshotStore()
                     try store.deleteSnapshot(snapshot)
-                    return try store.loadSnapshots()
+                    return try store.loadSnapshotHistory()
                 }.value
-                snapshots = updatedSnapshots
+                applySnapshotHistory(history)
             } catch is CancellationError {
                 return
             } catch {
                 snapshotErrorMessage = "The snapshot could not be deleted. \(String(reflecting: error))"
             }
         }
+    }
+}
+
+private struct UnreadableSnapshotsNotice: View {
+    let fileNames: [String]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Label(
+                "\(fileNames.count) snapshot \(fileNames.count == 1 ? "file" : "files") could not be read and \(fileNames.count == 1 ? "was" : "were") skipped",
+                systemImage: "exclamationmark.triangle.fill"
+            )
+            .font(.subheadline.weight(.semibold))
+            .foregroundStyle(.orange)
+            Text("The files may be damaged or saved by a different version of the app. They are left untouched in Application Support: \(fileNames.joined(separator: ", "))")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .textSelection(.enabled)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
+        .accessibilityIdentifier("unreadable-snapshots")
     }
 }
 

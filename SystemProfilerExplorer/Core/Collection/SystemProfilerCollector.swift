@@ -98,7 +98,7 @@ actor SystemProfilerCollector: SystemProfilerCollecting {
             status = try await withTaskCancellationHandler {
                 try await exitMonitor.wait(
                     process: process,
-                    timeoutSeconds: request.timeoutSeconds,
+                    timeoutSeconds: request.collectorDeadlineSeconds,
                     arguments: request.arguments
                 )
             } onCancel: {

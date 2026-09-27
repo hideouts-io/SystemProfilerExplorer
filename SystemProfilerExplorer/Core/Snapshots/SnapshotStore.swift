@@ -56,6 +56,11 @@ struct SystemProfilerSnapshot: Identifiable, Sendable, Equatable, Codable {
     let report: ReportExportEnvelope
 }
 
+struct SnapshotHistory: Sendable, Equatable {
+    let snapshots: [SystemProfilerSnapshot]
+    let unreadableFileNames: [String]
+}
+
 enum SnapshotStoreError: LocalizedError, Equatable {
     case emptyName
     case invalidSnapshotFile
@@ -80,9 +85,15 @@ struct SnapshotStore: Sendable {
     }
 
     func loadSnapshots() throws -> [SystemProfilerSnapshot] {
+        try loadSnapshotHistory().snapshots
+    }
+
+    /// Loads every readable snapshot. A damaged, renamed, or unsupported file is skipped
+    /// and reported instead of hiding the rest of the history.
+    func loadSnapshotHistory() throws -> SnapshotHistory {
         let fileManager: FileManager = .default
         guard fileManager.fileExists(atPath: directoryURL.path) else {
-            return []
+            return SnapshotHistory(snapshots: [], unreadableFileNames: [])
         }
 
         let files: [URL] = try fileManager.contentsOfDirectory(
@@ -91,10 +102,21 @@ struct SnapshotStore: Sendable {
             options: [.skipsHiddenFiles]
         )
         let snapshotURLs: [URL] = files.filter { $0.pathExtension == "systemprofiler-snapshot" }
+        var snapshots: [SystemProfilerSnapshot] = []
+        var unreadableFileNames: [String] = []
 
-        return try snapshotURLs
-            .map(loadSnapshot)
-            .sorted { $0.createdAt > $1.createdAt }
+        for snapshotURL in snapshotURLs {
+            do {
+                snapshots.append(try loadSnapshot(snapshotURL))
+            } catch {
+                unreadableFileNames.append(snapshotURL.lastPathComponent)
+            }
+        }
+
+        return SnapshotHistory(
+            snapshots: snapshots.sorted { $0.createdAt > $1.createdAt },
+            unreadableFileNames: unreadableFileNames.sorted()
+        )
     }
 
     func saveSnapshot(

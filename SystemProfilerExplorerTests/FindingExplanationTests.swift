@@ -75,4 +75,27 @@ struct FindingExplanationTests {
         #expect(presentation.title == "Future Apple Field")
         #expect(presentation.explanation == nil)
     }
+
+    @Test
+    func enumeratedTokensAreReadableButReportedNamesKeepTheirSpelling() {
+        let token = fieldPresentation(
+            dataType: .wifi,
+            path: ["spairport_status_information"],
+            scalar: .string("spairport_status_connected")
+        )
+        let mountPoint = fieldPresentation(
+            dataType: .storage,
+            path: ["mount_point"],
+            scalar: .string("/Library/Developer/CoreSimulator/Volumes/iOS_23D8133")
+        )
+        let volumeName = fieldPresentation(
+            dataType: .storage,
+            path: ["_name"],
+            scalar: .string("Backup_Disk")
+        )
+
+        #expect(token.displayedValue == "Spairport Status Connected")
+        #expect(mountPoint.displayedValue == "/Library/Developer/CoreSimulator/Volumes/iOS_23D8133")
+        #expect(volumeName.displayedValue == "Backup_Disk")
+    }
 }

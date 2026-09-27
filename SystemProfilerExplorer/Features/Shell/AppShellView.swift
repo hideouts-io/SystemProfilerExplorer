@@ -7,6 +7,7 @@ struct AppShellView: View {
 
     @State private var selectedWorkspace: AppWorkspace = .subject(.overview)
     @State private var reports: [ProfilerSubject: SystemProfilerReport] = [:]
+    @State private var findingCounts: [ProfilerSubject: Int] = [:]
     @State private var collectionHealth: [ProfilerSubject: CollectionAttemptHealth] = [:]
     @State private var scanState: ScanState = .idle
     @State private var scanTask: Task<Void, Never>?
@@ -31,7 +32,7 @@ struct AppShellView: View {
             Divider()
             WorkspaceTabBar(
                 selectedWorkspace: $selectedWorkspace,
-                reports: reports,
+                findingCounts: findingCounts,
                 collectionHealth: collectionHealth
             )
             Divider()
@@ -47,22 +48,30 @@ struct AppShellView: View {
     }
 
     private func startScan() {
-        guard case let .subject(subject) = selectedWorkspace,
+        // One collection at a time: a new scan must not race the previous process or
+        // let the previous task overwrite this scan's state when it finishes.
+        guard !scanState.isRunning,
+              case let .subject(subject) = selectedWorkspace,
               let configuration = scanConfiguration(for: subject) else {
             return
         }
 
-        scanTask?.cancel()
+        let reportParser: SystemProfilerParser = parser
+
         scanState = .running(subject: subject)
         collectionHealth[subject] = .running
 
         scanTask = Task {
             do {
                 let execution: SystemProfilerExecution = try await collector.collect(configuration.request)
-                let report: SystemProfilerReport = try parser.parse(execution)
+                let prepared: PreparedReport = try await Task.detached(priority: .userInitiated) {
+                    try PreparedReport(report: reportParser.parse(execution))
+                }.value
                 try Task.checkCancellation()
 
+                let report: SystemProfilerReport = prepared.report
                 reports[subject] = report
+                findingCounts[subject] = prepared.findingCount
                 scanState = .completed(subject: subject, date: report.completedAt)
                 collectionHealth[subject] = .completed
             } catch is CancellationError {
@@ -97,6 +106,10 @@ struct AppShellView: View {
     }
 
     private func showRawReportImporter() {
+        guard !scanState.isRunning else {
+            return
+        }
+
         isShowingRawReportImporter = true
     }
 
@@ -131,22 +144,29 @@ struct AppShellView: View {
     }
 
     private func importRawReport(_ reportURL: URL) {
+        guard !scanState.isRunning else {
+            return
+        }
+
         let reportParser: SystemProfilerParser = parser
 
-        scanTask?.cancel()
         selectedWorkspace = .subject(.reports)
         scanState = .importing(subject: .reports)
         collectionHealth[.reports] = .running
 
         scanTask = Task {
             do {
-                let report: SystemProfilerReport = try await Task.detached(priority: .userInitiated) {
+                let prepared: PreparedReport = try await Task.detached(priority: .userInitiated) {
                     let data: Data = try readSecurityScopedData(reportURL)
-                    return try reportParser.parseImportedReport(data, importedAt: Date())
+                    return try PreparedReport(
+                        report: reportParser.parseImportedReport(data, importedAt: Date())
+                    )
                 }.value
 
                 try Task.checkCancellation()
+                let report: SystemProfilerReport = prepared.report
                 reports[.reports] = report
+                findingCounts[.reports] = prepared.findingCount
                 scanState = .completed(subject: .reports, date: report.completedAt)
                 collectionHealth[.reports] = .imported
             } catch is CancellationError {
@@ -202,6 +222,18 @@ struct AppShellView: View {
                 WhatChangedDashboardView(reports: reports)
             }
         }
+    }
+}
+
+/// A parsed report plus the finding count shown in its tab, computed off the main actor
+/// so the tab bar never walks the whole report while rendering.
+private struct PreparedReport: Sendable {
+    let report: SystemProfilerReport
+    let findingCount: Int
+
+    init(report: SystemProfilerReport) {
+        self.report = report
+        findingCount = reportSummary(report).findingCount
     }
 }
 
@@ -287,7 +319,7 @@ private struct AppHeader: View {
 
 private struct WorkspaceTabBar: View {
     @Binding var selectedWorkspace: AppWorkspace
-    let reports: [ProfilerSubject: SystemProfilerReport]
+    let findingCounts: [ProfilerSubject: Int]
     let collectionHealth: [ProfilerSubject: CollectionAttemptHealth]
 
     var body: some View {
@@ -297,7 +329,7 @@ private struct WorkspaceTabBar: View {
                     SubjectTab(
                         subject: subject,
                         isSelected: selectedWorkspace == .subject(subject),
-                        report: reports[subject],
+                        findingCount: findingCounts[subject],
                         collectionHealth: collectionHealth[subject] ?? .notCollected,
                         select: { selectedWorkspace = .subject(subject) }
                     )
@@ -327,7 +359,7 @@ private struct WorkspaceTabBar: View {
 private struct SubjectTab: View {
     let subject: ProfilerSubject
     let isSelected: Bool
-    let report: SystemProfilerReport?
+    let findingCount: Int?
     let collectionHealth: CollectionAttemptHealth
     let select: () -> Void
 
@@ -336,14 +368,14 @@ private struct SubjectTab: View {
             HStack(spacing: 6) {
                 Label(subject.title, systemImage: subject.symbolName)
 
-                if let report {
-                    Text(reportSummary(report).findingCount.formatted())
+                if let findingCount {
+                    Text(findingCount.formatted())
                         .font(.caption2.weight(.semibold).monospacedDigit())
                         .foregroundStyle(isSelected ? Color.accentColor : .secondary)
                         .padding(.horizontal, 5)
                         .padding(.vertical, 2)
                         .background(.quaternary, in: Capsule())
-                        .accessibilityLabel("\(reportSummary(report).findingCount) findings")
+                        .accessibilityLabel("\(findingCount) findings")
 
                     Image(systemName: "checkmark.circle.fill")
                         .font(.caption2)
@@ -430,6 +462,7 @@ private struct SubjectWorkspace: View {
                     ReadinessCard(
                         subject: subject,
                         canScan: scanConfiguration(for: subject) != nil,
+                        isAnotherScanRunning: scanState.isRunning,
                         startScan: startScan,
                         importReport: importReport
                     )
@@ -483,6 +516,7 @@ private struct SubjectHeading: View {
 private struct ReadinessCard: View {
     let subject: ProfilerSubject
     let canScan: Bool
+    let isAnotherScanRunning: Bool
     let startScan: () -> Void
     let importReport: () -> Void
 
@@ -520,7 +554,14 @@ private struct ReadinessCard: View {
                             .accessibilityIdentifier("empty-state-start-scan")
                         }
                     }
+                    .disabled(isAnotherScanRunning)
                     .padding(.top, 8)
+
+                    if isAnotherScanRunning {
+                        Text("Another scan is running. Wait for it to finish or cancel it first.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
             }
         }

@@ -33,6 +33,9 @@ func makeSystemReviewPDF(markdown: String) throws -> Data {
     textView.isVerticallyResizable = true
     textView.textContainer?.containerSize = NSSize(width: printableWidth, height: .greatestFiniteMagnitude)
     textView.textContainer?.widthTracksTextView = true
+    // Grow the view to its full text height; otherwise only the first page is printed.
+    textView.maxSize = NSSize(width: printableWidth, height: .greatestFiniteMagnitude)
+    textView.sizeToFit()
 
     let printInfo: NSPrintInfo = NSPrintInfo()
     printInfo.paperSize = paperSize
@@ -43,13 +46,19 @@ func makeSystemReviewPDF(markdown: String) throws -> Data {
     printInfo.horizontalPagination = .fit
     printInfo.verticalPagination = .automatic
 
-    let data: NSMutableData = NSMutableData()
-    let operation: NSPrintOperation = NSPrintOperation.pdfOperation(
-        with: textView,
-        inside: textView.bounds,
-        to: data,
-        printInfo: printInfo
-    )
+    // A saving print job paginates onto paper-sized pages; pdfOperation(with:inside:)
+    // would render the whole view as a single page.
+    let outputURL: URL = FileManager.default.temporaryDirectory
+        .appendingPathComponent(UUID().uuidString, isDirectory: false)
+        .appendingPathExtension("pdf")
+    defer {
+        try? FileManager.default.removeItem(at: outputURL)
+    }
+
+    printInfo.jobDisposition = .save
+    printInfo.dictionary()[NSPrintInfo.AttributeKey.jobSavingURL] = outputURL
+
+    let operation: NSPrintOperation = NSPrintOperation(view: textView, printInfo: printInfo)
     operation.showsPrintPanel = false
     operation.showsProgressPanel = false
 
@@ -57,5 +66,5 @@ func makeSystemReviewPDF(markdown: String) throws -> Data {
         throw SystemReviewPDFError.renderingFailed
     }
 
-    return data as Data
+    return try Data(contentsOf: outputURL)
 }
