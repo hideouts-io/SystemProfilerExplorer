@@ -121,6 +121,12 @@ func additionalDataTypeExplanation(
             significance: "Build, boot-policy, integrity, and hardware details provide context about the embedded controller and security policy reported for supported Mac models.",
             limitation: "These values are model- and build-specific summaries. They do not independently authenticate firmware or provide a complete Secure Boot, SIP, or management-policy audit."
         )
+    case .appleVirtualPlatform:
+        context = DataTypeExplanationContext(
+            subject: "Apple's virtual platform, a data type Apple doesn't document; its name suggests it describes macOS running as a virtual machine",
+            significance: "On physical Macs this section is usually empty. Entries may indicate that macOS is running inside a virtual machine, which affects which hardware details are real.",
+            limitation: "Because the data type is undocumented, its fields are shown as reported without further interpretation."
+        )
     case .applications, .bluetooth, .configurationProfiles, .developerTools, .ethernet,
          .extensions, .firewall, .fonts, .frameworks, .hardware, .installHistory,
          .international, .legacySoftware, .managedClient, .network, .networkLocation,
