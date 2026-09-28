@@ -25,6 +25,7 @@
 		41A352BEAE8240924801481C /* AdditionalExplanationCoverageTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E4302147D18912C4D6C9E8F /* AdditionalExplanationCoverageTests.swift */; };
 		43B69F7D2EFAB09618000574 /* ReportPresentationIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = 816C80DD50958035415A3529 /* ReportPresentationIndex.swift */; };
 		45AB67ECA6F44A42D786BE94 /* SnapshotTimelineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D3BB12010BDCA72E90AFA97 /* SnapshotTimelineView.swift */; };
+		477FC639F1571D28C1498632 /* ReportGlance.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBF3F5386846F5A5904ED3D4 /* ReportGlance.swift */; };
 		47E777D339E4E432775D5E9A /* SystemHighlightsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15D5DAA1F53F7346B1D74881 /* SystemHighlightsTests.swift */; };
 		4C6AEC9AD43A0BD4C212E779 /* SubjectScanConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4A6D99245031E028E535B9A /* SubjectScanConfiguration.swift */; };
 		4CF762F76B57796EE1586919 /* SystemProfilerParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = CEE75C08C482A71C55927F92 /* SystemProfilerParser.swift */; };
@@ -47,6 +48,7 @@
 		85B49F4087AE29C92D16AE3B /* SoftwareExplanationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE97DBED35D8D7601108A901 /* SoftwareExplanationTests.swift */; };
 		86E0C9CBC947D02AED7C444F /* SoftwareHistoryAndLocaleExplanations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EA7A0B51F01A347EF592953 /* SoftwareHistoryAndLocaleExplanations.swift */; };
 		8785401640504798FF452DD3 /* NetworkExplanations.swift in Sources */ = {isa = PBXBuildFile; fileRef = C78DCB6C36319F048846D1B8 /* NetworkExplanations.swift */; };
+		8C78285CF85B6AC0D881AEDA /* ReportGlanceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C35DE469A87125CB7900A4B5 /* ReportGlanceTests.swift */; };
 		8D9B09B8B72B1F0B2F5873B1 /* ChangeInsightTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D71F24CE50090E539F32B351 /* ChangeInsightTests.swift */; };
 		8F73A3F1DEF503AC82BB01E0 /* SystemValueRules.swift in Sources */ = {isa = PBXBuildFile; fileRef = 350E4068BE34201E57D6E7F1 /* SystemValueRules.swift */; };
 		97A1E28F7BFBEF4421AE4E92 /* ReportChangeInsight.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6460BE296C1F7F744F9F12D3 /* ReportChangeInsight.swift */; };
@@ -163,6 +165,7 @@
 		C07BC8D04FF0E86C064BB078 /* FindingExplanationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FindingExplanationTests.swift; sourceTree = "<group>"; };
 		C0CBB316F358A694CF2D6C32 /* AppWorkspace.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppWorkspace.swift; sourceTree = "<group>"; };
 		C19D421A0C7E053E97CA1F4B /* ReportComparisonView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportComparisonView.swift; sourceTree = "<group>"; };
+		C35DE469A87125CB7900A4B5 /* ReportGlanceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportGlanceTests.swift; sourceTree = "<group>"; };
 		C4A6D99245031E028E535B9A /* SubjectScanConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubjectScanConfiguration.swift; sourceTree = "<group>"; };
 		C78DCB6C36319F048846D1B8 /* NetworkExplanations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkExplanations.swift; sourceTree = "<group>"; };
 		C8626FE2FFE22712FB4913FF /* SystemReviewSummaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemReviewSummaryView.swift; sourceTree = "<group>"; };
@@ -179,6 +182,7 @@
 		E2856D3BC6853702F365B33C /* SecurityExplanationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecurityExplanationTests.swift; sourceTree = "<group>"; };
 		E7F55B0C200350A7BDF3138C /* FieldPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FieldPresentation.swift; sourceTree = "<group>"; };
 		FB55F1B2791C2A64C4652248 /* SystemProfilerIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemProfilerIntegrationTests.swift; sourceTree = "<group>"; };
+		FBF3F5386846F5A5904ED3D4 /* ReportGlance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportGlance.swift; sourceTree = "<group>"; };
 		FCB5B24DFE76BB7DE34B6878 /* DiagnosticLogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticLogView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -272,6 +276,7 @@
 				DA1EB2E581B4CA679420FA2F /* RawReportImportTests.swift */,
 				6E222A00A58DD54B121B5C45 /* ReportComparisonTests.swift */,
 				3E73B22531517F3BAC6F760D /* ReportExportTests.swift */,
+				C35DE469A87125CB7900A4B5 /* ReportGlanceTests.swift */,
 				9FAAE3107D80F2D5A01EB9E4 /* ReportPresentationIndexTests.swift */,
 				E020DF1E5CFFD5F007B05424 /* ReviewWorkflowTests.swift */,
 				E2856D3BC6853702F365B33C /* SecurityExplanationTests.swift */,
@@ -291,6 +296,7 @@
 				0C939FCB80491F6CD18861FC /* DiagnosticLogSummary.swift */,
 				E7F55B0C200350A7BDF3138C /* FieldPresentation.swift */,
 				B1B26F129A3201DCF9011C3C /* FindingQuery.swift */,
+				FBF3F5386846F5A5904ED3D4 /* ReportGlance.swift */,
 				816C80DD50958035415A3529 /* ReportPresentationIndex.swift */,
 				DB8345DEE454EBABB298A6CB /* ReportSummary.swift */,
 			);
@@ -576,6 +582,7 @@
 				0A011607BE0CD75C104AD226 /* RawReportImportTests.swift in Sources */,
 				6AFEF28B8B5EA72FC7640F1B /* ReportComparisonTests.swift in Sources */,
 				F5357BDDB3EE70861FC3E3B9 /* ReportExportTests.swift in Sources */,
+				8C78285CF85B6AC0D881AEDA /* ReportGlanceTests.swift in Sources */,
 				C061B1DCEDE78F4DAD5F5AE4 /* ReportPresentationIndexTests.swift in Sources */,
 				3603357F65BD0849D2404E9E /* ReviewWorkflowTests.swift in Sources */,
 				54693181DC78DF8337FB044C /* SecurityExplanationTests.swift in Sources */,
@@ -620,6 +627,7 @@
 				BD25DDA86CD52506A4CE4FA8 /* ReportComparisonView.swift in Sources */,
 				545C1EA0D69409AB8EE0DF25 /* ReportExport.swift in Sources */,
 				BA15D11C2B1F8A45A42D8163 /* ReportExportView.swift in Sources */,
+				477FC639F1571D28C1498632 /* ReportGlance.swift in Sources */,
 				43B69F7D2EFAB09618000574 /* ReportPresentationIndex.swift in Sources */,
 				B145A972D8BC9EB8A309C214 /* ReportSummary.swift in Sources */,
 				C15BD4AD7197D4362945DB47 /* ScanState.swift in Sources */,

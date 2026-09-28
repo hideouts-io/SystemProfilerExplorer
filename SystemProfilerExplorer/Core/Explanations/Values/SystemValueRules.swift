@@ -38,8 +38,17 @@ let hardwareValueRules: [ValueRule] = [
     }
 ]
 
-/// Decodes values such as `proc 14:10:4` or `proc 14:0:10:4`.
-func processorCountExplanation(_ value: String) -> ValueExplanation? {
+struct ProcessorCoreCounts: Sendable, Equatable {
+    let total: Int
+    let performance: Int
+    let efficiency: Int
+    /// The value included a 0 group, such as the 0 in `proc 14:0:10:4`.
+    let hasUnusedGroup: Bool
+}
+
+/// Decodes values such as `proc 14:10:4` or `proc 14:0:10:4` into performance and
+/// efficiency cores. Returns nil unless the groups add up to the total.
+func processorCoreCounts(_ value: String) -> ProcessorCoreCounts? {
     let numbers: [Int] = value
         .split(whereSeparator: { !$0.isNumber })
         .compactMap { Int($0) }
@@ -54,17 +63,30 @@ func processorCountExplanation(_ value: String) -> ValueExplanation? {
         return nil
     }
 
+    return ProcessorCoreCounts(
+        total: total,
+        performance: groups[0],
+        efficiency: groups[1],
+        hasUnusedGroup: numbers.dropFirst().contains(0)
+    )
+}
+
+func processorCountExplanation(_ value: String) -> ValueExplanation? {
+    guard let cores = processorCoreCounts(value) else {
+        return nil
+    }
+
     var reasons: [String] = [
-        "The numbers after the total add up to it (\(groups[0]) + \(groups[1]) = \(total)).",
+        "The numbers after the total add up to it (\(cores.performance) + \(cores.efficiency) = \(cores.total)).",
         "Apple silicon chips combine performance and efficiency cores, and system_profiler lists performance cores first."
     ]
 
-    if numbers.dropFirst().contains(0) {
+    if cores.hasUnusedGroup {
         reasons.append("The 0 in the value isn't documented; it appears to be an unused core group.")
     }
 
     return .info(
-        "\(total) CPU cores: \(groups[0]) performance and \(groups[1]) efficiency.",
+        "\(cores.total) CPU cores: \(cores.performance) performance and \(cores.efficiency) efficiency.",
         detail: "Performance cores run demanding work; efficiency cores handle background tasks using less power.",
         confidence: .likely(reasons: reasons)
     )
@@ -127,8 +149,14 @@ let softwareValueRules: [ValueRule] = [
     }
 ]
 
+struct UptimeReading: Sendable, Equatable {
+    let days: Int
+    /// A readable duration such as "2 days 3 hours" or "1 hour 17 minutes".
+    let duration: String
+}
+
 /// Decodes `up days:hours:minutes:seconds`, the format system_profiler uses.
-func uptimeExplanation(_ value: String) -> ValueExplanation? {
+func uptimeReading(_ value: String) -> UptimeReading? {
     guard value.hasPrefix("up ") else {
         return nil
     }
@@ -146,10 +174,20 @@ func uptimeExplanation(_ value: String) -> ValueExplanation? {
     if hours > 0 { components.append("\(hours) \(hours == 1 ? "hour" : "hours")") }
     if days == 0, minutes > 0 { components.append("\(minutes) \(minutes == 1 ? "minute" : "minutes")") }
 
-    let duration: String = components.isEmpty ? "less than a minute" : components.joined(separator: " ")
-    let summary: String = "Running for \(duration) since the last restart."
+    return UptimeReading(
+        days: days,
+        duration: components.isEmpty ? "less than a minute" : components.joined(separator: " ")
+    )
+}
 
-    if days >= 30 {
+func uptimeExplanation(_ value: String) -> ValueExplanation? {
+    guard let uptime = uptimeReading(value) else {
+        return nil
+    }
+
+    let summary: String = "Running for \(uptime.duration) since the last restart."
+
+    if uptime.days >= 30 {
         return .info(
             summary,
             action: "Restarting now and then installs pending updates and clears temporary problems."

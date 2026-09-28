@@ -150,3 +150,44 @@ private struct ReasonLabelStyle: LabelStyle {
         }
     }
 }
+
+/// Plain-language sentences at the top of a report, built from collected values.
+struct AtAGlanceCard: View {
+    let sentences: [String]
+    let worthReviewingCount: Int
+    let showWorthReviewing: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label("At a glance", systemImage: "text.alignleft")
+                .font(.headline)
+
+            if !sentences.isEmpty {
+                Text(sentences.joined(separator: " "))
+                    .font(.body)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .textSelection(.enabled)
+            }
+
+            if worthReviewingCount > 0 {
+                Button(action: showWorthReviewing) {
+                    Label(
+                        "\(worthReviewingCount) \(worthReviewingCount == 1 ? "finding is" : "findings are") worth a look",
+                        systemImage: ValueStatus.worthReviewing.symbolName
+                    )
+                }
+                .buttonStyle(.link)
+                .foregroundStyle(ValueStatus.worthReviewing.tint)
+                .accessibilityIdentifier("glance-worth-a-look")
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(16)
+        .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 12))
+        .overlay {
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color(nsColor: .separatorColor).opacity(0.45), lineWidth: 1)
+        }
+        .accessibilityIdentifier("at-a-glance")
+    }
+}

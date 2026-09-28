@@ -111,6 +111,14 @@ struct ProfileReportView: View {
         )
 
         VStack(alignment: .leading, spacing: 16) {
+            if !presentationIndex.glance.isEmpty || presentationIndex.worthReviewingFindingCount > 0 {
+                AtAGlanceCard(
+                    sentences: presentationIndex.glance,
+                    worthReviewingCount: presentationIndex.worthReviewingFindingCount,
+                    showWorthReviewing: { selectedFilter = .worthALook }
+                )
+            }
+
             CollectionCoverageCard(
                 coverage: collectionCoverage(for: report),
                 showSkippedCollection: { isShowingSkippedCollection = true }

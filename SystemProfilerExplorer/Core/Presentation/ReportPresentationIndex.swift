@@ -4,6 +4,8 @@ struct ReportPresentationIndex: Sendable, Equatable {
     let summary: ReportSummary
     /// Findings whose value explanation status is "Worth a look".
     let worthReviewingFindingCount: Int
+    /// Plain-language sentences summarizing the report.
+    let glance: [String]
     fileprivate let sections: [IndexedReportSection]
     fileprivate let explanationSearchCorpora: [String]
 
@@ -158,6 +160,7 @@ func makeReportPresentationIndex(_ report: SystemProfilerReport) throws -> Repor
             privacyFindingCount: privacyFindingCount
         ),
         worthReviewingFindingCount: worthReviewingFindingCount,
+        glance: reportGlance(report),
         sections: indexedSections,
         explanationSearchCorpora: explanationInterner.values
     )

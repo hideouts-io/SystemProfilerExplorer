@@ -318,16 +318,7 @@ func wifiSignalExplanation(_ value: String, isCurrentNetwork: Bool) -> ValueExpl
 
     let noiseNote: String = numbers.count > 1 ? ", \(signal - numbers[1]) dB above background noise" : ""
     let detail: String = "Signal strength is measured in dBm; values closer to 0 are stronger. These bands are common Wi-Fi guidance, not an Apple specification."
-    let quality: String
-    let status: ValueStatus
-
-    switch signal {
-    case (-50)...: (quality, status) = ("Excellent", .normal)
-    case (-60)..<(-50): (quality, status) = ("Good", .normal)
-    case (-67)..<(-60): (quality, status) = ("Fair", .normal)
-    case (-75)..<(-67): (quality, status) = ("Weak", .informational)
-    default: (quality, status) = ("Poor", .worthReviewing)
-    }
+    let (quality, status): (String, ValueStatus) = wifiSignalQuality(signal)
 
     let summary: String = "\(quality) signal (\(signal) dBm\(noiseNote))."
 
@@ -340,6 +331,27 @@ func wifiSignalExplanation(_ value: String, isCurrentNetwork: Bool) -> ValueExpl
         : "Move closer to the router or access point, or reduce obstacles between them, for faster and steadier Wi-Fi."
 
     return ValueExplanation(summary: summary, detail: detail, status: status, confidence: .observed, suggestedAction: action)
+}
+
+/// Common Wi-Fi guidance for received signal strength in dBm.
+func wifiSignalQuality(_ signal: Int) -> (quality: String, status: ValueStatus) {
+    switch signal {
+    case (-50)...: ("Excellent", .normal)
+    case (-60)..<(-50): ("Good", .normal)
+    case (-67)..<(-60): ("Fair", .normal)
+    case (-75)..<(-67): ("Weak", .informational)
+    default: ("Poor", .worthReviewing)
+    }
+}
+
+/// Returns the band in a channel value such as `36 (5GHz, 160MHz)`.
+func wifiBand(_ channel: String) -> String? {
+    let lowercased: String = channel.lowercased()
+
+    if lowercased.contains("6ghz") { return "6 GHz" }
+    if lowercased.contains("5ghz") { return "5 GHz" }
+    if lowercased.contains("2ghz") { return "2.4 GHz" }
+    return nil
 }
 
 /// Decodes values such as `36 (5GHz, 160MHz)`.
@@ -365,7 +377,7 @@ func wifiChannelExplanation(_ value: String) -> ValueExplanation? {
         return nil
     }
 
-    let band: String = lowercased.contains("6ghz") ? "6 GHz" : lowercased.contains("5ghz") ? "5 GHz" : "2.4 GHz"
+    let band: String = wifiBand(value) ?? "2.4 GHz"
 
     return .info(
         "Channel \(channel) on the \(band) band\(width.map { ", \($0) wide" } ?? "").",
