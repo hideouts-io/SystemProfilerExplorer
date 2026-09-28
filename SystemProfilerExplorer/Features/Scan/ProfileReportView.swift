@@ -276,7 +276,7 @@ struct ProfileReportView: View {
         } catch is CancellationError {
             return
         } catch {
-            indexingErrorMessage = "The report could not be prepared for display. \(String(reflecting: error))"
+            indexingErrorMessage = "The report could not be prepared for display. \(error.localizedDescription)"
         }
 
         isPreparingIndex = false
@@ -321,7 +321,7 @@ struct ProfileReportView: View {
             } catch is CancellationError {
                 return
             } catch {
-                indexingErrorMessage = "The report search failed. \(String(reflecting: error))"
+                indexingErrorMessage = "The report search failed. \(error.localizedDescription)"
                 isSearching = false
                 queryTask = nil
             }
@@ -348,7 +348,7 @@ struct ProfileReportView: View {
                 return
             }
 
-            comparisonErrorMessage = "The report picker failed. \(String(reflecting: error))"
+            comparisonErrorMessage = "The report picker failed. \(error.localizedDescription)"
         }
     }
 
@@ -374,7 +374,7 @@ struct ProfileReportView: View {
                 comparisonTask = nil
                 return
             } catch {
-                comparisonErrorMessage = "The selected report could not be compared. \(String(reflecting: error))"
+                comparisonErrorMessage = "The selected report could not be compared. \(error.localizedDescription)"
             }
 
             isPreparingComparison = false

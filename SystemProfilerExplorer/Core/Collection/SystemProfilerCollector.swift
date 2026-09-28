@@ -81,7 +81,7 @@ actor SystemProfilerCollector: SystemProfilerCollecting {
             throw SystemProfilerCollectorError.launchFailed(
                 executable: executableURL.path,
                 arguments: request.arguments,
-                reason: String(reflecting: error)
+                reason: error.localizedDescription
             )
         }
 
@@ -113,8 +113,8 @@ actor SystemProfilerCollector: SystemProfilerCollecting {
             if process.isRunning {
                 process.terminate()
             }
-            standardOutputPipe.fileHandleForReading.closeFile()
-            standardErrorPipe.fileHandleForReading.closeFile()
+            try? standardOutputPipe.fileHandleForReading.close()
+            try? standardErrorPipe.fileHandleForReading.close()
             throw error
         }
 

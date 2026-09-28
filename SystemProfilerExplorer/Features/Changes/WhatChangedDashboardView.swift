@@ -91,7 +91,7 @@ struct WhatChangedDashboardView: View {
                 return
             }
 
-            errorMessage = "The saved-report picker failed. \(String(reflecting: error))"
+            errorMessage = "The saved-report picker failed. \(error.localizedDescription)"
         }
     }
 
@@ -123,7 +123,7 @@ struct WhatChangedDashboardView: View {
                 isPreparingComparison = false
                 return
             } catch {
-                errorMessage = "The saved report could not be compared. \(String(reflecting: error))"
+                errorMessage = "The saved report could not be compared. \(error.localizedDescription)"
             }
 
             isPreparingComparison = false

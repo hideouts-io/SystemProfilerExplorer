@@ -191,7 +191,7 @@ struct ReportExportReviewView: View {
                 preparationTask = nil
                 return
             } catch {
-                exportErrorMessage = "The report could not be encoded for export. \(String(reflecting: error))"
+                exportErrorMessage = "The report could not be encoded for export. \(error.localizedDescription)"
             }
 
             isPreparingExport = false
@@ -205,7 +205,7 @@ struct ReportExportReviewView: View {
             exportDocument = nil
             dismiss()
         case let .failure(error):
-            exportErrorMessage = "The selected file could not be written. \(String(reflecting: error))"
+            exportErrorMessage = "The selected file could not be written. \(error.localizedDescription)"
         }
     }
 }

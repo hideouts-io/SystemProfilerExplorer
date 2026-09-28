@@ -113,7 +113,7 @@ struct AppShellView: View {
             } catch {
                 scanState = .failed(
                     subject: subject,
-                    message: "The scan failed with an unexpected error: \(String(reflecting: error))"
+                    message: "The scan failed with an unexpected error: \(error.localizedDescription)"
                 )
                 collectionHealth[subject] = .failed
             }
@@ -161,7 +161,7 @@ struct AppShellView: View {
 
             scanState = .failed(
                 subject: .reports,
-                message: "The report picker failed. \(String(reflecting: error))"
+                message: "The report picker failed. \(error.localizedDescription)"
             )
             collectionHealth[.reports] = .failed
         }
@@ -209,7 +209,7 @@ struct AppShellView: View {
             } catch {
                 scanState = .failed(
                     subject: .reports,
-                    message: "The selected report could not be imported. \(String(reflecting: error))"
+                    message: "The selected report could not be imported. \(error.localizedDescription)"
                 )
                 collectionHealth[.reports] = .failed
             }
