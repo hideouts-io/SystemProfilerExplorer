@@ -222,7 +222,10 @@ private struct ValueRuleKey: Hashable {
 private let valueRuleIndex: [ValueRuleKey: [ValueRule]] = {
     let rules: [ValueRule] = hardwareValueRules + softwareValueRules + softwareArtifactValueRules + firewallValueRules
         + powerValueRules + storageValueRules
-        + networkValueRules + wifiValueRules + bluetoothValueRules
+        + networkValueRules + ethernetValueRules + wifiValueRules + bluetoothValueRules
+        + displayValueRules + audioValueRules + thunderboltValueRules
+        + legacySoftwareValueRules + internationalValueRules + accessibilityValueRules
+        + nvmeValueRules + configurationProfileValueRules + printerValueRules
     var index: [ValueRuleKey: [ValueRule]] = [:]
 
     for rule in rules {

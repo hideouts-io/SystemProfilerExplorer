@@ -280,7 +280,7 @@ let storageValueRules: [ValueRule] = [
         return nil
     },
 
-    ValueRule(.storage, field: "partition_map_type") { context in
+    ValueRule(.storage, .nvme, field: "partition_map_type") { context in
         switch context.reportedValue {
         case "guid_partition_map_type":
             .normal("GUID partition map, the standard layout for Mac disks.", confidence: .documented)

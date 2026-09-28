@@ -25,7 +25,7 @@ let networkValueRules: [ValueRule] = [
             return .normal("An Ethernet network service.")
         }
 
-        if value == "AirPort" {
+        if value == "AirPort" || value == "IEEE80211" {
             return .normal("A Wi-Fi network service.", confidence: .documented)
         }
 
@@ -171,6 +171,118 @@ func ipConfigurationExplanation(_ value: String, family: String?) -> ValueExplan
     default:
         nil
     }
+}
+
+// MARK: - Ethernet
+
+let ethernetValueRules: [ValueRule] = [
+    ValueRule(.ethernet, field: "spethernet_bus") { context in
+        if let device = connectedAppleDevice(context) {
+            return .info(
+                "A network link to \(device) connected over USB, not a physical Ethernet adapter.",
+                detail: "macOS creates links like this for Personal Hotspot over USB and for services such as Finder syncing and Xcode.",
+                confidence: .likely(reasons: appleDeviceLinkReasons(context, device: device))
+            )
+        }
+
+        return switch tokenSuffix(context.reportedValue, after: "spethernet_") {
+        case "usb_device": .info("A USB Ethernet adapter.")
+        case "pcie", "pci": .info("Connected over PCI Express.")
+        case "builtin", "built_in": .info("Built into this Mac.")
+        default: nil
+        }
+    },
+
+    ValueRule(.ethernet, field: "spethernet_max_link_speed") { context in
+        guard let megabits = tokenSuffix(context.reportedValue, after: "speed_").flatMap({ Int($0) }) else {
+            return nil
+        }
+
+        if let device = connectedAppleDevice(context) {
+            return .info(
+                "Reported as \(ethernetSpeedDescription(megabits: megabits)), a nominal figure for the link to \(device).",
+                detail: "Actual speed depends on the USB connection and on the device itself.",
+                confidence: .likely(reasons: appleDeviceLinkReasons(context, device: device))
+            )
+        }
+
+        return .info("Supports Ethernet speeds up to \(ethernetSpeedDescription(megabits: megabits)).", confidence: .documented)
+    },
+
+    ValueRule(.ethernet, field: "spethernet_usb_device_speed") { context in
+        usbLinkExplanation(
+            context.reportedValue,
+            adapterMegabits: connectedAppleDevice(context) == nil
+                ? context.sibling("spethernet_max_link_speed")
+                    .flatMap { tokenSuffix($0, after: "speed_") }
+                    .flatMap { Int($0) }
+                : nil
+        )
+    }
+]
+
+/// Returns "an iPhone" or "an iPad" when an Ethernet entry is really a USB link to one.
+private func connectedAppleDevice(_ context: ValueContext) -> String? {
+    let product: String = [context.sibling("spethernet_product_name"), context.sibling("_name")]
+        .compactMap { $0 }
+        .joined(separator: " ")
+
+    if product.localizedCaseInsensitiveContains("iPhone") { return "an iPhone" }
+    if product.localizedCaseInsensitiveContains("iPad") { return "an iPad" }
+    return nil
+}
+
+private func appleDeviceLinkReasons(_ context: ValueContext, device: String) -> [String] {
+    var reasons: [String] = ["The entry's product name is \(device.replacingOccurrences(of: "an ", with: ""))."]
+
+    if let driver = context.sibling("spethernet_driver"),
+       driver.contains("cdc.ncm") || driver.contains("USBEthernetHost") {
+        reasons.append("It uses \(driver), a driver for USB network links rather than an Ethernet chip.")
+    }
+
+    return reasons
+}
+
+func ethernetSpeedDescription(megabits: Int) -> String {
+    switch megabits {
+    case 10: "10 Mb/s"
+    case 100: "100 Mb/s (Fast Ethernet)"
+    case 1_000: "1 Gb/s (Gigabit Ethernet)"
+    case let speed where speed >= 1_000 && speed % 1_000 == 0: "\(speed / 1_000) Gb/s"
+    case let speed where speed > 1_000: "\((Double(speed) / 1_000).formatted()) Gb/s"
+    default: "\(megabits) Mb/s"
+    }
+}
+
+/// Explains the USB link an adapter uses, and whether it may limit the adapter's speed.
+func usbLinkExplanation(_ value: String, adapterMegabits: Int?) -> ValueExplanation? {
+    let links: [String: (name: String, megabits: Int)] = [
+        "low_speed": ("USB Low Speed", 1),
+        "full_speed": ("USB Full Speed", 12),
+        "high_speed": ("USB 2.0 High Speed", 480),
+        "super_speed": ("USB 5 Gb/s", 5_000),
+        "super_speed_plus": ("USB 10 Gb/s", 10_000),
+        "super_speed_plus_by_2": ("USB 20 Gb/s", 20_000)
+    ]
+
+    guard let link = links[value] else {
+        return nil
+    }
+
+    let summary: String = "Connected at \(link.name) (up to \(ethernetSpeedDescription(megabits: link.megabits)))."
+
+    if let adapterMegabits, adapterMegabits > link.megabits {
+        return .info(
+            summary,
+            detail: "The adapter supports \(ethernetSpeedDescription(megabits: adapterMegabits)), but its USB connection runs at up to \(ethernetSpeedDescription(megabits: link.megabits)), which can limit its speed.",
+            action: "For full speed, connect the adapter to a faster USB or Thunderbolt port, not through a slower hub or cable.",
+            confidence: .likely(reasons: [
+                "The USB connection's reported speed is lower than the adapter's Ethernet speed."
+            ])
+        )
+    }
+
+    return .info(summary, confidence: .documented)
 }
 
 // MARK: - Wi-Fi
