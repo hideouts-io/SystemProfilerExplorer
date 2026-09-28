@@ -72,23 +72,25 @@ The features below describe the current source on `main`. The downloadable v0.1.
 
 ## Screenshots
 
-### Clean subject dashboard
+### Overview at a glance
 
-![System Profiler Explorer overview screen](docs/images/system-profiler-explorer-overview.png)
+![System Profiler Explorer Overview with an At a Glance summary and one value worth a look](docs/images/system-profiler-explorer-overview.png)
 
-The Overview screen provides a calm starting point for a live full-system scan or a local JSON import.
+Overview turns a quick scan into plain sentences about the chip, macOS, storage, battery, Wi-Fi, Bluetooth, and firewall, and lists any values worth a look. The sidebar shows how many values in each subject need attention.
 
-### Organized full report
+### Searchable full report
 
-![System Profiler Explorer Reports tab with synthetic findings](docs/images/system-profiler-explorer-reports.png)
+![System Profiler Explorer Reports searching for battery values](docs/images/system-profiler-explorer-reports.png)
 
-The Reports tab groups every collected data type into collapsible records and shows finding, explanation, and privacy counts.
+Reports collects every supported data type. Search matches values and explanations, and each value shows a status (Normal, Info, or Worth a look) with a short explanation.
 
-### Detailed finding explanation
+### Value explanations
 
-![Expanded System Profiler Explorer explanation card using synthetic data](docs/images/system-profiler-explorer-explanation.png)
+![Expanded explanation for a low free space value](docs/images/system-profiler-explorer-explanation.png)
 
-Each recognized finding separates meaning, significance, interpretation limits, source information, and privacy guidance. These screenshots were captured from the compiled v0.1.0 app using a synthetic documentation report; they contain no live system inventory or personal identifiers.
+Expanding a value explains what it means on this Mac, what you can do about it, and what the field itself reports, and which glossary terms it uses.
+
+These screenshots were captured from the current app using a synthetic sample report. They contain no real system inventory or personal identifiers.
 
 ## Coverage
 
