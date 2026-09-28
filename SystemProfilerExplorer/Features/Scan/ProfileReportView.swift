@@ -1294,6 +1294,17 @@ private struct ScalarProfileRow: View {
         .padding(.horizontal, 14)
         .padding(.vertical, 9)
         .background(isHighlighted ? Color.accentColor.opacity(0.14) : Color.clear, in: RoundedRectangle(cornerRadius: 9))
+        .contextMenu {
+            Button("Copy Value") {
+                copyToPasteboard(presentation.rawValue)
+            }
+            Button("Copy Source Path") {
+                copyToPasteboard(presentation.sourcePath)
+            }
+            Button("Copy as Markdown") {
+                copyToPasteboard(findingMarkdown(presentation: presentation, valueExplanation: valueExplanation))
+            }
+        }
         .accessibilityIdentifier("finding-\(presentation.sourcePath)")
     }
 
@@ -1597,4 +1608,10 @@ private func shouldShowDivider(after value: ProfileValue) -> Bool {
     case .object, .array: false
     case .string, .integer, .decimal, .boolean, .null: true
     }
+}
+
+private func copyToPasteboard(_ text: String) {
+    let pasteboard: NSPasteboard = .general
+    pasteboard.clearContents()
+    pasteboard.setString(text, forType: .string)
 }

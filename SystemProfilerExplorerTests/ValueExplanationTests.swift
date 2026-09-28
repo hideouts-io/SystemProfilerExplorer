@@ -331,3 +331,38 @@ private let nrf52Service: [String: ProfileValue] = [
     "type": .string("PPP (PPPSerial)"),
     "interface": .string("usbmodem0000000000001")
 ]
+
+struct FindingMarkdownTests {
+    @Test
+    func markdownIncludesValueMeaningFieldContextAndSource() {
+        let presentation: FieldPresentation = fieldPresentation(
+            dataType: .software,
+            path: ["system_integrity"],
+            scalar: .string("integrity_disabled")
+        )
+        let explanation: ValueExplanation? = valueExplanation(
+            dataType: .software,
+            path: ["system_integrity"],
+            scalar: .string("integrity_disabled")
+        )
+        let markdown: String = findingMarkdown(presentation: presentation, valueExplanation: explanation)
+        let lines: [String] = markdown.components(separatedBy: "\n")
+
+        #expect(lines.first?.hasPrefix("**") == true)
+        #expect(markdown.contains("- Worth a look: System Integrity Protection is off."))
+        #expect(markdown.contains("- What you can do: "))
+        #expect(markdown.contains("- Source: `SPSoftwareDataType.system_integrity`"))
+        #expect(markdown.contains("raw value `integrity_disabled`"))
+    }
+
+    @Test
+    func markdownKeepsBackticksInsideValuesReadable() {
+        let presentation: FieldPresentation = fieldPresentation(
+            dataType: .hardware,
+            path: ["future_field"],
+            scalar: .string("a`b")
+        )
+
+        #expect(findingMarkdown(presentation: presentation, valueExplanation: nil).contains("`` a`b ``"))
+    }
+}
