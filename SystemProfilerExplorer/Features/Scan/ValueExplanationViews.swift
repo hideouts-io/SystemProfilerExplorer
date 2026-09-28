@@ -158,11 +158,15 @@ private struct ReasonLabelStyle: LabelStyle {
     }
 }
 
-/// Plain-language sentences at the top of a report, built from collected values.
+/// Plain-language sentences at the top of a report, built from collected values, followed
+/// by the values worth a look so the answer to "is this Mac OK?" is on the first screen.
 struct AtAGlanceCard: View {
     let sentences: [String]
-    let worthReviewingCount: Int
-    let showWorthReviewing: () -> Void
+    let worthReviewingItems: [WorthReviewingItem]
+    let showItem: (WorthReviewingItem) -> Void
+    let showAllWorthReviewing: () -> Void
+
+    private let visibleItemLimit: Int = 5
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -177,16 +181,35 @@ struct AtAGlanceCard: View {
             }
             .textSelection(.enabled)
 
-            if worthReviewingCount > 0 {
-                Button(action: showWorthReviewing) {
+            if worthReviewingItems.isEmpty {
+                Label {
+                    Text("Nothing in this scan needs a look.")
+                } icon: {
+                    Image(systemName: ValueStatus.normal.symbolName)
+                        .foregroundStyle(ValueStatus.normal.tint)
+                }
+                .accessibilityIdentifier("glance-nothing-worth-a-look")
+            } else {
+                Divider()
+
+                VStack(alignment: .leading, spacing: 8) {
                     Label {
-                        Text("\(worthReviewingCount) \(worthReviewingCount == 1 ? "finding is" : "findings are") worth a look")
+                        Text("Worth a look")
                     } icon: {
                         Image(systemName: ValueStatus.worthReviewing.symbolName)
                             .foregroundStyle(ValueStatus.worthReviewing.tint)
                     }
+                    .font(.subheadline.weight(.semibold))
+
+                    ForEach(worthReviewingItems.prefix(visibleItemLimit)) { item in
+                        WorthReviewingItemRow(item: item, show: { showItem(item) })
+                    }
+
+                    if worthReviewingItems.count > visibleItemLimit {
+                        Button("Show all \(worthReviewingItems.count)", action: showAllWorthReviewing)
+                            .buttonStyle(.link)
+                    }
                 }
-                .buttonStyle(.link)
                 .accessibilityIdentifier("glance-worth-a-look")
             }
         }
@@ -198,6 +221,38 @@ struct AtAGlanceCard: View {
                 .stroke(Color(nsColor: .separatorColor).opacity(0.45), lineWidth: 1)
         }
         .accessibilityIdentifier("at-a-glance")
+    }
+}
+
+private struct WorthReviewingItemRow: View {
+    let item: WorthReviewingItem
+    let show: () -> Void
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(item.summary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text("\(item.dataType.title) › \(item.recordLabel) › \(item.fieldTitle)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer(minLength: 12)
+
+            Button("Show", action: show)
+                .controlSize(.small)
+                .accessibilityLabel("Show \(item.fieldTitle) in \(item.recordLabel)")
+        }
+        .padding(.leading, 24)
+    }
+}
+
+/// The word for an explained value: "values" for beginners, "findings" for developers.
+func findingNoun(_ count: Int, mode: ExplanationDetailMode) -> String {
+    switch mode {
+    case .beginner: count == 1 ? "value" : "values"
+    case .developer: count == 1 ? "finding" : "findings"
     }
 }
 

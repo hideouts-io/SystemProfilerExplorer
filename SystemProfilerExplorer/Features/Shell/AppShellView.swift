@@ -441,19 +441,24 @@ private struct SubjectTab: View {
     let collectionHealth: CollectionAttemptHealth
     let select: () -> Void
 
+    @Environment(\.explanationDetailMode) private var detailMode
+
     var body: some View {
         Button(action: select) {
             HStack(spacing: 6) {
                 Label(subject.title, systemImage: subject.symbolName)
 
                 if let findingCount {
-                    Text(findingCount.formatted())
-                        .font(.caption2.weight(.semibold).monospacedDigit())
-                        .foregroundStyle(isSelected ? Color.accentColor : .secondary)
-                        .padding(.horizontal, 5)
-                        .padding(.vertical, 2)
-                        .background(.quaternary, in: Capsule())
-                        .accessibilityLabel("\(findingCount) findings")
+                    // The total is a developer detail; beginners see only what's worth a look.
+                    if detailMode == .developer {
+                        Text(findingCount.formatted())
+                            .font(.caption2.weight(.semibold).monospacedDigit())
+                            .foregroundStyle(isSelected ? Color.accentColor : .secondary)
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 2)
+                            .background(.quaternary, in: Capsule())
+                            .accessibilityLabel("\(findingCount) findings")
+                    }
 
                     if worthReviewingCount > 0 {
                         Label {

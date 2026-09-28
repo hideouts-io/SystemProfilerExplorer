@@ -15,7 +15,7 @@ struct SystemReviewFinding: Identifiable, Sendable, Equatable {
 func systemReviewFindings(_ report: SystemProfilerReport) -> [SystemReviewFinding] {
     report.sections.flatMap { section in
         section.items.enumerated().flatMap { index, value in
-            let recordLabel: String = SystemProfilerExplorer.recordLabel(value, fallback: "Record \(index + 1)")
+            let recordLabel: String = recordDisplayLabel(value, fallback: "Record \(index + 1)")
             return systemReviewFindings(
                 value: value,
                 dataType: section.dataType,

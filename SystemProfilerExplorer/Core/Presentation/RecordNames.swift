@@ -51,6 +51,6 @@ func friendlyReportGroupName(_ name: String) -> String {
 }
 
 /// The label shown and searched for a record or array item.
-func recordLabel(_ value: ProfileValue, fallback: String) -> String {
+func recordDisplayLabel(_ value: ProfileValue, fallback: String) -> String {
     value.preferredName.map(friendlyReportGroupName) ?? fallback
 }
