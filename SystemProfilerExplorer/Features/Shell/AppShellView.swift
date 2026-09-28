@@ -238,10 +238,6 @@ struct AppShellView: View {
                 startScan: startScan,
                 importReport: showRawReportImporter
             )
-        case .highlights:
-            WorkspaceScrollContainer {
-                SystemHighlightsWorkspaceView(reports: reports)
-            }
         case .changes:
             WorkspaceScrollContainer {
                 WhatChangedDashboardView(reports: reports)
@@ -415,11 +411,6 @@ private struct WorkspaceTabBar: View {
                 Divider()
                     .frame(height: 22)
 
-                WorkspaceTab(
-                    workspace: .highlights,
-                    isSelected: selectedWorkspace == .highlights,
-                    select: { selectedWorkspace = .highlights }
-                )
                 WorkspaceTab(
                     workspace: .changes,
                     isSelected: selectedWorkspace == .changes,
