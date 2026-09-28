@@ -238,6 +238,10 @@ private let valueRuleIndex: [ValueRuleKey: [ValueRule]] = {
 /// where the field explanation is the whole story, and an honest fallback for
 /// enumeration values the catalog doesn't cover yet.
 func valueExplanation(for context: ValueContext) -> ValueExplanation? {
+    if context.reportedValue == redactedProfileValue {
+        return nil
+    }
+
     let rules: [ValueRule] = valueRuleIndex[ValueRuleKey(dataType: context.dataType, field: context.field)] ?? []
 
     for rule in rules {

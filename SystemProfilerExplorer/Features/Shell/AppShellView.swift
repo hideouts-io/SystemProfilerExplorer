@@ -183,7 +183,7 @@ struct AppShellView: View {
                 let prepared: PreparedReport = try await Task.detached(priority: .userInitiated) {
                     let data: Data = try readSecurityScopedData(reportURL)
                     return try PreparedReport(
-                        report: reportParser.parseImportedReport(data, importedAt: Date())
+                        report: loadViewableReport(from: data, importedAt: Date(), parser: reportParser)
                     )
                 }.value
 
@@ -664,7 +664,7 @@ private struct ReadinessCard: View {
     private var readinessMessage: String {
         if canScan {
             if subject == .reports {
-                return "Run a complete read-only scan of this Mac, or import an existing system_profiler -json report for local analysis."
+                return "Run a complete read-only scan of this Mac, or import a system_profiler -json file or a report exported from this app."
             }
 
             return "Run a read-only scan to organize \(subject.title.lowercased()) data into structured, collapsible findings."

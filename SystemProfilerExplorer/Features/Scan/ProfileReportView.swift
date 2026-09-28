@@ -362,8 +362,10 @@ struct ProfileReportView: View {
             do {
                 let comparison: ReportComparison = try await Task.detached(priority: .userInitiated) {
                     let data: Data = try Data(contentsOf: reportURL, options: .mappedIfSafe)
-                    let export: ReportExportEnvelope = try decodeReportExport(data)
-                    let baselineReport: SystemProfilerReport = try comparisonBaselineReport(from: export)
+                    let baselineReport: SystemProfilerReport = try loadComparisonBaseline(
+                        from: data,
+                        importedAt: fileModificationDate(reportURL)
+                    )
                     return try compareReports(baseline: baselineReport, current: currentReport)
                 }.value
 
