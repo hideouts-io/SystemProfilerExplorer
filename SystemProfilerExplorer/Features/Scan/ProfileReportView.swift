@@ -1465,6 +1465,30 @@ private struct FieldExplanationView: View {
                 symbolName: "text.book.closed",
                 text: explanation.meaning
             )
+
+            // Beginners get the meaning up front; the careful detail is one click away.
+            if detailMode == .developer {
+                detailSections
+                FieldSourceDetails(presentation: presentation, openSourceLocation: openSourceLocation)
+            } else {
+                DisclosureGroup("More about this field") {
+                    detailSections
+                        .padding(.top, 8)
+                }
+                .font(.callout)
+                .accessibilityIdentifier("more-about-field")
+            }
+        }
+        .padding(14)
+        .background(Color.accentColor.opacity(0.055), in: RoundedRectangle(cornerRadius: 11))
+        .padding(.top, 8)
+    }
+}
+
+extension FieldExplanationView {
+    @ViewBuilder
+    fileprivate var detailSections: some View {
+        VStack(alignment: .leading, spacing: 14) {
             ExplanationSection(
                 title: "Why it matters",
                 symbolName: "scope",
@@ -1483,14 +1507,7 @@ private struct FieldExplanationView: View {
                     text: privacy
                 )
             }
-
-            if detailMode == .developer {
-                FieldSourceDetails(presentation: presentation, openSourceLocation: openSourceLocation)
-            }
         }
-        .padding(14)
-        .background(Color.accentColor.opacity(0.055), in: RoundedRectangle(cornerRadius: 11))
-        .padding(.top, 8)
     }
 }
 
