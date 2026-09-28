@@ -11,10 +11,12 @@
 		06011960E1B3DC38DFF2638C /* SecureElementAndSmartCardExplanations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 433F05B4C4BA2EEF1C3E65B0 /* SecureElementAndSmartCardExplanations.swift */; };
 		069D5D6C8CDDF9DC29568A68 /* StorageExplanations.swift in Sources */ = {isa = PBXBuildFile; fileRef = D54993A888520B058DEC52F9 /* StorageExplanations.swift */; };
 		0A011607BE0CD75C104AD226 /* RawReportImportTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DA1EB2E581B4CA679420FA2F /* RawReportImportTests.swift */; };
+		0BEAF64AB9449051BF7B76CE /* ValueExplanationViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CFFFC2B6BE6E5A3F5A999F0 /* ValueExplanationViews.swift */; };
 		0C415265D31708FCA5961FDB /* DiagnosticLogView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FCB5B24DFE76BB7DE34B6878 /* DiagnosticLogView.swift */; };
 		0CEFC5713DBE14DAD2C7E2A0 /* ContextualFieldExplanations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78AF3F713C4A791BA1C636FA /* ContextualFieldExplanations.swift */; };
 		1225F9FD5B4A1D5480726182 /* AdditionalDataTypeExplanations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 895BF724C185EB42ECC0960C /* AdditionalDataTypeExplanations.swift */; };
 		2573DC0E0A287DD94F7A5BE5 /* CollectionCoverage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 813E23B10C1353CEB0EDBEA5 /* CollectionCoverage.swift */; };
+		307D089D7ADDB89EA9FC66F8 /* ExplanationDetailMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65695D313576B7EF9C89BA1D /* ExplanationDetailMode.swift */; };
 		30C5636DB2A587496A498570 /* WiFiExplanations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 603A8412B182978C743C4A1F /* WiFiExplanations.swift */; };
 		329EAAA4FAD74DC9148A730D /* AccessibilityExplanations.swift in Sources */ = {isa = PBXBuildFile; fileRef = D67584376B2445EF1DF746DE /* AccessibilityExplanations.swift */; };
 		3603357F65BD0849D2404E9E /* ReviewWorkflowTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E020DF1E5CFFD5F007B05424 /* ReviewWorkflowTests.swift */; };
@@ -130,6 +132,7 @@
 		5FD7DA4AC0CB6A6333C76FAF /* SystemProfilerCollector.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemProfilerCollector.swift; sourceTree = "<group>"; };
 		603A8412B182978C743C4A1F /* WiFiExplanations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WiFiExplanations.swift; sourceTree = "<group>"; };
 		6460BE296C1F7F744F9F12D3 /* ReportChangeInsight.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportChangeInsight.swift; sourceTree = "<group>"; };
+		65695D313576B7EF9C89BA1D /* ExplanationDetailMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExplanationDetailMode.swift; sourceTree = "<group>"; };
 		6631DF91B1CCB392AB60CE1B /* NetworkLocationExplanations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkLocationExplanations.swift; sourceTree = "<group>"; };
 		667B768E0640B0A7CED3565C /* DeveloperAndExtensionExplanations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeveloperAndExtensionExplanations.swift; sourceTree = "<group>"; };
 		6D7876658E1CB763768872B9 /* ProfilerSubjectTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfilerSubjectTests.swift; sourceTree = "<group>"; };
@@ -146,6 +149,7 @@
 		895BF724C185EB42ECC0960C /* AdditionalDataTypeExplanations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdditionalDataTypeExplanations.swift; sourceTree = "<group>"; };
 		899804108CD311079A137AB0 /* FindingQueryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FindingQueryTests.swift; sourceTree = "<group>"; };
 		8AF48C92BB49A1D7C2BF3D06 /* PowerExplanationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PowerExplanationTests.swift; sourceTree = "<group>"; };
+		8CFFFC2B6BE6E5A3F5A999F0 /* ValueExplanationViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ValueExplanationViews.swift; sourceTree = "<group>"; };
 		906F79EA77C101E1546B8F65 /* ReportExportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportExportView.swift; sourceTree = "<group>"; };
 		949093927A321A77B7F5D829 /* CollectionCoverageTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CollectionCoverageTests.swift; sourceTree = "<group>"; };
 		9DF9A3587A8237B1792AEF77 /* ValueExplanation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ValueExplanation.swift; sourceTree = "<group>"; };
@@ -248,6 +252,7 @@
 			isa = PBXGroup;
 			children = (
 				A3008441F4CF445712380CF6 /* AppShellView.swift */,
+				65695D313576B7EF9C89BA1D /* ExplanationDetailMode.swift */,
 			);
 			path = Shell;
 			sourceTree = "<group>";
@@ -415,6 +420,7 @@
 				ADBD375703B00F7FFCFA2A47 /* ProfileReportView.swift */,
 				4A51AB239BF7150A0E3357EE /* ScanState.swift */,
 				C4A6D99245031E028E535B9A /* SubjectScanConfiguration.swift */,
+				8CFFFC2B6BE6E5A3F5A999F0 /* ValueExplanationViews.swift */,
 			);
 			path = Scan;
 			sourceTree = "<group>";
@@ -594,6 +600,7 @@
 				708157BE3BDD104C787EDABA /* DeveloperAndExtensionExplanations.swift in Sources */,
 				5A2F229D1DB91EEFF8876B8C /* DiagnosticLogSummary.swift in Sources */,
 				0C415265D31708FCA5961FDB /* DiagnosticLogView.swift in Sources */,
+				307D089D7ADDB89EA9FC66F8 /* ExplanationDetailMode.swift in Sources */,
 				D9011DAC9C7730D1DC5FF3EF /* FieldExplanation.swift in Sources */,
 				4CFABDB46C5DB9C9E2604484 /* FieldPresentation.swift in Sources */,
 				76B0ED1DED78F8754BB96A53 /* FindingQuery.swift in Sources */,
@@ -639,6 +646,7 @@
 				AFA6EE6441826891E1D2B486 /* SystemReviewSummaryView.swift in Sources */,
 				8F73A3F1DEF503AC82BB01E0 /* SystemValueRules.swift in Sources */,
 				DE3A7F2B691B7402B6796571 /* ValueExplanation.swift in Sources */,
+				0BEAF64AB9449051BF7B76CE /* ValueExplanationViews.swift in Sources */,
 				5149FE62263CED26417BA757 /* WhatChangedDashboardView.swift in Sources */,
 				30C5636DB2A587496A498570 /* WiFiExplanations.swift in Sources */,
 			);

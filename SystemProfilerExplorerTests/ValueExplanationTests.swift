@@ -15,7 +15,7 @@ struct ValueExplanationTests {
         ))
 
         #expect(explanation.status == .informational)
-        #expect(explanation.summary.contains("Nordic Semiconductor nRF5"))
+        #expect(explanation.summary.contains("Nordic Semiconductor nRF52 board or dongle"))
         #expect(explanation.summary.contains("not a phone-line or cellular modem"))
         #expect(explanation.confidence?.reasons.count == 3)
         #expect(explanation.detail?.contains("Scan Hardware") == true)

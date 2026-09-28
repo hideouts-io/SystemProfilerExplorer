@@ -12,6 +12,7 @@ struct AppShellView: View {
     @State private var scanState: ScanState = .idle
     @State private var scanTask: Task<Void, Never>?
     @State private var isShowingRawReportImporter: Bool = false
+    @AppStorage(explanationDetailModeStorageKey) private var explanationDetailMode: ExplanationDetailMode = .beginner
 
     init(collector: any SystemProfilerCollecting, parser: SystemProfilerParser) {
         self.collector = collector
@@ -27,7 +28,8 @@ struct AppShellView: View {
                 canImport: selectedSubject == .reports,
                 startScan: startScan,
                 importReport: showRawReportImporter,
-                cancelScan: cancelScan
+                cancelScan: cancelScan,
+                explanationDetailMode: $explanationDetailMode
             )
             Divider()
             WorkspaceTabBar(
@@ -39,6 +41,7 @@ struct AppShellView: View {
             workspaceContent
         }
         .background(Color(nsColor: .windowBackgroundColor))
+        .environment(\.explanationDetailMode, explanationDetailMode)
         .fileImporter(
             isPresented: $isShowingRawReportImporter,
             allowedContentTypes: [.json],
@@ -256,6 +259,7 @@ private struct AppHeader: View {
     let startScan: () -> Void
     let importReport: () -> Void
     let cancelScan: () -> Void
+    @Binding var explanationDetailMode: ExplanationDetailMode
 
     var body: some View {
         HStack(spacing: 12) {
@@ -274,6 +278,18 @@ private struct AppHeader: View {
             }
 
             Spacer()
+
+            Picker("Explanation detail", selection: $explanationDetailMode) {
+                ForEach(ExplanationDetailMode.allCases) { mode in
+                    Text(mode.title).tag(mode)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .fixedSize()
+            .help(explanationDetailMode.help)
+            .accessibilityLabel("Explanation detail")
+            .accessibilityIdentifier("explanation-detail-mode")
 
             Label(scanState.statusTitle, systemImage: scanState.statusSymbolName)
                 .font(.caption.weight(.medium))

@@ -52,6 +52,7 @@ struct ProfileReportView: View {
                 ReportIndexingView()
             }
         }
+        .environment(\.valueReportContext, valueReportContext(for: report))
         .task(id: report.completedAt) {
             await preparePresentationIndex()
         }
@@ -917,7 +918,8 @@ private struct ProfileSectionView: View {
                             bookmarkedSourcePaths: bookmarkedSourcePaths,
                             toggleBookmark: toggleBookmark,
                             openSourceLocation: openSourceLocation,
-                            highlightedSourcePath: highlightedSourcePath
+                            highlightedSourcePath: highlightedSourcePath,
+                            siblings: [:]
                         )
 
                         if record.id != visibleRecords.last?.id {
@@ -1002,7 +1004,10 @@ private struct ProfileValueDisclosure: View {
     let toggleBookmark: (String) -> Void
     let openSourceLocation: (String) -> Void
     let highlightedSourcePath: String?
+    /// The other fields of the object containing this value, for context-aware value explanations.
+    let siblings: [String: ProfileValue]
 
+    @Environment(\.valueReportContext) private var valueReportContext
     @State private var isManuallyExpanded: Bool = false
 
     var body: some View {
@@ -1023,7 +1028,8 @@ private struct ProfileValueDisclosure: View {
                             bookmarkedSourcePaths: bookmarkedSourcePaths,
                             toggleBookmark: toggleBookmark,
                             openSourceLocation: openSourceLocation,
-                            highlightedSourcePath: highlightedSourcePath
+                            highlightedSourcePath: highlightedSourcePath,
+                            siblings: object
                         )
                     }
                 }
@@ -1050,7 +1056,8 @@ private struct ProfileValueDisclosure: View {
                             bookmarkedSourcePaths: bookmarkedSourcePaths,
                             toggleBookmark: toggleBookmark,
                             openSourceLocation: openSourceLocation,
-                            highlightedSourcePath: highlightedSourcePath
+                            highlightedSourcePath: highlightedSourcePath,
+                            siblings: [:]
                         )
                     }
                 }
@@ -1087,6 +1094,13 @@ private struct ProfileValueDisclosure: View {
 
         return ScalarProfileRow(
             presentation: presentation,
+            valueExplanation: presentation.isLogContent ? nil : valueExplanation(
+                dataType: dataType,
+                path: path,
+                scalar: scalar,
+                siblings: siblings,
+                report: valueReportContext
+            ),
             depth: depth,
             isBookmarked: bookmarkedSourcePaths.contains(presentation.sourcePath),
             toggleBookmark: toggleBookmark,
@@ -1157,6 +1171,7 @@ private struct ProfileFieldRow: View {
     let toggleBookmark: (String) -> Void
     let openSourceLocation: (String) -> Void
     let highlightedSourcePath: String?
+    let siblings: [String: ProfileValue]
 
     var body: some View {
         ProfileValueDisclosure(
@@ -1170,7 +1185,8 @@ private struct ProfileFieldRow: View {
             bookmarkedSourcePaths: bookmarkedSourcePaths,
             toggleBookmark: toggleBookmark,
             openSourceLocation: openSourceLocation,
-            highlightedSourcePath: highlightedSourcePath
+            highlightedSourcePath: highlightedSourcePath,
+            siblings: siblings
         )
 
         if shouldShowDivider(after: value) {
@@ -1202,14 +1218,21 @@ private struct ProfileGroupLabel: View {
 
 private struct ScalarProfileRow: View {
     let presentation: FieldPresentation
+    let valueExplanation: ValueExplanation?
     let depth: Int
     let isBookmarked: Bool
     let toggleBookmark: (String) -> Void
     let openSourceLocation: (String) -> Void
     let isHighlighted: Bool
 
+    @Environment(\.explanationDetailMode) private var detailMode
+
     var body: some View {
         DisclosureGroup {
+            if let valueExplanation {
+                ValueMeaningView(explanation: valueExplanation)
+            }
+
             if presentation.isLogContent {
                 DiagnosticLogView(presentation: presentation, openSourceLocation: openSourceLocation)
             } else if let explanation = presentation.explanation {
@@ -1225,30 +1248,16 @@ private struct ScalarProfileRow: View {
                 )
             }
         } label: {
-            HStack(alignment: .firstTextBaseline, spacing: 12) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(presentation.title)
-                        .foregroundStyle(.secondary)
-                    ExplanationCoverageBadge(coverage: explanationCoverage(for: presentation))
+            VStack(alignment: .leading, spacing: 6) {
+                scalarHeader
+
+                if let valueExplanation {
+                    ValueSummaryLine(explanation: valueExplanation)
                 }
-                .frame(maxWidth: 280, alignment: .leading)
 
-                Spacer(minLength: 12)
-
-                Text(presentation.isLogContent ? "Log excerpt • expand to review" : presentation.displayedValue)
-                    .font(.body.monospaced())
-                    .textSelection(.enabled)
-                    .multilineTextAlignment(.trailing)
-
-                Button {
-                    toggleBookmark(presentation.sourcePath)
-                } label: {
-                    Image(systemName: isBookmarked ? "bookmark.fill" : "bookmark")
+                if detailMode == .developer {
+                    ScalarDeveloperDetails(presentation: presentation)
                 }
-                .buttonStyle(.borderless)
-                .foregroundStyle(isBookmarked ? Color.accentColor : .secondary)
-                .accessibilityLabel(isBookmarked ? "Remove bookmark" : "Bookmark finding")
-                .accessibilityIdentifier("bookmark-\(presentation.sourcePath)")
             }
         }
         .padding(.leading, CGFloat(depth * 14))
@@ -1256,6 +1265,60 @@ private struct ScalarProfileRow: View {
         .padding(.vertical, 9)
         .background(isHighlighted ? Color.accentColor.opacity(0.14) : Color.clear, in: RoundedRectangle(cornerRadius: 9))
         .accessibilityIdentifier("finding-\(presentation.sourcePath)")
+    }
+
+    private var scalarHeader: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(presentation.title)
+                    .foregroundStyle(.secondary)
+
+                if detailMode == .developer {
+                    ExplanationCoverageBadge(coverage: explanationCoverage(for: presentation))
+                }
+            }
+            .frame(maxWidth: 280, alignment: .leading)
+
+            Spacer(minLength: 12)
+
+            Text(presentation.isLogContent ? "Log excerpt • expand to review" : presentation.displayedValue)
+                .font(.body.monospaced())
+                .textSelection(.enabled)
+                .multilineTextAlignment(.trailing)
+
+            Button {
+                toggleBookmark(presentation.sourcePath)
+            } label: {
+                Image(systemName: isBookmarked ? "bookmark.fill" : "bookmark")
+            }
+            .buttonStyle(.borderless)
+            .foregroundStyle(isBookmarked ? Color.accentColor : .secondary)
+            .accessibilityLabel(isBookmarked ? "Remove bookmark" : "Bookmark finding")
+            .accessibilityIdentifier("bookmark-\(presentation.sourcePath)")
+        }
+    }
+}
+
+/// Raw details shown under a finding in Developer mode.
+private struct ScalarDeveloperDetails: View {
+    let presentation: FieldPresentation
+
+    var body: some View {
+        HStack(spacing: 14) {
+            Text(presentation.sourcePath)
+                .lineLimit(1)
+                .truncationMode(.middle)
+
+            if presentation.displayedValue != presentation.rawValue {
+                Text("raw: \(presentation.rawValue)")
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+            }
+        }
+        .font(.caption.monospaced())
+        .foregroundStyle(.tertiary)
+        .textSelection(.enabled)
+        .accessibilityIdentifier("developer-details")
     }
 }
 
@@ -1283,9 +1346,18 @@ private struct FieldExplanationView: View {
     let explanation: FieldExplanation
     let openSourceLocation: (String) -> Void
 
+    @Environment(\.explanationDetailMode) private var detailMode
+
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            ExplanationCoverageDetail(coverage: explanationCoverage(for: presentation))
+            Text("About this field")
+                .font(.caption.weight(.semibold))
+                .textCase(.uppercase)
+                .foregroundStyle(.secondary)
+
+            if detailMode == .developer {
+                ExplanationCoverageDetail(coverage: explanationCoverage(for: presentation))
+            }
 
             ExplanationSection(
                 title: "What it means",
@@ -1311,6 +1383,22 @@ private struct FieldExplanationView: View {
                 )
             }
 
+            if detailMode == .developer {
+                FieldSourceDetails(presentation: presentation, openSourceLocation: openSourceLocation)
+            }
+        }
+        .padding(14)
+        .background(Color.accentColor.opacity(0.055), in: RoundedRectangle(cornerRadius: 11))
+        .padding(.top, 8)
+    }
+}
+
+private struct FieldSourceDetails: View {
+    let presentation: FieldPresentation
+    let openSourceLocation: (String) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
             Divider()
 
             VStack(alignment: .leading, spacing: 5) {
@@ -1332,9 +1420,6 @@ private struct FieldExplanationView: View {
             .buttonStyle(.bordered)
             .accessibilityIdentifier("open-raw-source-\(presentation.sourcePath)")
         }
-        .padding(14)
-        .background(Color.accentColor.opacity(0.055), in: RoundedRectangle(cornerRadius: 11))
-        .padding(.top, 8)
     }
 }
 
@@ -1380,6 +1465,8 @@ private struct MissingExplanationView: View {
     let presentation: FieldPresentation
     let openSourceLocation: (String) -> Void
 
+    @Environment(\.explanationDetailMode) private var detailMode
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Label("Unrecognized field", systemImage: "questionmark.circle")
@@ -1387,17 +1474,20 @@ private struct MissingExplanationView: View {
             Text("The value is preserved exactly as system_profiler reported it. The app does not infer a meaning for an unrecognized field.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
-            LabeledContent("Source field", value: presentation.sourcePath)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .textSelection(.enabled)
 
-            Button {
-                openSourceLocation(presentation.sourcePath)
-            } label: {
-                Label("Show Raw Source Location", systemImage: "arrow.turn.down.right")
+            if detailMode == .developer {
+                LabeledContent("Source field", value: presentation.sourcePath)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+
+                Button {
+                    openSourceLocation(presentation.sourcePath)
+                } label: {
+                    Label("Show Raw Source Location", systemImage: "arrow.turn.down.right")
+                }
+                .buttonStyle(.bordered)
             }
-            .buttonStyle(.bordered)
         }
         .padding(14)
         .background(.quaternary.opacity(0.45), in: RoundedRectangle(cornerRadius: 11))

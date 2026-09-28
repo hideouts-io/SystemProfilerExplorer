@@ -122,6 +122,11 @@ private let serialDeviceFamilies: [(marker: String, description: String)] = [
 ]
 
 func knownSerialDeviceFamily(_ name: String) -> String? {
+    // Name the exact Nordic part when the service name includes it, such as "nRF52".
+    if let range = name.range(of: #"(?i)\bnrf\d{2}"#, options: .regularExpression) {
+        return "a Nordic Semiconductor nRF\(name[range].dropFirst(3)) board or dongle"
+    }
+
     let lowercased: String = name.lowercased()
     return serialDeviceFamilies.first { lowercased.contains($0.marker) }?.description
 }
