@@ -65,7 +65,8 @@ struct ReviewWorkflowTests {
             recordLabel: "Data",
             fieldTitle: "Available Space",
             summary: "Only 9% free (90 GB of 1 TB).",
-            sourcePath: "SPStorageDataType.free_space_in_bytes"
+            sourcePath: "SPStorageDataType.free_space_in_bytes",
+            location: "SPStorageDataType[0].free_space_in_bytes"
         )
         let markdown: String = makeSystemReviewMarkdown(
             report: workflowReport(),

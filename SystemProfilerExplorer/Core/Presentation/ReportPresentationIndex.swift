@@ -8,6 +8,8 @@ struct WorthReviewingItem: Identifiable, Sendable, Equatable {
     let fieldTitle: String
     let summary: String
     let sourcePath: String
+    /// This value's position, for highlighting exactly one row.
+    let location: String
 }
 
 struct ReportPresentationIndex: Sendable, Equatable {
@@ -156,6 +158,8 @@ func makeReportPresentationIndex(_ report: SystemProfilerReport) throws -> Repor
                 label: recordLabel,
                 dataType: section.dataType,
                 path: [],
+                recordIndex: recordIndex,
+                arrayIndices: [],
                 ancestorLabels: [],
                 siblings: [:],
                 valueContext: valueContext,
@@ -248,6 +252,8 @@ private func appendIndexedFindings(
     label: String,
     dataType: SystemProfilerDataType,
     path: [String],
+    recordIndex: Int,
+    arrayIndices: [Int],
     ancestorLabels: [String],
     siblings: [String: ProfileValue],
     valueContext: ValueReportContext,
@@ -276,6 +282,8 @@ private func appendIndexedFindings(
                 label: displayName(for: key),
                 dataType: dataType,
                 path: path + [key],
+                recordIndex: recordIndex,
+                arrayIndices: arrayIndices,
                 ancestorLabels: descendantLabels,
                 siblings: object,
                 valueContext: valueContext,
@@ -293,6 +301,8 @@ private func appendIndexedFindings(
                 label: recordDisplayLabel(item, fallback: "Item \(index + 1)"),
                 dataType: dataType,
                 path: path + ["[]"],
+                recordIndex: recordIndex,
+                arrayIndices: arrayIndices + [index],
                 ancestorLabels: descendantLabels,
                 siblings: [:],
                 valueContext: valueContext,
@@ -308,6 +318,8 @@ private func appendIndexedFindings(
             scalar: .string(value),
             dataType: dataType,
             path: path,
+            recordIndex: recordIndex,
+            arrayIndices: arrayIndices,
             ancestorLabels: descendantLabels,
             siblings: siblings,
             valueContext: valueContext,
@@ -321,6 +333,8 @@ private func appendIndexedFindings(
             scalar: .integer(value),
             dataType: dataType,
             path: path,
+            recordIndex: recordIndex,
+            arrayIndices: arrayIndices,
             ancestorLabels: descendantLabels,
             siblings: siblings,
             valueContext: valueContext,
@@ -334,6 +348,8 @@ private func appendIndexedFindings(
             scalar: .decimal(value),
             dataType: dataType,
             path: path,
+            recordIndex: recordIndex,
+            arrayIndices: arrayIndices,
             ancestorLabels: descendantLabels,
             siblings: siblings,
             valueContext: valueContext,
@@ -347,6 +363,8 @@ private func appendIndexedFindings(
             scalar: .boolean(value),
             dataType: dataType,
             path: path,
+            recordIndex: recordIndex,
+            arrayIndices: arrayIndices,
             ancestorLabels: descendantLabels,
             siblings: siblings,
             valueContext: valueContext,
@@ -360,6 +378,8 @@ private func appendIndexedFindings(
             scalar: .null,
             dataType: dataType,
             path: path,
+            recordIndex: recordIndex,
+            arrayIndices: arrayIndices,
             ancestorLabels: descendantLabels,
             siblings: siblings,
             valueContext: valueContext,
@@ -374,6 +394,8 @@ private func appendIndexedFinding(
     scalar: ProfileScalar,
     dataType: SystemProfilerDataType,
     path: [String],
+    recordIndex: Int,
+    arrayIndices: [Int],
     ancestorLabels: [String],
     siblings: [String: ProfileValue],
     valueContext: ValueReportContext,
@@ -425,7 +447,8 @@ private func appendIndexedFinding(
                 recordLabel: ancestorLabels.first ?? dataType.title,
                 fieldTitle: presentation.title,
                 summary: valueExplanation.summary,
-                sourcePath: presentation.sourcePath
+                sourcePath: presentation.sourcePath,
+                location: findingLocation(dataType: dataType, recordIndex: recordIndex, path: path, arrayIndices: arrayIndices)
             )
         )
     }

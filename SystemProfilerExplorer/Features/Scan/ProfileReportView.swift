@@ -28,7 +28,7 @@ struct ProfileReportView: View {
     @State private var isShowingSkippedCollection: Bool = false
     @State private var isShowingSnapshotTimeline: Bool = false
     @State private var isShowingSystemReview: Bool = false
-    @State private var highlightedSourcePath: String?
+    @State private var highlightedLocation: String?
     @State private var isShowingCoverageDetails: Bool = false
     @Environment(\.explanationDetailMode) private var detailMode
     @AppStorage("bookmarked-finding-source-paths") private var storedBookmarks: String = ""
@@ -163,7 +163,7 @@ struct ProfileReportView: View {
                         bookmarkedSourcePaths: bookmarkedSourcePaths,
                         toggleBookmark: toggleBookmark,
                         openSourceLocation: openSourceLocation,
-                        highlightedSourcePath: highlightedSourcePath
+                        highlightedLocation: highlightedLocation
                     )
                 }
             }
@@ -206,13 +206,13 @@ struct ProfileReportView: View {
     private func showWorthReviewingItem(_ item: WorthReviewingItem) {
         searchText = ""
         selectedFilter = .worthALook
-        highlightedSourcePath = item.sourcePath
+        highlightedLocation = item.location
     }
 
     private func showAllWorthReviewing() {
         searchText = ""
         selectedFilter = .worthALook
-        highlightedSourcePath = nil
+        highlightedLocation = nil
     }
 
     private var query: FindingQuery {
@@ -317,7 +317,7 @@ struct ProfileReportView: View {
     private func clearQuery() {
         searchText = ""
         selectedFilter = .all
-        highlightedSourcePath = nil
+        highlightedLocation = nil
     }
 
     private var bookmarkedSourcePaths: Set<String> {
@@ -330,26 +330,32 @@ struct ProfileReportView: View {
             .map(String.init)
     }
 
-    private func toggleBookmark(_ sourcePath: String) {
-        var paths: Set<String> = bookmarkedSourcePaths
+    /// Bookmarks store a value's location. A bookmark saved before locations existed holds
+    /// the field's source path; toggling that value removes it.
+    private func toggleBookmark(_ location: String) {
+        var bookmarks: Set<String> = bookmarkedSourcePaths
+        let legacySourcePath: String = sourcePath(fromLocation: location)
 
-        if paths.contains(sourcePath) {
-            paths.remove(sourcePath)
+        if bookmarks.contains(location) {
+            bookmarks.remove(location)
+        } else if bookmarks.contains(legacySourcePath) {
+            bookmarks.remove(legacySourcePath)
         } else {
-            paths.insert(sourcePath)
+            bookmarks.insert(location)
         }
 
-        storedBookmarks = paths.sorted().joined(separator: "\n")
+        storedBookmarks = bookmarks.sorted().joined(separator: "\n")
     }
 
-    private func openSourceLocation(_ sourcePath: String) {
+    /// Shows a value: searches for its field and highlights the exact row.
+    private func openSourceLocation(_ location: String) {
         selectedFilter = .all
-        highlightedSourcePath = sourcePath
-        searchText = sourcePath
+        highlightedLocation = location
+        searchText = sourcePath(fromLocation: location)
     }
 
     private func applyRecentSearch(_ search: String) {
-        highlightedSourcePath = nil
+        highlightedLocation = nil
         searchText = search
     }
 
@@ -902,7 +908,7 @@ private struct ProfileSectionView: View {
     let bookmarkedSourcePaths: Set<String>
     let toggleBookmark: (String) -> Void
     let openSourceLocation: (String) -> Void
-    let highlightedSourcePath: String?
+    let highlightedLocation: String?
 
     @State private var visibleRecordLimit: Int = recordPageSize
     @Environment(\.explanationDetailMode) private var detailMode
@@ -941,8 +947,10 @@ private struct ProfileSectionView: View {
                             bookmarkedSourcePaths: bookmarkedSourcePaths,
                             toggleBookmark: toggleBookmark,
                             openSourceLocation: openSourceLocation,
-                            highlightedSourcePath: highlightedSourcePath,
+                            highlightedLocation: highlightedLocation,
                             siblings: [:],
+                            recordIndex: record.index,
+                            arrayIndices: [],
                             worthReviewingCount: worthReviewingCounts[record.index] ?? 0,
                             expandsByDefault: visibleRecords.count == 1
                         )
@@ -1028,9 +1036,12 @@ private struct ProfileValueDisclosure: View {
     let bookmarkedSourcePaths: Set<String>
     let toggleBookmark: (String) -> Void
     let openSourceLocation: (String) -> Void
-    let highlightedSourcePath: String?
+    let highlightedLocation: String?
     /// The other fields of the object containing this value, for context-aware value explanations.
     let siblings: [String: ProfileValue]
+    /// Which record and array items this value is in, for its location.
+    let recordIndex: Int
+    let arrayIndices: [Int]
     /// Worth-a-look findings inside this group, shown while it's collapsed.
     var worthReviewingCount: Int = 0
     /// Open without a click, as for the only record in a section.
@@ -1058,8 +1069,10 @@ private struct ProfileValueDisclosure: View {
                             bookmarkedSourcePaths: bookmarkedSourcePaths,
                             toggleBookmark: toggleBookmark,
                             openSourceLocation: openSourceLocation,
-                            highlightedSourcePath: highlightedSourcePath,
-                            siblings: object
+                            highlightedLocation: highlightedLocation,
+                            siblings: object,
+                            recordIndex: recordIndex,
+                            arrayIndices: arrayIndices
                         )
                     }
                 }
@@ -1091,8 +1104,10 @@ private struct ProfileValueDisclosure: View {
                             bookmarkedSourcePaths: bookmarkedSourcePaths,
                             toggleBookmark: toggleBookmark,
                             openSourceLocation: openSourceLocation,
-                            highlightedSourcePath: highlightedSourcePath,
-                            siblings: [:]
+                            highlightedLocation: highlightedLocation,
+                            siblings: [:],
+                            recordIndex: recordIndex,
+                            arrayIndices: arrayIndices + [item.index]
                         )
                     }
                 }
@@ -1132,8 +1147,16 @@ private struct ProfileValueDisclosure: View {
             scalar: scalar
         )
 
+        let location: String = findingLocation(
+            dataType: dataType,
+            recordIndex: recordIndex,
+            path: path,
+            arrayIndices: arrayIndices
+        )
+
         return ScalarProfileRow(
             presentation: presentation,
+            location: location,
             valueExplanation: presentation.isLogContent ? nil : valueExplanation(
                 dataType: dataType,
                 path: path,
@@ -1142,10 +1165,10 @@ private struct ProfileValueDisclosure: View {
                 report: valueReportContext
             ),
             depth: depth,
-            isBookmarked: bookmarkedSourcePaths.contains(presentation.sourcePath),
+            isBookmarked: bookmarkMatches(bookmarkedSourcePaths, location: location, sourcePath: presentation.sourcePath),
             toggleBookmark: toggleBookmark,
             openSourceLocation: openSourceLocation,
-            isHighlighted: highlightedSourcePath == presentation.sourcePath
+            isHighlighted: highlightedLocation == location || highlightedLocation == presentation.sourcePath
         )
     }
 
@@ -1213,8 +1236,10 @@ private struct ProfileFieldRow: View {
     let bookmarkedSourcePaths: Set<String>
     let toggleBookmark: (String) -> Void
     let openSourceLocation: (String) -> Void
-    let highlightedSourcePath: String?
+    let highlightedLocation: String?
     let siblings: [String: ProfileValue]
+    let recordIndex: Int
+    let arrayIndices: [Int]
 
     var body: some View {
         ProfileValueDisclosure(
@@ -1228,8 +1253,10 @@ private struct ProfileFieldRow: View {
             bookmarkedSourcePaths: bookmarkedSourcePaths,
             toggleBookmark: toggleBookmark,
             openSourceLocation: openSourceLocation,
-            highlightedSourcePath: highlightedSourcePath,
-            siblings: siblings
+            highlightedLocation: highlightedLocation,
+            siblings: siblings,
+            recordIndex: recordIndex,
+            arrayIndices: arrayIndices
         )
 
         if shouldShowDivider(after: value) {
@@ -1284,6 +1311,8 @@ private struct ProfileGroupLabel: View {
 
 private struct ScalarProfileRow: View {
     let presentation: FieldPresentation
+    /// This value's exact position, used for its bookmark and "show source" link.
+    let location: String
     let valueExplanation: ValueExplanation?
     let depth: Int
     let isBookmarked: Bool
@@ -1300,17 +1329,17 @@ private struct ScalarProfileRow: View {
             }
 
             if presentation.isLogContent {
-                DiagnosticLogView(presentation: presentation, openSourceLocation: openSourceLocation)
+                DiagnosticLogView(presentation: presentation, openSourceLocation: openThisLocation)
             } else if let explanation = presentation.explanation {
                 FieldExplanationView(
                     presentation: presentation,
                     explanation: explanation,
-                    openSourceLocation: openSourceLocation
+                    openSourceLocation: openThisLocation
                 )
             } else {
                 MissingExplanationView(
                     presentation: presentation,
-                    openSourceLocation: openSourceLocation
+                    openSourceLocation: openThisLocation
                 )
             }
 
@@ -1348,6 +1377,11 @@ private struct ScalarProfileRow: View {
         .accessibilityIdentifier("finding-\(presentation.sourcePath)")
     }
 
+    /// "Show Raw Source Location" in this row opens this exact value, not every record.
+    private var openThisLocation: (String) -> Void {
+        { _ in openSourceLocation(location) }
+    }
+
     private var explanationTexts: [String] {
         var texts: [String] = []
 
@@ -1383,7 +1417,7 @@ private struct ScalarProfileRow: View {
                 .multilineTextAlignment(.trailing)
 
             Button {
-                toggleBookmark(presentation.sourcePath)
+                toggleBookmark(location)
             } label: {
                 Image(systemName: isBookmarked ? "bookmark.fill" : "bookmark")
             }

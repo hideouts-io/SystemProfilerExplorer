@@ -196,7 +196,7 @@ Search matches displayed values, source fields, record names, and explanation te
 
 ### Bookmark and trace a finding
 
-Use the bookmark button beside a finding to add its full explanation to a shared summary. **Open Bookmark** takes you directly back to a saved source field, while **Show Raw Source Location** filters to and highlights the underlying `system_profiler` field. Array-shaped paths use `[]` to identify the raw field schema; record context remains visible in the surrounding disclosure.
+Use the bookmark button beside a finding to add its full explanation to a shared summary. Bookmarks remember the exact value, even when several records share the same field. **Open Bookmark** takes you straight back to it, while **Show Raw Source Location** filters to and highlights the underlying `system_profiler` field. Array-shaped paths use `[]` to identify the raw field schema; record context remains visible in the surrounding disclosure.
 
 Every finding also labels the scope of its explanation:
 

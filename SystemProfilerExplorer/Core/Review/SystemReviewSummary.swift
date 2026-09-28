@@ -4,8 +4,9 @@ struct SystemReviewFinding: Identifiable, Sendable, Equatable {
     let dataType: SystemProfilerDataType
     let recordLabel: String
     let presentation: FieldPresentation
+    let location: String
 
-    var id: String { presentation.sourcePath }
+    var id: String { location }
 
     var coverage: ExplanationCoverage {
         explanationCoverage(for: presentation)
@@ -20,6 +21,8 @@ func systemReviewFindings(_ report: SystemProfilerReport) -> [SystemReviewFindin
                 value: value,
                 dataType: section.dataType,
                 path: [],
+                recordIndex: index,
+                arrayIndices: [],
                 recordLabel: recordLabel
             )
         }
@@ -30,7 +33,9 @@ func selectedSystemReviewFindings(
     report: SystemProfilerReport,
     selectedSourcePaths: Set<String>
 ) -> [SystemReviewFinding] {
-    systemReviewFindings(report).filter { selectedSourcePaths.contains($0.presentation.sourcePath) }
+    systemReviewFindings(report).filter {
+        bookmarkMatches(selectedSourcePaths, location: $0.location, sourcePath: $0.presentation.sourcePath)
+    }
 }
 
 func makeSystemReviewMarkdown(
@@ -121,8 +126,12 @@ private func systemReviewFindings(
     value: ProfileValue,
     dataType: SystemProfilerDataType,
     path: [String],
+    recordIndex: Int,
+    arrayIndices: [Int],
     recordLabel: String
 ) -> [SystemReviewFinding] {
+    let scalar: ProfileScalar
+
     switch value {
     case let .object(object):
         return object
@@ -133,42 +142,37 @@ private func systemReviewFindings(
                     value: field.value,
                     dataType: dataType,
                     path: path + [field.key],
+                    recordIndex: recordIndex,
+                    arrayIndices: arrayIndices,
                     recordLabel: recordLabel
                 )
             }
     case let .array(values):
-        return values.flatMap { item in
+        return values.enumerated().flatMap { index, item in
             systemReviewFindings(
                 value: item,
                 dataType: dataType,
                 path: path + ["[]"],
+                recordIndex: recordIndex,
+                arrayIndices: arrayIndices + [index],
                 recordLabel: recordLabel
             )
         }
-    case let .string(value):
-        return [systemReviewFinding(dataType: dataType, path: path, scalar: .string(value), recordLabel: recordLabel)]
-    case let .integer(value):
-        return [systemReviewFinding(dataType: dataType, path: path, scalar: .integer(value), recordLabel: recordLabel)]
-    case let .decimal(value):
-        return [systemReviewFinding(dataType: dataType, path: path, scalar: .decimal(value), recordLabel: recordLabel)]
-    case let .boolean(value):
-        return [systemReviewFinding(dataType: dataType, path: path, scalar: .boolean(value), recordLabel: recordLabel)]
-    case .null:
-        return [systemReviewFinding(dataType: dataType, path: path, scalar: .null, recordLabel: recordLabel)]
+    case let .string(value): scalar = .string(value)
+    case let .integer(value): scalar = .integer(value)
+    case let .decimal(value): scalar = .decimal(value)
+    case let .boolean(value): scalar = .boolean(value)
+    case .null: scalar = .null
     }
-}
 
-private func systemReviewFinding(
-    dataType: SystemProfilerDataType,
-    path: [String],
-    scalar: ProfileScalar,
-    recordLabel: String
-) -> SystemReviewFinding {
-    SystemReviewFinding(
-        dataType: dataType,
-        recordLabel: recordLabel,
-        presentation: fieldPresentation(dataType: dataType, path: path, scalar: scalar)
-    )
+    return [
+        SystemReviewFinding(
+            dataType: dataType,
+            recordLabel: recordLabel,
+            presentation: fieldPresentation(dataType: dataType, path: path, scalar: scalar),
+            location: findingLocation(dataType: dataType, recordIndex: recordIndex, path: path, arrayIndices: arrayIndices)
+        )
+    ]
 }
 
 private func appendMarkdownFinding(
