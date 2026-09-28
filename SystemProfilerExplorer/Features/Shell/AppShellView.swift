@@ -23,30 +23,33 @@ struct AppShellView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            AppHeader(
-                scanState: scanState,
-                selectedSubject: selectedSubject,
-                selectedCollectionHealth: selectedSubject.flatMap { collectionHealth[$0] } ?? .notCollected,
-                canScan: selectedSubject.flatMap(scanConfiguration(for:)) != nil,
-                canImport: selectedSubject == .reports,
-                startScan: startScan,
-                importReport: showRawReportImporter,
-                cancelScan: cancelScan,
-                showGlossary: { isShowingGlossary = true },
-                explanationDetailMode: $explanationDetailMode
-            )
-            Divider()
-            WorkspaceTabBar(
-                selectedWorkspace: $selectedWorkspace,
+        NavigationSplitView {
+            AppSidebar(
+                selection: sidebarSelection,
                 findingCounts: findingCounts,
                 worthReviewingCounts: worthReviewingCounts,
                 collectionHealth: collectionHealth
             )
-            Divider()
-            workspaceContent
+            .navigationSplitViewColumnWidth(min: 190, ideal: 210, max: 280)
+        } detail: {
+            VStack(spacing: 0) {
+                AppHeader(
+                    scanState: scanState,
+                    selectedSubject: selectedSubject,
+                    selectedCollectionHealth: selectedSubject.flatMap { collectionHealth[$0] } ?? .notCollected,
+                    canScan: selectedSubject.flatMap(scanConfiguration(for:)) != nil,
+                    canImport: selectedSubject == .reports,
+                    startScan: startScan,
+                    importReport: showRawReportImporter,
+                    cancelScan: cancelScan,
+                    showGlossary: { isShowingGlossary = true },
+                    explanationDetailMode: $explanationDetailMode
+                )
+                Divider()
+                workspaceContent
+            }
+            .background(Color(nsColor: .windowBackgroundColor))
         }
-        .background(Color(nsColor: .windowBackgroundColor))
         .environment(\.explanationDetailMode, explanationDetailMode)
         .sheet(isPresented: $isShowingGlossary) {
             GlossarySheet()
@@ -68,6 +71,19 @@ struct AppShellView: View {
             allowedContentTypes: [.json],
             allowsMultipleSelection: false,
             onCompletion: handleRawReportSelection
+        )
+    }
+
+    /// The sidebar's selection. A sidebar list can report no selection; that's ignored so
+    /// a workspace is always shown.
+    private var sidebarSelection: Binding<AppWorkspace?> {
+        Binding(
+            get: { selectedWorkspace },
+            set: { newValue in
+                if let newValue {
+                    selectedWorkspace = newValue
+                }
+            }
         )
     }
 
@@ -289,20 +305,6 @@ private struct AppHeader: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Image(systemName: "cpu.fill")
-                .font(.system(size: 18, weight: .semibold))
-                .foregroundStyle(Color.accentColor)
-                .frame(width: 32, height: 32)
-                .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 9))
-
-            VStack(alignment: .leading, spacing: 1) {
-                Text("System Profiler Explorer")
-                    .font(.headline)
-                Text("Understand what macOS reports about this Mac")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
             Spacer()
 
             Button(action: showGlossary) {
@@ -355,7 +357,7 @@ private struct AppHeader: View {
             }
         }
         .padding(.horizontal, 20)
-        .padding(.vertical, 12)
+        .padding(.vertical, 10)
     }
 
     /// The pill follows the running scan, or the last scan when it was for this tab.
@@ -392,137 +394,93 @@ private struct AppHeader: View {
     }
 }
 
-private struct WorkspaceTabBar: View {
-    @Binding var selectedWorkspace: AppWorkspace
+private struct AppSidebar: View {
+    @Binding var selection: AppWorkspace?
     let findingCounts: [ProfilerSubject: Int]
     let worthReviewingCounts: [ProfilerSubject: Int]
     let collectionHealth: [ProfilerSubject: CollectionAttemptHealth]
 
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 6) {
+        List(selection: $selection) {
+            Section("This Mac") {
                 ForEach(ProfilerSubject.allCases) { subject in
-                    SubjectTab(
+                    SubjectSidebarRow(
                         subject: subject,
-                        isSelected: selectedWorkspace == .subject(subject),
                         findingCount: findingCounts[subject],
                         worthReviewingCount: worthReviewingCounts[subject] ?? 0,
-                        collectionHealth: collectionHealth[subject] ?? .notCollected,
-                        select: { selectedWorkspace = .subject(subject) }
+                        collectionHealth: collectionHealth[subject] ?? .notCollected
                     )
+                    .tag(AppWorkspace.subject(subject))
+                    .accessibilityIdentifier("subject-tab-\(subject.rawValue)")
                 }
-
-                Divider()
-                    .frame(height: 22)
-
-                WorkspaceTab(
-                    workspace: .changes,
-                    isSelected: selectedWorkspace == .changes,
-                    select: { selectedWorkspace = .changes }
-                )
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 9)
+
+            Section("Tools") {
+                Label(AppWorkspace.changes.title, systemImage: AppWorkspace.changes.symbolName)
+                    .tag(AppWorkspace.changes)
+                    .accessibilityIdentifier("workspace-tab-\(AppWorkspace.changes.id)")
+            }
         }
-        .background(.bar)
+        .listStyle(.sidebar)
     }
 }
 
-private struct SubjectTab: View {
+private struct SubjectSidebarRow: View {
     let subject: ProfilerSubject
-    let isSelected: Bool
     let findingCount: Int?
     let worthReviewingCount: Int
     let collectionHealth: CollectionAttemptHealth
-    let select: () -> Void
 
     @Environment(\.explanationDetailMode) private var detailMode
 
     var body: some View {
-        Button(action: select) {
-            HStack(spacing: 6) {
-                Label(subject.title, systemImage: subject.symbolName)
+        HStack(spacing: 6) {
+            Label(subject.title, systemImage: subject.symbolName)
 
-                if let findingCount {
-                    // The total is a developer detail; beginners see only what's worth a look.
-                    if detailMode == .developer {
-                        Text(findingCount.formatted())
-                            .font(.caption2.weight(.semibold).monospacedDigit())
-                            .foregroundStyle(isSelected ? Color.accentColor : .secondary)
-                            .padding(.horizontal, 5)
-                            .padding(.vertical, 2)
-                            .background(.quaternary, in: Capsule())
-                            .accessibilityLabel("\(findingCount) findings")
+            Spacer(minLength: 4)
+
+            if let findingCount {
+                if worthReviewingCount > 0 {
+                    Label {
+                        Text(worthReviewingCount.formatted())
+                    } icon: {
+                        Image(systemName: ValueStatus.worthReviewing.symbolName)
+                            .foregroundStyle(ValueStatus.worthReviewing.tint)
                     }
-
-                    if worthReviewingCount > 0 {
-                        Label {
-                            Text(worthReviewingCount.formatted())
-                                .foregroundStyle(.primary)
-                        } icon: {
-                            Image(systemName: ValueStatus.worthReviewing.symbolName)
-                                .foregroundStyle(ValueStatus.worthReviewing.tint)
-                        }
-                            .font(.caption2.weight(.semibold).monospacedDigit())
-                            .help("\(worthReviewingCount) worth a look")
-                            .accessibilityLabel("\(worthReviewingCount) worth a look")
-                    }
-
+                    .font(.caption.weight(.semibold).monospacedDigit())
+                    .help("\(worthReviewingCount) worth a look")
+                    .accessibilityLabel("\(worthReviewingCount) worth a look")
+                } else if detailMode == .beginner {
                     Image(systemName: "checkmark.circle.fill")
-                        .font(.caption2)
+                        .font(.caption)
                         .foregroundStyle(.green)
-                        .accessibilityLabel("Scan available")
-                } else if collectionHealth != .notCollected {
-                    Image(systemName: collectionHealth.symbolName)
-                        .font(.caption2)
-                        .foregroundStyle(collectionHealthTint)
-                        .accessibilityLabel(collectionHealth.title)
+                        .help("Scanned; nothing needs a look")
+                        .accessibilityLabel("Scanned, nothing needs a look")
                 }
-            }
-                .font(.subheadline.weight(isSelected ? .semibold : .medium))
-                .foregroundStyle(isSelected ? Color.accentColor : Color.primary)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(tabBackground)
-                .contentShape(RoundedRectangle(cornerRadius: 9))
-        }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier("subject-tab-\(subject.rawValue)")
-        .accessibilityAddTraits(isSelected ? .isSelected : [])
-    }
 
-    private var tabBackground: some ShapeStyle {
-        isSelected ? Color.accentColor.opacity(0.14) : Color.clear
+                // The total is a developer detail.
+                if detailMode == .developer {
+                    Text(findingCount.formatted())
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                        .accessibilityLabel("\(findingCount) findings")
+                }
+            } else if collectionHealth != .notCollected {
+                Image(systemName: collectionHealth.symbolName)
+                    .font(.caption)
+                    .foregroundStyle(collectionHealthTint)
+                    .help(collectionHealth.title)
+                    .accessibilityLabel(collectionHealth.title)
+            }
+        }
     }
 
     private var collectionHealthTint: Color {
         switch collectionHealth {
         case .completed, .imported: .green
-        case .running: .secondary
+        case .running, .notCollected: .secondary
         case .timedOut, .permissionLimited, .unavailable, .failed: .orange
-        case .notCollected: .secondary
         }
-    }
-}
-
-private struct WorkspaceTab: View {
-    let workspace: AppWorkspace
-    let isSelected: Bool
-    let select: () -> Void
-
-    var body: some View {
-        Button(action: select) {
-            Label(workspace.title, systemImage: workspace.symbolName)
-                .font(.subheadline.weight(isSelected ? .semibold : .medium))
-                .foregroundStyle(isSelected ? Color.accentColor : Color.primary)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(isSelected ? Color.accentColor.opacity(0.14) : Color.clear)
-                .contentShape(RoundedRectangle(cornerRadius: 9))
-        }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier("workspace-tab-\(workspace.id)")
-        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
 
