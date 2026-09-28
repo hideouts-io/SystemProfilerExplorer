@@ -29,6 +29,7 @@ struct ProfileReportView: View {
     @State private var isSearching: Bool = false
     @State private var indexingErrorMessage: String?
     @State private var queryTask: Task<Void, Never>?
+    @State private var recentSearchTask: Task<Void, Never>?
     @State private var isShowingSkippedCollection: Bool = false
     @State private var isShowingSnapshotTimeline: Bool = false
     @State private var isShowingSystemReview: Bool = false
@@ -61,6 +62,7 @@ struct ProfileReportView: View {
         }
         .onDisappear {
             queryTask?.cancel()
+            recentSearchTask?.cancel()
             comparisonTask?.cancel()
         }
         .sheet(isPresented: $isShowingExportReview) {
@@ -139,7 +141,8 @@ struct ProfileReportView: View {
                 selectedFilter: $selectedFilter,
                 isSearching: isSearching,
                 recentSearches: recentSearches,
-                applyRecentSearch: applyRecentSearch
+                applyRecentSearch: applyRecentSearch,
+                submitSearch: submitSearch
             )
 
             FindingBookmarkBar(
@@ -277,6 +280,11 @@ struct ProfileReportView: View {
         }
 
         isPreparingIndex = false
+
+        // The search or filter may have changed while the index was being built.
+        if presentationIndex != nil, query != currentQuery {
+            scheduleQuery(query)
+        }
     }
 
     private func retryIndexing() {
@@ -309,7 +317,7 @@ struct ProfileReportView: View {
                 displayedQueryResult = result
                 isSearching = false
                 queryTask = nil
-                recordRecentSearch(newQuery)
+                scheduleRecentSearchRecording(newQuery)
             } catch is CancellationError {
                 return
             } catch {
@@ -423,6 +431,28 @@ struct ProfileReportView: View {
     private func applyRecentSearch(_ search: String) {
         highlightedSourcePath = nil
         searchText = search
+    }
+
+    /// Saves a search once it has been left unchanged for a moment, so partly typed
+    /// words don't fill the Recent menu. Pressing Return saves it immediately.
+    private func scheduleRecentSearchRecording(_ findingQuery: FindingQuery) {
+        recentSearchTask?.cancel()
+        recentSearchTask = Task {
+            do {
+                try await Task.sleep(for: .seconds(2))
+            } catch {
+                return
+            }
+
+            if query == findingQuery {
+                recordRecentSearch(findingQuery)
+            }
+        }
+    }
+
+    private func submitSearch() {
+        recentSearchTask?.cancel()
+        recordRecentSearch(query)
     }
 
     private func recordRecentSearch(_ findingQuery: FindingQuery) {
@@ -777,6 +807,7 @@ private struct FindingControls: View {
     let isSearching: Bool
     let recentSearches: [String]
     let applyRecentSearch: (String) -> Void
+    let submitSearch: () -> Void
 
     var body: some View {
         HStack(spacing: 12) {
@@ -785,6 +816,7 @@ private struct FindingControls: View {
                     .foregroundStyle(.secondary)
                 TextField("Search values and explanations", text: $searchText)
                     .textFieldStyle(.plain)
+                    .onSubmit(submitSearch)
                     .accessibilityIdentifier("finding-search")
 
                 if isSearching {
@@ -1035,7 +1067,8 @@ private struct ProfileValueDisclosure: View {
     let siblings: [String: ProfileValue]
 
     @Environment(\.valueReportContext) private var valueReportContext
-    @State private var isManuallyExpanded: Bool = false
+    /// The user's own expand or collapse choice, which overrides automatic expansion.
+    @State private var manualExpansion: Bool?
 
     var body: some View {
         switch value {
@@ -1138,8 +1171,8 @@ private struct ProfileValueDisclosure: View {
 
     private var expansionBinding: Binding<Bool> {
         Binding(
-            get: { automaticallyExpandResults || isManuallyExpanded },
-            set: { isManuallyExpanded = $0 }
+            get: { manualExpansion ?? automaticallyExpandResults },
+            set: { manualExpansion = $0 }
         )
     }
 

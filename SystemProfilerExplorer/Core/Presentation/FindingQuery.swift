@@ -100,15 +100,46 @@ func profileValueMatches(
     siblings: [String: ProfileValue] = [:],
     report: ValueReportContext = .empty
 ) -> Bool {
-    matchingFindingCount(
-        value,
-        label: label,
-        dataType: dataType,
-        path: path,
-        query: query,
-        siblings: siblings,
-        report: report
-    ) > 0
+    let descendantQuery: FindingQuery = queryForDescendants(parentLabel: label, query: query)
+
+    // Stops at the first match instead of counting every finding.
+    switch value {
+    case let .object(object):
+        return object.contains { key, fieldValue in
+            key != "_name" && profileValueMatches(
+                fieldValue,
+                label: displayName(for: key),
+                dataType: dataType,
+                path: path + [key],
+                query: descendantQuery,
+                siblings: object,
+                report: report
+            )
+        }
+
+    case let .array(values):
+        return values.enumerated().contains { offset, item in
+            profileValueMatches(
+                item,
+                label: item.preferredName ?? "Item \(offset + 1)",
+                dataType: dataType,
+                path: path + ["[]"],
+                query: descendantQuery,
+                report: report
+            )
+        }
+
+    case .string, .integer, .decimal, .boolean, .null:
+        return matchingFindingCount(
+            value,
+            label: label,
+            dataType: dataType,
+            path: path,
+            query: query,
+            siblings: siblings,
+            report: report
+        ) > 0
+    }
 }
 
 func matchingFindingCount(
