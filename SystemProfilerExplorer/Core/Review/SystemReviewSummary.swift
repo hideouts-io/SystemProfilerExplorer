@@ -35,7 +35,9 @@ func selectedSystemReviewFindings(
 
 func makeSystemReviewMarkdown(
     report: SystemProfilerReport,
-    selectedFindings: [SystemReviewFinding]
+    selectedFindings: [SystemReviewFinding],
+    glance: [String] = [],
+    worthReviewingItems: [WorthReviewingItem] = []
 ) -> String {
     let coverage: CollectionCoverage = collectionCoverage(for: report)
     var lines: [String] = [
@@ -44,19 +46,27 @@ func makeSystemReviewMarkdown(
         "Generated: \(report.completedAt.formatted(date: .long, time: .standard))",
         "",
         "> **Privacy warning:** This document may contain device names, network details, serial identifiers, installed-software information, and other sensitive system data. Review it before sharing.",
-        "",
-        "## Selected Findings",
-        "",
-        "Selected findings: \(selectedFindings.count)",
         ""
     ]
 
-    if selectedFindings.isEmpty {
-        lines += [
-            "No findings were selected. Bookmark findings in the app before creating a focused review summary.",
-            ""
-        ]
+    if !glance.isEmpty {
+        lines += ["## At a Glance", ""] + glance.map { "- \(markdownEscaped($0))" } + [""]
+    }
+
+    lines += ["## Worth a Look", ""]
+
+    if worthReviewingItems.isEmpty {
+        lines += ["Nothing in this scan needs a look.", ""]
     } else {
+        lines += worthReviewingItems.map { item in
+            "- **\(markdownEscaped(item.summary))** (\(item.dataType.title) › \(markdownEscaped(item.recordLabel)) › \(markdownEscaped(item.fieldTitle)))"
+        }
+        lines.append("")
+    }
+
+    if !selectedFindings.isEmpty {
+        lines += ["## Bookmarked Findings", "", "Bookmarked findings: \(selectedFindings.count)", ""]
+
         for finding in selectedFindings {
             appendMarkdownFinding(finding, lines: &lines)
         }

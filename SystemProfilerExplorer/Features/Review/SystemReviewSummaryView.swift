@@ -43,6 +43,8 @@ struct SystemReviewFileDocument: FileDocument {
 struct SystemReviewSummaryView: View {
     let report: SystemProfilerReport
     let selectedSourcePaths: Set<String>
+    var glance: [String] = []
+    var worthReviewingItems: [WorthReviewingItem] = []
 
     @Environment(\.dismiss) private var dismiss
     @State private var selectedFormat: SystemReviewExportFormat = .markdown
@@ -62,7 +64,11 @@ struct SystemReviewSummaryView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
-                    ReviewSelectionCard(findings: selectedFindings)
+                    ReviewContentsCard(
+                        glance: glance,
+                        worthReviewingItems: worthReviewingItems,
+                        bookmarkedFindings: selectedFindings
+                    )
                     ReviewCoverageCard(coverage: collectionCoverage(for: report))
                     ReviewPrivacyWarning()
 
@@ -74,7 +80,7 @@ struct SystemReviewSummaryView: View {
                     .pickerStyle(.segmented)
                     .frame(maxWidth: 280)
 
-                    Text("The summary contains the selected findings, their explanation coverage labels, their detailed explanations, collection limits, and a privacy warning. Raw JSON remains a separate export.")
+                    Text("Markdown is easy to paste into a message or support request; PDF is ready to print. To share the full scan data, choose Share › Report File instead.")
                         .font(.callout)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -92,7 +98,7 @@ struct SystemReviewSummaryView: View {
                     Label("Choose Save Location…", systemImage: "square.and.arrow.up")
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(selectedFindings.isEmpty)
+                .disabled(glance.isEmpty && worthReviewingItems.isEmpty && selectedFindings.isEmpty)
                 .accessibilityIdentifier("export-system-review")
             }
             .padding(18)
@@ -124,7 +130,12 @@ struct SystemReviewSummaryView: View {
     }
 
     private func prepareExport() {
-        let markdown: String = makeSystemReviewMarkdown(report: report, selectedFindings: selectedFindings)
+        let markdown: String = makeSystemReviewMarkdown(
+            report: report,
+            selectedFindings: selectedFindings,
+            glance: glance,
+            worthReviewingItems: worthReviewingItems
+        )
         let exportDate: Date = Date()
 
         do {
@@ -162,9 +173,9 @@ private struct SystemReviewHeader: View {
                 .frame(width: 42, height: 42)
                 .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 11))
             VStack(alignment: .leading, spacing: 3) {
-                Text("System Review Summary")
+                Text("Share a Summary")
                     .font(.title2.weight(.semibold))
-                Text("A focused, shareable explanation of the findings you selected with bookmarks.")
+                Text("A readable summary of this scan to send to someone or keep for your records.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
@@ -174,33 +185,38 @@ private struct SystemReviewHeader: View {
     }
 }
 
-private struct ReviewSelectionCard: View {
-    let findings: [SystemReviewFinding]
+private struct ReviewContentsCard: View {
+    let glance: [String]
+    let worthReviewingItems: [WorthReviewingItem]
+    let bookmarkedFindings: [SystemReviewFinding]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Label("Selected findings", systemImage: "bookmark.fill")
+            Label("The summary includes", systemImage: "doc.text")
                 .font(.headline)
-            Text("Bookmarks define the summary selection. \(findings.count) \(findings.count == 1 ? "finding is" : "findings are") currently selected.")
-                .foregroundStyle(.secondary)
 
-            if findings.isEmpty {
-                Text("Close this panel, expand a finding, and use its bookmark button to add it to this review.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-            } else {
-                ForEach(findings.prefix(8)) { finding in
-                    Text("• \(finding.dataType.title): \(finding.presentation.title)")
-                        .font(.callout)
-                }
-
-                if findings.count > 8 {
-                    Text("…and \(findings.count - 8) more bookmarked findings")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
+            if !glance.isEmpty {
+                Label("At a glance (\(glance.count) \(glance.count == 1 ? "line" : "lines"))", systemImage: "text.alignleft")
             }
+
+            Label {
+                Text(worthReviewingItems.isEmpty
+                    ? "Worth a look: nothing in this scan"
+                    : "Worth a look: \(worthReviewingItems.count) \(worthReviewingItems.count == 1 ? "value" : "values")")
+            } icon: {
+                Image(systemName: ValueStatus.worthReviewing.symbolName)
+                    .foregroundStyle(ValueStatus.worthReviewing.tint)
+            }
+
+            Label(
+                bookmarkedFindings.isEmpty
+                    ? "Bookmarks: none. Bookmark a finding to add its full explanation."
+                    : "Bookmarks: \(bookmarkedFindings.count) \(bookmarkedFindings.count == 1 ? "finding" : "findings") with full explanations",
+                systemImage: bookmarkedFindings.isEmpty ? "bookmark" : "bookmark.fill"
+            )
         }
+        .font(.callout)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
         .background(Color.accentColor.opacity(0.06), in: RoundedRectangle(cornerRadius: 14))
     }
@@ -226,12 +242,13 @@ private struct ReviewCoverageCard: View {
 
 private struct ReviewPrivacyWarning: View {
     var body: some View {
-        Label(
-            "Privacy warning: bookmarked findings can include device identifiers, network configuration, installed software, and other sensitive values. Review the file before sharing it.",
-            systemImage: "hand.raised.fill"
-        )
+        Label {
+            Text("Summaries can include device names, network details, serial numbers, and installed software. Review the file before sharing it.")
+        } icon: {
+            Image(systemName: "hand.raised.fill")
+                .foregroundStyle(.orange)
+        }
         .font(.callout)
-        .foregroundStyle(.orange)
         .fixedSize(horizontal: false, vertical: true)
     }
 }

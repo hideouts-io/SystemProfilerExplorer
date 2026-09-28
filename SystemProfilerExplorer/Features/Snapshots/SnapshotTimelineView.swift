@@ -13,7 +13,6 @@ struct SnapshotTimelineView: View {
     @State private var isSaving: Bool = false
     @State private var snapshotErrorMessage: String?
     @State private var snapshotPendingDeletion: SystemProfilerSnapshot?
-    @State private var comparison: ReportComparison?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -49,7 +48,6 @@ struct SnapshotTimelineView: View {
                     } else {
                         SnapshotHistoryList(
                             snapshots: snapshots,
-                            compare: compareSnapshot,
                             requestDeletion: requestDeletion
                         )
                     }
@@ -60,7 +58,7 @@ struct SnapshotTimelineView: View {
             Divider()
 
             HStack {
-                Text("Snapshots stay on this Mac in Application Support.")
+                Text("Snapshots stay on this Mac. To compare, open What Changed and pick a snapshot.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Spacer()
@@ -72,9 +70,6 @@ struct SnapshotTimelineView: View {
         .frame(minWidth: 700, minHeight: 640)
         .task {
             await reloadSnapshots()
-        }
-        .sheet(item: $comparison) { reportComparison in
-            ReportComparisonView(comparison: reportComparison)
         }
         .confirmationDialog(
             "Delete snapshot?",
@@ -183,24 +178,6 @@ struct SnapshotTimelineView: View {
         }
     }
 
-    private func compareSnapshot(_ snapshot: SystemProfilerSnapshot) {
-        let current: SystemProfilerReport = currentReport
-
-        Task {
-            do {
-                let preparedComparison: ReportComparison = try await Task.detached(priority: .userInitiated) {
-                    let baseline: SystemProfilerReport = try comparisonBaselineReport(from: snapshot.report)
-                    return try compareReports(baseline: baseline, current: current)
-                }.value
-                comparison = preparedComparison
-            } catch is CancellationError {
-                return
-            } catch {
-                snapshotErrorMessage = "The snapshot could not be compared. \(error.localizedDescription)"
-            }
-        }
-    }
-
     private func requestDeletion(_ snapshot: SystemProfilerSnapshot) {
         snapshotPendingDeletion = snapshot
     }
@@ -265,7 +242,7 @@ private struct SnapshotTimelineHeader: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text("Snapshot History")
                     .font(.title2.weight(.semibold))
-                Text("Save private local baselines and compare a full snapshot with the report currently open.")
+                Text("Save this report as a private baseline. Compare it with later scans in What Changed.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
@@ -360,7 +337,6 @@ private struct SnapshotEmptyState: View {
 
 private struct SnapshotHistoryList: View {
     let snapshots: [SystemProfilerSnapshot]
-    let compare: (SystemProfilerSnapshot) -> Void
     let requestDeletion: (SystemProfilerSnapshot) -> Void
 
     var body: some View {
@@ -389,12 +365,6 @@ private struct SnapshotHistoryList: View {
                         .padding(.horizontal, 7)
                         .padding(.vertical, 4)
                         .background(.quaternary, in: Capsule())
-
-                    Button("Compare") {
-                        compare(snapshot)
-                    }
-                    .disabled(snapshot.privacy != .full)
-                    .accessibilityIdentifier("compare-snapshot-\(snapshot.id.uuidString)")
 
                     Button(role: .destructive) {
                         requestDeletion(snapshot)

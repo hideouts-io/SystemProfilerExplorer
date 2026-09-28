@@ -18,11 +18,6 @@ struct ProfileReportView: View {
     @State private var searchText: String = ""
     @State private var selectedFilter: FindingFilter = .all
     @State private var isShowingExportReview: Bool = false
-    @State private var isShowingComparisonImporter: Bool = false
-    @State private var isPreparingComparison: Bool = false
-    @State private var reportComparison: ReportComparison?
-    @State private var comparisonErrorMessage: String?
-    @State private var comparisonTask: Task<Void, Never>?
     @State private var presentationIndex: ReportPresentationIndex?
     @State private var displayedQueryResult: ReportQueryResult?
     @State private var isPreparingIndex: Bool = true
@@ -65,13 +60,9 @@ struct ProfileReportView: View {
         .onDisappear {
             queryTask?.cancel()
             recentSearchTask?.cancel()
-            comparisonTask?.cancel()
         }
         .sheet(isPresented: $isShowingExportReview) {
             ReportExportReviewView(report: report)
-        }
-        .sheet(item: $reportComparison) { comparison in
-            ReportComparisonView(comparison: comparison)
         }
         .sheet(isPresented: $isShowingSkippedCollection) {
             SkippedCollectionView(
@@ -85,19 +76,10 @@ struct ProfileReportView: View {
         .sheet(isPresented: $isShowingSystemReview) {
             SystemReviewSummaryView(
                 report: report,
-                selectedSourcePaths: bookmarkedSourcePaths
+                selectedSourcePaths: bookmarkedSourcePaths,
+                glance: presentationIndex?.glance ?? [],
+                worthReviewingItems: presentationIndex?.worthReviewingItems ?? []
             )
-        }
-        .fileImporter(
-            isPresented: $isShowingComparisonImporter,
-            allowedContentTypes: [.json],
-            allowsMultipleSelection: false,
-            onCompletion: importComparisonBaseline
-        )
-        .alert("Comparison Failed", isPresented: comparisonErrorBinding) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(comparisonErrorMessage ?? "The reports could not be compared.")
         }
     }
 
@@ -195,46 +177,29 @@ struct ProfileReportView: View {
     @ViewBuilder
     private var reportActions: some View {
         Button {
-            isShowingComparisonImporter = true
-        } label: {
-            HStack(spacing: 7) {
-                if isPreparingComparison {
-                    ProgressView()
-                        .controlSize(.small)
-                } else {
-                    Image(systemName: "arrow.left.arrow.right")
-                }
-
-                Text(isPreparingComparison ? "Comparing…" : "Compare with Saved Report…")
-            }
-        }
-        .buttonStyle(.bordered)
-        .disabled(isPreparingComparison)
-        .accessibilityIdentifier("compare-report")
-
-        Button {
             isShowingSnapshotTimeline = true
         } label: {
             Label("Snapshots", systemImage: "clock.arrow.circlepath")
         }
         .buttonStyle(.bordered)
+        .help("Save this report as a baseline to compare with later in What Changed")
         .accessibilityIdentifier("open-snapshots")
 
-        Button {
-            isShowingSystemReview = true
-        } label: {
-            Label("Review Summary", systemImage: "doc.text.magnifyingglass")
-        }
-        .buttonStyle(.bordered)
-        .accessibilityIdentifier("open-system-review")
+        Menu {
+            Button("Summary…") {
+                isShowingSystemReview = true
+            }
+            .help("A readable Markdown or PDF summary")
 
-        Button {
-            isShowingExportReview = true
+            Button("Report File…") {
+                isShowingExportReview = true
+            }
+            .help("The full scan data as JSON, redacted or complete")
         } label: {
-            Label("Export Report", systemImage: "square.and.arrow.up")
+            Label("Share", systemImage: "square.and.arrow.up")
         }
-        .buttonStyle(.bordered)
-        .accessibilityIdentifier("export-report")
+        .fixedSize()
+        .accessibilityIdentifier("share-report")
     }
 
     /// Shows only the values worth a look, with the chosen one highlighted.
@@ -252,17 +217,6 @@ struct ProfileReportView: View {
 
     private var query: FindingQuery {
         FindingQuery(text: searchText, filter: selectedFilter)
-    }
-
-    private var comparisonErrorBinding: Binding<Bool> {
-        Binding(
-            get: { comparisonErrorMessage != nil },
-            set: { isPresented in
-                if !isPresented {
-                    comparisonErrorMessage = nil
-                }
-            }
-        )
     }
 
     private func preparePresentationIndex() async {
@@ -345,62 +299,6 @@ struct ProfileReportView: View {
                 isSearching = false
                 queryTask = nil
             }
-        }
-    }
-
-    private func importComparisonBaseline(_ result: Result<[URL], any Error>) {
-        switch result {
-        case let .success(urls):
-            guard urls.count == 1, let reportURL = urls.first else {
-                comparisonErrorMessage = ReportComparisonError
-                    .expectedSingleFile(count: urls.count)
-                    .localizedDescription
-                return
-            }
-
-            prepareComparison(reportURL: reportURL)
-
-        case let .failure(error):
-            let cocoaError: NSError = error as NSError
-
-            if cocoaError.domain == NSCocoaErrorDomain,
-               cocoaError.code == NSUserCancelledError {
-                return
-            }
-
-            comparisonErrorMessage = "The report picker failed. \(error.localizedDescription)"
-        }
-    }
-
-    private func prepareComparison(reportURL: URL) {
-        let currentReport: SystemProfilerReport = report
-
-        comparisonTask?.cancel()
-        isPreparingComparison = true
-
-        comparisonTask = Task {
-            do {
-                let comparison: ReportComparison = try await Task.detached(priority: .userInitiated) {
-                    let data: Data = try Data(contentsOf: reportURL, options: .mappedIfSafe)
-                    let baselineReport: SystemProfilerReport = try loadComparisonBaseline(
-                        from: data,
-                        importedAt: fileModificationDate(reportURL)
-                    )
-                    return try compareReports(baseline: baselineReport, current: currentReport)
-                }.value
-
-                try Task.checkCancellation()
-                reportComparison = comparison
-            } catch is CancellationError {
-                isPreparingComparison = false
-                comparisonTask = nil
-                return
-            } catch {
-                comparisonErrorMessage = "The selected report could not be compared. \(error.localizedDescription)"
-            }
-
-            isPreparingComparison = false
-            comparisonTask = nil
         }
     }
 

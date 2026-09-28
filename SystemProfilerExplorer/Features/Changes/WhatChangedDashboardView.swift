@@ -6,6 +6,7 @@ struct WhatChangedDashboardView: View {
 
     @State private var selectedSubject: ProfilerSubject?
     @State private var comparison: ReportComparison?
+    @State private var snapshots: [SystemProfilerSnapshot] = []
     @State private var isShowingBaselineImporter: Bool = false
     @State private var isPreparingComparison: Bool = false
     @State private var errorMessage: String?
@@ -14,11 +15,20 @@ struct WhatChangedDashboardView: View {
         reports.keys.sorted { $0.title < $1.title }
     }
 
+    /// Full snapshots covering the same data types as the selected report, newest first.
+    private var comparableSnapshots: [SystemProfilerSnapshot] {
+        guard let selectedSubject, let report = reports[selectedSubject] else {
+            return []
+        }
+
+        return snapshots.filter { snapshotCanBeCompared($0, with: report) }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 22) {
             WorkspaceHeading(
                 title: "What Changed?",
-                detail: "Compare a saved report (a full export from this app, or system_profiler -json output) with a current collected report, then triage the reported differences without treating them as a diagnosis.",
+                detail: "Compare a report with a saved snapshot or report file, then review the differences without treating them as a diagnosis.",
                 symbolName: "arrow.left.arrow.right.square"
             )
 
@@ -28,7 +38,9 @@ struct WhatChangedDashboardView: View {
                 ComparisonSetupCard(
                     availableSubjects: availableSubjects,
                     selectedSubject: $selectedSubject,
+                    snapshots: comparableSnapshots,
                     isPreparingComparison: isPreparingComparison,
+                    compareWithSnapshot: compare(with:),
                     importBaseline: { isShowingBaselineImporter = true }
                 )
 
@@ -42,6 +54,12 @@ struct WhatChangedDashboardView: View {
         .onAppear(perform: selectInitialSubjectIfNeeded)
         .onChange(of: availableSubjects) { _ in
             selectInitialSubjectIfNeeded()
+        }
+        .onChange(of: selectedSubject) { _ in
+            comparison = nil
+        }
+        .task {
+            await loadSnapshots()
         }
         .fileImporter(
             isPresented: $isShowingBaselineImporter,
@@ -76,6 +94,20 @@ struct WhatChangedDashboardView: View {
         selectedSubject = availableSubjects.first
     }
 
+    private func loadSnapshots() async {
+        let loaded: [SystemProfilerSnapshot]? = try? await Task.detached(priority: .userInitiated) {
+            try snapshotStore().loadSnapshots()
+        }.value
+
+        snapshots = loaded ?? []
+    }
+
+    private func compare(with snapshot: SystemProfilerSnapshot) {
+        runComparison {
+            try comparisonBaselineReport(from: snapshot.report)
+        }
+    }
+
     private func importBaseline(_ result: Result<[URL], any Error>) {
         switch result {
         case let .success(urls):
@@ -84,20 +116,30 @@ struct WhatChangedDashboardView: View {
                 return
             }
 
-            prepareComparison(reportURL: reportURL)
+            runComparison {
+                let isAccessingSecurityScopedResource: Bool = reportURL.startAccessingSecurityScopedResource()
+                defer {
+                    if isAccessingSecurityScopedResource {
+                        reportURL.stopAccessingSecurityScopedResource()
+                    }
+                }
+
+                let data: Data = try Data(contentsOf: reportURL, options: .mappedIfSafe)
+                return try loadComparisonBaseline(from: data, importedAt: fileModificationDate(reportURL))
+            }
         case let .failure(error):
             let cocoaError: NSError = error as NSError
             if cocoaError.domain == NSCocoaErrorDomain, cocoaError.code == NSUserCancelledError {
                 return
             }
 
-            errorMessage = "The saved-report picker failed. \(error.localizedDescription)"
+            errorMessage = "The file picker failed. \(error.localizedDescription)"
         }
     }
 
-    private func prepareComparison(reportURL: URL) {
+    private func runComparison(loadBaseline: @escaping @Sendable () throws -> SystemProfilerReport) {
         guard let selectedSubject, let currentReport = reports[selectedSubject] else {
-            errorMessage = "Choose a collected report before selecting a saved baseline."
+            errorMessage = "Choose a collected report before selecting a baseline."
             return
         }
 
@@ -106,26 +148,14 @@ struct WhatChangedDashboardView: View {
         Task {
             do {
                 let preparedComparison: ReportComparison = try await Task.detached(priority: .userInitiated) {
-                    let isAccessingSecurityScopedResource: Bool = reportURL.startAccessingSecurityScopedResource()
-                    defer {
-                        if isAccessingSecurityScopedResource {
-                            reportURL.stopAccessingSecurityScopedResource()
-                        }
-                    }
-
-                    let data: Data = try Data(contentsOf: reportURL, options: .mappedIfSafe)
-                    let baseline: SystemProfilerReport = try loadComparisonBaseline(
-                        from: data,
-                        importedAt: fileModificationDate(reportURL)
-                    )
-                    return try compareReports(baseline: baseline, current: currentReport)
+                    try compareReports(baseline: loadBaseline(), current: currentReport)
                 }.value
                 comparison = preparedComparison
             } catch is CancellationError {
                 isPreparingComparison = false
                 return
             } catch {
-                errorMessage = "The saved report could not be compared. \(error.localizedDescription)"
+                errorMessage = "The reports could not be compared. \(error.localizedDescription)"
             }
 
             isPreparingComparison = false
@@ -159,17 +189,15 @@ struct WorkspaceHeading: View {
 private struct ComparisonSetupCard: View {
     let availableSubjects: [ProfilerSubject]
     @Binding var selectedSubject: ProfilerSubject?
+    let snapshots: [SystemProfilerSnapshot]
     let isPreparingComparison: Bool
+    let compareWithSnapshot: (SystemProfilerSnapshot) -> Void
     let importBaseline: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 13) {
-            Label("Compare a saved baseline", systemImage: "folder.badge.questionmark")
+            Label("Choose what to compare", systemImage: "arrow.left.arrow.right")
                 .font(.headline)
-            Text("Select a current subject report, then choose a full private JSON report exported by System Profiler Explorer. The two reports must cover the same data types.")
-                .font(.callout)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
 
             HStack(spacing: 12) {
                 Picker("Current report", selection: $selectedSubject) {
@@ -183,16 +211,50 @@ private struct ComparisonSetupCard: View {
 
                 Spacer()
 
-                Button(action: importBaseline) {
-                    Label(
-                        isPreparingComparison ? "Comparing…" : "Choose Saved Report…",
-                        systemImage: "square.and.arrow.down"
-                    )
+                if let latest = snapshots.first {
+                    Button {
+                        compareWithSnapshot(latest)
+                    } label: {
+                        Label(
+                            isPreparingComparison ? "Comparing…" : "Compare with “\(latest.name)”",
+                            systemImage: "clock.arrow.circlepath"
+                        )
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(isPreparingComparison)
+                    .accessibilityIdentifier("what-changed-compare-latest-snapshot")
                 }
-                .buttonStyle(.borderedProminent)
+
+                Menu {
+                    if snapshots.isEmpty {
+                        Text("No saved snapshots of this report")
+                    } else {
+                        Section("Snapshots") {
+                            ForEach(snapshots) { snapshot in
+                                Button("\(snapshot.name) — \(snapshot.createdAt.formatted(date: .abbreviated, time: .shortened))") {
+                                    compareWithSnapshot(snapshot)
+                                }
+                            }
+                        }
+                    }
+
+                    Divider()
+
+                    Button("Choose File…", action: importBaseline)
+                } label: {
+                    Label(snapshots.isEmpty ? "Choose Baseline" : "Other Baseline", systemImage: "square.and.arrow.down")
+                }
+                .fixedSize()
                 .disabled(isPreparingComparison || selectedSubject == nil)
                 .accessibilityIdentifier("what-changed-choose-baseline")
             }
+
+            Text(snapshots.isEmpty
+                ? "Save a snapshot from a report's Snapshots button to compare with it later, or choose a file: a full export from this app or system_profiler -json output."
+                : "Snapshots of the same report are listed here. You can also choose a file: a full export from this app or system_profiler -json output.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .padding(16)
         .background(Color.accentColor.opacity(0.06), in: RoundedRectangle(cornerRadius: 14))
@@ -207,7 +269,7 @@ private struct ComparisonStartGuidance: View {
     var body: some View {
         ContentCard(
             title: "Ready to compare",
-            detail: "This workspace will group added, removed, and changed findings by review priority and explain each observed difference in plain language after you select a saved baseline.",
+            detail: "Changes are grouped as added, removed, and changed, sorted by review priority, and explained in plain language.",
             symbolName: "rectangle.3.group"
         )
     }
@@ -217,7 +279,7 @@ private struct NoAvailableComparisonReportView: View {
     var body: some View {
         ContentCard(
             title: "Collect a current report first",
-            detail: "Run a subject scan or import raw system_profiler JSON. Then return here to compare it with a full private saved report.",
+            detail: "Scan a subject or import a report. Then return here to compare it with a saved snapshot or report file.",
             symbolName: "doc.badge.plus"
         )
     }
