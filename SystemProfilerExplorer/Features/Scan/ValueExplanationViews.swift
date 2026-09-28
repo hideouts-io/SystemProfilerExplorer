@@ -162,12 +162,13 @@ struct AtAGlanceCard: View {
             Label("At a glance", systemImage: "text.alignleft")
                 .font(.headline)
 
-            if !sentences.isEmpty {
-                Text(sentences.joined(separator: " "))
-                    .font(.body)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .textSelection(.enabled)
+            VStack(alignment: .leading, spacing: 5) {
+                ForEach(sentences, id: \.self) { sentence in
+                    Text(sentence)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
+            .textSelection(.enabled)
 
             if worthReviewingCount > 0 {
                 Button(action: showWorthReviewing) {
@@ -189,5 +190,182 @@ struct AtAGlanceCard: View {
                 .stroke(Color(nsColor: .separatorColor).opacity(0.45), lineWidth: 1)
         }
         .accessibilityIdentifier("at-a-glance")
+    }
+}
+
+// MARK: - Glossary
+
+/// Buttons for glossary terms mentioned in an explanation. Each shows its definition.
+struct GlossaryTermsRow: View {
+    let texts: [String]
+
+    var body: some View {
+        let terms: [GlossaryTerm] = glossaryTerms(mentionedIn: texts)
+
+        if !terms.isEmpty {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Terms used here")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+
+                WrappingHStack(spacing: 6) {
+                    ForEach(terms) { term in
+                        GlossaryTermButton(term: term)
+                    }
+                }
+            }
+            .padding(.top, 8)
+            .accessibilityIdentifier("glossary-terms")
+        }
+    }
+}
+
+private struct GlossaryTermButton: View {
+    let term: GlossaryTerm
+
+    @State private var isShowingDefinition: Bool = false
+
+    var body: some View {
+        Button(term.term) {
+            isShowingDefinition = true
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+        .help(term.definition)
+        .popover(isPresented: $isShowingDefinition, arrowEdge: .bottom) {
+            GlossaryDefinition(term: term)
+                .padding(14)
+                .frame(width: 320, alignment: .leading)
+        }
+    }
+}
+
+private struct GlossaryDefinition: View {
+    let term: GlossaryTerm
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text(term.term)
+                .font(.headline)
+            Text(term.definition)
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+                .textSelection(.enabled)
+        }
+    }
+}
+
+/// Every glossary term, searchable.
+struct GlossarySheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @State private var searchText: String = ""
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Label("Glossary", systemImage: "character.book.closed")
+                    .font(.title2.weight(.semibold))
+                Spacer()
+                TextField("Search terms", text: $searchText)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 220)
+                    .accessibilityIdentifier("glossary-search")
+            }
+            .padding(20)
+
+            Divider()
+
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 16) {
+                    ForEach(filteredTerms) { term in
+                        GlossaryDefinition(term: term)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+
+                    if filteredTerms.isEmpty {
+                        Text("No terms match “\(searchText)”.")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .padding(20)
+            }
+
+            Divider()
+
+            HStack {
+                Text("Short definitions of terms used in explanations.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Button("Done", action: dismiss.callAsFunction)
+                    .keyboardShortcut(.defaultAction)
+            }
+            .padding(16)
+        }
+        .frame(minWidth: 560, minHeight: 560)
+        .accessibilityIdentifier("glossary-sheet")
+    }
+
+    private var filteredTerms: [GlossaryTerm] {
+        let query: String = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !query.isEmpty else {
+            return glossary
+        }
+
+        return glossary.filter {
+            $0.term.localizedCaseInsensitiveContains(query) || $0.definition.localizedCaseInsensitiveContains(query)
+        }
+    }
+}
+
+/// Lays out children left to right, wrapping to new lines as needed.
+struct WrappingHStack: Layout {
+    var spacing: CGFloat = 6
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let rows: [[CGSize]] = arrangeRows(maxWidth: proposal.width ?? .infinity, subviews: subviews)
+        let width: CGFloat = rows.map { row in row.map(\.width).reduce(0, +) + spacing * CGFloat(max(row.count - 1, 0)) }.max() ?? 0
+        let height: CGFloat = rows.map { $0.map(\.height).max() ?? 0 }.reduce(0, +) + spacing * CGFloat(max(rows.count - 1, 0))
+        return CGSize(width: width, height: height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var origin: CGPoint = bounds.origin
+        var rowHeight: CGFloat = 0
+
+        for subview in subviews {
+            let size: CGSize = subview.sizeThatFits(.unspecified)
+
+            if origin.x > bounds.minX, origin.x + size.width > bounds.maxX {
+                origin.x = bounds.minX
+                origin.y += rowHeight + spacing
+                rowHeight = 0
+            }
+
+            subview.place(at: origin, proposal: ProposedViewSize(size))
+            origin.x += size.width + spacing
+            rowHeight = max(rowHeight, size.height)
+        }
+    }
+
+    private func arrangeRows(maxWidth: CGFloat, subviews: Subviews) -> [[CGSize]] {
+        var rows: [[CGSize]] = [[]]
+        var rowWidth: CGFloat = 0
+
+        for subview in subviews {
+            let size: CGSize = subview.sizeThatFits(.unspecified)
+
+            if !rows[rows.count - 1].isEmpty, rowWidth + spacing + size.width > maxWidth {
+                rows.append([])
+                rowWidth = 0
+            }
+
+            rowWidth += (rows[rows.count - 1].isEmpty ? 0 : spacing) + size.width
+            rows[rows.count - 1].append(size)
+        }
+
+        return rows
     }
 }

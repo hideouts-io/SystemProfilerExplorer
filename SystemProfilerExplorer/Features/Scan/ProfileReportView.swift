@@ -1277,6 +1277,10 @@ private struct ScalarProfileRow: View {
                     openSourceLocation: openSourceLocation
                 )
             }
+
+            if !presentation.isLogContent {
+                GlossaryTermsRow(texts: explanationTexts)
+            }
         } label: {
             VStack(alignment: .leading, spacing: 6) {
                 scalarHeader
@@ -1306,6 +1310,21 @@ private struct ScalarProfileRow: View {
             }
         }
         .accessibilityIdentifier("finding-\(presentation.sourcePath)")
+    }
+
+    private var explanationTexts: [String] {
+        var texts: [String] = []
+
+        if let valueExplanation {
+            texts += [valueExplanation.summary, valueExplanation.detail, valueExplanation.suggestedAction].compactMap { $0 }
+            texts += valueExplanation.confidence?.reasons ?? []
+        }
+
+        if let explanation = presentation.explanation {
+            texts += [explanation.meaning, explanation.significance, explanation.interpretation, explanation.privacy].compactMap { $0 }
+        }
+
+        return texts
     }
 
     private var scalarHeader: some View {

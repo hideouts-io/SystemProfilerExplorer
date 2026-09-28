@@ -13,6 +13,7 @@ struct AppShellView: View {
     @State private var scanState: ScanState = .idle
     @State private var scanTask: Task<Void, Never>?
     @State private var isShowingRawReportImporter: Bool = false
+    @State private var isShowingGlossary: Bool = false
     @AppStorage(explanationDetailModeStorageKey) private var explanationDetailMode: ExplanationDetailMode = .beginner
 
     init(collector: any SystemProfilerCollecting, parser: SystemProfilerParser) {
@@ -30,6 +31,7 @@ struct AppShellView: View {
                 startScan: startScan,
                 importReport: showRawReportImporter,
                 cancelScan: cancelScan,
+                showGlossary: { isShowingGlossary = true },
                 explanationDetailMode: $explanationDetailMode
             )
             Divider()
@@ -44,6 +46,9 @@ struct AppShellView: View {
         }
         .background(Color(nsColor: .windowBackgroundColor))
         .environment(\.explanationDetailMode, explanationDetailMode)
+        .sheet(isPresented: $isShowingGlossary) {
+            GlossarySheet()
+        }
         .fileImporter(
             isPresented: $isShowingRawReportImporter,
             allowedContentTypes: [.json],
@@ -265,6 +270,7 @@ private struct AppHeader: View {
     let startScan: () -> Void
     let importReport: () -> Void
     let cancelScan: () -> Void
+    let showGlossary: () -> Void
     @Binding var explanationDetailMode: ExplanationDetailMode
 
     var body: some View {
@@ -284,6 +290,14 @@ private struct AppHeader: View {
             }
 
             Spacer()
+
+            Button(action: showGlossary) {
+                Image(systemName: "character.book.closed")
+            }
+            .buttonStyle(.borderless)
+            .help("Glossary of terms used in explanations")
+            .accessibilityLabel("Glossary")
+            .accessibilityIdentifier("open-glossary")
 
             Picker("Explanation detail", selection: $explanationDetailMode) {
                 ForEach(ExplanationDetailMode.allCases) { mode in
