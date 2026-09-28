@@ -6,7 +6,7 @@ struct WhatChangedDashboardView: View {
 
     @State private var selectedSubject: ProfilerSubject?
     @State private var comparison: ReportComparison?
-    @State private var snapshots: [SystemProfilerSnapshot] = []
+    @State private var snapshots: [SnapshotSummary] = []
     @State private var isShowingBaselineImporter: Bool = false
     @State private var isPreparingComparison: Bool = false
     @State private var errorMessage: String?
@@ -16,7 +16,7 @@ struct WhatChangedDashboardView: View {
     }
 
     /// Full snapshots covering the same data types as the selected report, newest first.
-    private var comparableSnapshots: [SystemProfilerSnapshot] {
+    private var comparableSnapshots: [SnapshotSummary] {
         guard let selectedSubject, let report = reports[selectedSubject] else {
             return []
         }
@@ -95,16 +95,18 @@ struct WhatChangedDashboardView: View {
     }
 
     private func loadSnapshots() async {
-        let loaded: [SystemProfilerSnapshot]? = try? await Task.detached(priority: .userInitiated) {
-            try snapshotStore().loadSnapshots()
+        let loaded: [SnapshotSummary]? = try? await Task.detached(priority: .userInitiated) {
+            try snapshotStore().loadSnapshotHistory().snapshots
         }.value
 
         snapshots = loaded ?? []
     }
 
-    private func compare(with snapshot: SystemProfilerSnapshot) {
+    private func compare(with snapshot: SnapshotSummary) {
+        let snapshotID: UUID = snapshot.id
+
         runComparison {
-            try comparisonBaselineReport(from: snapshot.report)
+            try comparisonBaselineReport(from: snapshotStore().loadSnapshot(id: snapshotID).report)
         }
     }
 
@@ -189,9 +191,9 @@ struct WorkspaceHeading: View {
 private struct ComparisonSetupCard: View {
     let availableSubjects: [ProfilerSubject]
     @Binding var selectedSubject: ProfilerSubject?
-    let snapshots: [SystemProfilerSnapshot]
+    let snapshots: [SnapshotSummary]
     let isPreparingComparison: Bool
-    let compareWithSnapshot: (SystemProfilerSnapshot) -> Void
+    let compareWithSnapshot: (SnapshotSummary) -> Void
     let importBaseline: () -> Void
 
     var body: some View {

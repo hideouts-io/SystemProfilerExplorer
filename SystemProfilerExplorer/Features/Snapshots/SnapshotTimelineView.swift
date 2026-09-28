@@ -5,14 +5,14 @@ struct SnapshotTimelineView: View {
 
     @Environment(\.dismiss) private var dismiss
     @AppStorage("snapshot-retention") private var storedRetention: String = SnapshotRetention.ten.rawValue
-    @State private var snapshots: [SystemProfilerSnapshot] = []
+    @State private var snapshots: [SnapshotSummary] = []
     @State private var unreadableSnapshotFileNames: [String] = []
     @State private var snapshotName: String = ""
     @State private var selectedPrivacy: SnapshotPrivacy = .full
     @State private var isLoading: Bool = true
     @State private var isSaving: Bool = false
     @State private var snapshotErrorMessage: String?
-    @State private var snapshotPendingDeletion: SystemProfilerSnapshot?
+    @State private var snapshotPendingDeletion: SnapshotSummary?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -186,7 +186,7 @@ struct SnapshotTimelineView: View {
         }
     }
 
-    private func requestDeletion(_ snapshot: SystemProfilerSnapshot) {
+    private func requestDeletion(_ snapshot: SnapshotSummary) {
         snapshotPendingDeletion = snapshot
     }
 
@@ -201,7 +201,7 @@ struct SnapshotTimelineView: View {
             do {
                 let history: SnapshotHistory = try await Task.detached(priority: .userInitiated) {
                     let store: SnapshotStore = try snapshotStore()
-                    try store.deleteSnapshot(snapshot)
+                    try store.deleteSnapshot(id: snapshot.id)
                     return try store.loadSnapshotHistory()
                 }.value
                 applySnapshotHistory(history)
@@ -336,8 +336,8 @@ private struct SnapshotEmptyState: View {
 }
 
 private struct SnapshotHistoryList: View {
-    let snapshots: [SystemProfilerSnapshot]
-    let requestDeletion: (SystemProfilerSnapshot) -> Void
+    let snapshots: [SnapshotSummary]
+    let requestDeletion: (SnapshotSummary) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {

@@ -101,9 +101,9 @@ struct ReviewWorkflowTests {
             completedAt: .now
         )
 
-        #expect(snapshotCanBeCompared(snapshot(.full, current), with: current))
-        #expect(!snapshotCanBeCompared(snapshot(.redacted, current), with: current))
-        #expect(!snapshotCanBeCompared(snapshot(.full, otherSubject), with: current))
+        #expect(snapshotCanBeCompared(SnapshotSummary(snapshot(.full, current)), with: current))
+        #expect(!snapshotCanBeCompared(SnapshotSummary(snapshot(.redacted, current)), with: current))
+        #expect(!snapshotCanBeCompared(SnapshotSummary(snapshot(.full, otherSubject)), with: current))
     }
 
     @Test
@@ -178,7 +178,7 @@ struct ReviewWorkflowTests {
             report: workflowReport(),
             retention: .five
         )
-        #expect(try store.loadSnapshots().count == 2)
+        #expect(try store.loadSnapshotHistory().snapshots.count == 2)
     }
 }
 
