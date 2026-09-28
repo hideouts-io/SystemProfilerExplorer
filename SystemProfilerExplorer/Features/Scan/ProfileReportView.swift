@@ -969,7 +969,7 @@ private struct ProfileSectionView: View {
                 LazyVStack(spacing: 0) {
                     ForEach(visibleRecords) { record in
                         ProfileValueDisclosure(
-                            label: record.value.preferredName ?? "Record \(record.index + 1)",
+                            label: recordLabel(record.value, fallback: "Record \(record.index + 1)"),
                             value: record.value,
                             depth: 0,
                             dataType: section.dataType,
@@ -1108,7 +1108,7 @@ private struct ProfileValueDisclosure: View {
                 LazyVStack(spacing: 0) {
                     ForEach(items) { item in
                         ProfileFieldRow(
-                            label: item.value.preferredName ?? "Item \(item.index + 1)",
+                            label: recordLabel(item.value, fallback: "Item \(item.index + 1)"),
                             value: item.value,
                             depth: depth + 1,
                             dataType: dataType,
@@ -1206,7 +1206,7 @@ private struct ProfileValueDisclosure: View {
         }
 
         return values.enumerated().compactMap { index, value in
-            let itemLabel: String = value.preferredName ?? "Item \(index + 1)"
+            let itemLabel: String = recordLabel(value, fallback: "Item \(index + 1)")
 
             guard profileValueMatches(
                 value,

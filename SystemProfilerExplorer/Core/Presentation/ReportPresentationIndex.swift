@@ -120,7 +120,7 @@ func makeReportPresentationIndex(_ report: SystemProfilerReport) throws -> Repor
         recordCount += section.items.count
 
         for (recordIndex, value) in section.items.enumerated() {
-            let recordLabel: String = value.preferredName ?? "Record \(recordIndex + 1)"
+            let recordLabel: String = SystemProfilerExplorer.recordLabel(value, fallback: "Record \(recordIndex + 1)")
             var findings: [IndexedFinding] = []
 
             try appendIndexedFindings(
@@ -258,7 +258,7 @@ private func appendIndexedFindings(
         for (index, item) in values.enumerated() {
             try appendIndexedFindings(
                 item,
-                label: item.preferredName ?? "Item \(index + 1)",
+                label: recordLabel(item, fallback: "Item \(index + 1)"),
                 dataType: dataType,
                 path: path + ["[]"],
                 ancestorLabels: descendantLabels,

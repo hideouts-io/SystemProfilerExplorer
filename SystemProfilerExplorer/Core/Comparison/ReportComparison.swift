@@ -198,7 +198,7 @@ private func comparableFindings(
         var nameOccurrences: [String: Int] = [:]
 
         for (recordIndex, item) in section.items.enumerated() {
-            let recordLabel: String = item.preferredName ?? "Record \(recordIndex + 1)"
+            let recordLabel: String = SystemProfilerExplorer.recordLabel(item, fallback: "Record \(recordIndex + 1)")
             let recordIdentifier: String
 
             if let preferredName = item.preferredName {
