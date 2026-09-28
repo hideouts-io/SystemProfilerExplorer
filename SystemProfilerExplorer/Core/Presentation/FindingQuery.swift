@@ -262,12 +262,7 @@ private func findingSearchCorpus(
     _ presentation: FieldPresentation,
     valueExplanation: ValueExplanation?
 ) -> [String] {
-    var values: [String] = [
-        presentation.title,
-        presentation.displayedValue,
-        presentation.rawValue,
-        presentation.sourcePath
-    ]
+    var values: [String] = [presentation.title] + presentation.searchableValueTexts + [presentation.sourcePath]
 
     if let explanation = presentation.explanation {
         values.append(explanation.meaning)

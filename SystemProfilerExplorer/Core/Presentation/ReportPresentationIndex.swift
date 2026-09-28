@@ -399,12 +399,8 @@ private func appendIndexedFinding(
     let valueSummaryIndex: Int? = valueExplanation.map {
         explanationInterner.index(forCorpus: $0.summary)
     }
-    let directSearchCorpus: String = [
-        presentation.title,
-        presentation.displayedValue,
-        presentation.rawValue,
-        presentation.sourcePath
-    ].joined(separator: "\n")
+    let directSearchCorpus: String = ([presentation.title] + presentation.searchableValueTexts + [presentation.sourcePath])
+        .joined(separator: "\n")
     let ancestorLabelSearchCorpus: String = ancestorLabels
         .dropLast()
         .joined(separator: "\n")
