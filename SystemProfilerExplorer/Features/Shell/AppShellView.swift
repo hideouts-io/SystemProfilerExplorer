@@ -14,6 +14,7 @@ struct AppShellView: View {
     @State private var scanTask: Task<Void, Never>?
     @State private var isShowingRawReportImporter: Bool = false
     @State private var isShowingGlossary: Bool = false
+    @State private var activityStartedAt: Date = .now
     @AppStorage(explanationDetailModeStorageKey) private var explanationDetailMode: ExplanationDetailMode = .beginner
 
     init(collector: any SystemProfilerCollecting, parser: SystemProfilerParser) {
@@ -81,6 +82,7 @@ struct AppShellView: View {
 
         let reportParser: SystemProfilerParser = parser
 
+        activityStartedAt = .now
         scanState = .running(subject: subject)
         collectionHealth[subject] = .running
 
@@ -175,6 +177,7 @@ struct AppShellView: View {
         let reportParser: SystemProfilerParser = parser
 
         selectedWorkspace = .subject(.reports)
+        activityStartedAt = .now
         scanState = .importing(subject: .reports)
         collectionHealth[.reports] = .running
 
@@ -234,6 +237,7 @@ struct AppShellView: View {
                 subject: subject,
                 report: reports[subject],
                 scanState: scanState,
+                activityStartedAt: activityStartedAt,
                 collectionHealth: collectionHealth[subject] ?? .notCollected,
                 startScan: startScan,
                 importReport: showRawReportImporter
@@ -526,6 +530,7 @@ private struct SubjectWorkspace: View {
     let subject: ProfilerSubject
     let report: SystemProfilerReport?
     let scanState: ScanState
+    let activityStartedAt: Date
     let collectionHealth: CollectionAttemptHealth
     let startScan: () -> Void
     let importReport: () -> Void
@@ -536,7 +541,7 @@ private struct SubjectWorkspace: View {
                 SubjectHeading(subject: subject)
 
                 if isScanning(subject, scanState: scanState) {
-                    ScanningCard(subject: subject, scanState: scanState)
+                    ScanningCard(subject: subject, scanState: scanState, startedAt: activityStartedAt)
                 } else if let failureMessage = failureMessage(subject, scanState: scanState) {
                     ScanFailureCard(
                         message: failureMessage,
@@ -682,37 +687,72 @@ private struct ReadinessCard: View {
 private struct ScanningCard: View {
     let subject: ProfilerSubject
     let scanState: ScanState
+    let startedAt: Date
 
     var body: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: 14) {
             ProgressView()
                 .controlSize(.large)
             Text(activityTitle)
                 .font(.title3.weight(.semibold))
+
+            TimelineView(.periodic(from: startedAt, by: 1)) { context in
+                Text("Elapsed \(elapsedDescription(until: context.date))")
+                    .font(.callout.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+            .accessibilityIdentifier("scan-elapsed")
+
             Text(activityDetail)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: 600)
+
+            if !isImporting {
+                Text("Press Command-Period to cancel.")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+            }
         }
         .frame(maxWidth: .infinity)
-        .padding(48)
+        .padding(40)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 18))
         .accessibilityIdentifier("scan-progress")
     }
 
-    private var activityTitle: String {
-        guard case .importing = scanState else {
-            return "Scanning \(subject.title)"
+    private var isImporting: Bool {
+        if case .importing = scanState {
+            return true
         }
 
-        return "Importing \(subject.title)"
+        return false
+    }
+
+    private var activityTitle: String {
+        isImporting ? "Importing \(subject.title)" : "Scanning \(subject.title)"
     }
 
     private var activityDetail: String {
-        guard case .importing = scanState else {
-            return "system_profiler is collecting structured data locally. This can take a moment."
+        guard !isImporting else {
+            return "The selected report is being checked and organized on this Mac."
         }
 
-        return "The selected JSON report is being validated and organized locally."
+        guard let request = scanConfiguration(for: subject)?.request else {
+            return "system_profiler is collecting information on this Mac."
+        }
+
+        let titles: [String] = request.dataTypes.map(\.title)
+        let collecting: String = titles.count <= 6
+            ? titles.formatted(.list(type: .and))
+            : "\(titles.count) kinds of information about this Mac"
+        let limit: String = Duration.seconds(request.collectorDeadlineSeconds).formatted(.units(allowed: [.minutes, .seconds], width: .wide))
+
+        return "Collecting \(collecting). This can take up to \(limit)."
+    }
+
+    private func elapsedDescription(until date: Date) -> String {
+        Duration.seconds(max(0, Int(date.timeIntervalSince(startedAt)))).formatted(.time(pattern: .minuteSecond))
     }
 }
 
