@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import SystemProfilerExplorer
 
@@ -54,6 +55,14 @@ struct ProfilerSubjectTests {
         #expect(security.request.dataTypes.contains(.firewall))
         #expect(security.request.dataTypes.contains(.configurationProfiles))
         #expect(power.request.dataTypes == [.power])
+    }
+
+    @Test
+    func scanStateReportsWhichSubjectItDescribes() {
+        #expect(ScanState.idle.subject == nil)
+        #expect(ScanState.running(subject: .network).subject == .network)
+        #expect(ScanState.completed(subject: .power, date: Date()).subject == .power)
+        #expect(ScanState.failed(subject: .storage, message: "x").subject == .storage)
     }
 
     @Test

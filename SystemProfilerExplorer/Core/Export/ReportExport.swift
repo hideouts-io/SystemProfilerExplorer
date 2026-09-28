@@ -114,11 +114,11 @@ func decodeReportExport(_ data: Data) throws -> ReportExportEnvelope {
 }
 
 func fullReportExportFilename(completedAt: Date) -> String {
-    "System-Profiler-Full-\(exportDateDescription(completedAt)).system-profiler"
+    "System-Profiler-Full-\(exportDateDescription(completedAt)).json"
 }
 
 func redactedReportExportFilename(completedAt: Date) -> String {
-    "System-Profiler-Redacted-\(exportDateDescription(completedAt)).system-profiler"
+    "System-Profiler-Redacted-\(exportDateDescription(completedAt)).json"
 }
 
 private func redactProfileValue(_ value: ProfileValue) -> ProfileValue {

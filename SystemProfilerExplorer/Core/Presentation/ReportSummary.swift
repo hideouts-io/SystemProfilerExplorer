@@ -24,17 +24,25 @@ func reportSummary(_ report: SystemProfilerReport) -> ReportSummary {
 }
 
 func matchingFindingCount(_ report: SystemProfilerReport, query: FindingQuery) -> Int {
-    report.sections.reduce(0) { sectionResult, section in
+    let context: ValueReportContext = valueReportContext(for: report)
+
+    return report.sections.reduce(0) { sectionResult, section in
         section.items.enumerated().reduce(sectionResult) { itemResult, item in
             itemResult + matchingFindingCount(
                 item.element,
                 label: item.element.preferredName ?? "Record \(item.offset + 1)",
                 dataType: section.dataType,
                 path: [],
-                query: query
+                query: query,
+                report: context
             )
         }
     }
+}
+
+/// The number of findings whose value is worth a look, shown on each subject tab.
+func worthReviewingFindingCount(_ report: SystemProfilerReport) -> Int {
+    matchingFindingCount(report, query: FindingQuery(text: "", filter: .worthALook))
 }
 
 private struct FindingCounts {

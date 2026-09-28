@@ -2,6 +2,7 @@ import Foundation
 
 enum FindingFilter: String, CaseIterable, Identifiable, Sendable {
     case all
+    case worthALook
     case explained
     case privacy
 
@@ -10,6 +11,7 @@ enum FindingFilter: String, CaseIterable, Identifiable, Sendable {
     var title: String {
         switch self {
         case .all: "All"
+        case .worthALook: "Worth a Look"
         case .explained: "Explained"
         case .privacy: "Privacy"
         }
@@ -18,6 +20,7 @@ enum FindingFilter: String, CaseIterable, Identifiable, Sendable {
     var symbolName: String {
         switch self {
         case .all: "line.3.horizontal.decrease.circle"
+        case .worthALook: ValueStatus.worthReviewing.symbolName
         case .explained: "text.book.closed"
         case .privacy: "eye.slash"
         }
@@ -46,7 +49,8 @@ func matchingRecordSelection(
     items: [ProfileValue],
     dataType: SystemProfilerDataType,
     query: FindingQuery,
-    visibleLimit: Int
+    visibleLimit: Int,
+    report: ValueReportContext = .empty
 ) -> MatchingRecordSelection {
     precondition(visibleLimit > 0, "The visible record limit must be greater than zero.")
 
@@ -68,7 +72,8 @@ func matchingRecordSelection(
             label: label,
             dataType: dataType,
             path: [],
-            query: query
+            query: query,
+            report: report
         ) else {
             continue
         }
@@ -91,15 +96,50 @@ func profileValueMatches(
     label: String,
     dataType: SystemProfilerDataType,
     path: [String],
-    query: FindingQuery
+    query: FindingQuery,
+    siblings: [String: ProfileValue] = [:],
+    report: ValueReportContext = .empty
 ) -> Bool {
-    matchingFindingCount(
-        value,
-        label: label,
-        dataType: dataType,
-        path: path,
-        query: query
-    ) > 0
+    let descendantQuery: FindingQuery = queryForDescendants(parentLabel: label, query: query)
+
+    // Stops at the first match instead of counting every finding.
+    switch value {
+    case let .object(object):
+        return object.contains { key, fieldValue in
+            key != "_name" && profileValueMatches(
+                fieldValue,
+                label: displayName(for: key),
+                dataType: dataType,
+                path: path + [key],
+                query: descendantQuery,
+                siblings: object,
+                report: report
+            )
+        }
+
+    case let .array(values):
+        return values.enumerated().contains { offset, item in
+            profileValueMatches(
+                item,
+                label: item.preferredName ?? "Item \(offset + 1)",
+                dataType: dataType,
+                path: path + ["[]"],
+                query: descendantQuery,
+                report: report
+            )
+        }
+
+    case .string, .integer, .decimal, .boolean, .null:
+        return matchingFindingCount(
+            value,
+            label: label,
+            dataType: dataType,
+            path: path,
+            query: query,
+            siblings: siblings,
+            report: report
+        ) > 0
+    }
 }
 
 func matchingFindingCount(
@@ -107,7 +147,9 @@ func matchingFindingCount(
     label: String,
     dataType: SystemProfilerDataType,
     path: [String],
-    query: FindingQuery
+    query: FindingQuery,
+    siblings: [String: ProfileValue] = [:],
+    report: ValueReportContext = .empty
 ) -> Int {
     let descendantQuery: FindingQuery = queryForDescendants(parentLabel: label, query: query)
 
@@ -121,7 +163,9 @@ func matchingFindingCount(
                     label: displayName(for: field.key),
                     dataType: dataType,
                     path: path + [field.key],
-                    query: descendantQuery
+                    query: descendantQuery,
+                    siblings: object,
+                    report: report
                 )
             }
 
@@ -132,40 +176,39 @@ func matchingFindingCount(
                 label: item.element.preferredName ?? "Item \(item.offset + 1)",
                 dataType: dataType,
                 path: path + ["[]"],
-                query: descendantQuery
+                query: descendantQuery,
+                report: report
             )
         }
 
     case let .string(value):
-        return findingMatches(
-            fieldPresentation(dataType: dataType, path: path, scalar: .string(value)),
-            query: query
-        ) ? 1 : 0
-
+        return scalarMatchCount(.string(value), dataType: dataType, path: path, query: query, siblings: siblings, report: report)
     case let .integer(value):
-        return findingMatches(
-            fieldPresentation(dataType: dataType, path: path, scalar: .integer(value)),
-            query: query
-        ) ? 1 : 0
-
+        return scalarMatchCount(.integer(value), dataType: dataType, path: path, query: query, siblings: siblings, report: report)
     case let .decimal(value):
-        return findingMatches(
-            fieldPresentation(dataType: dataType, path: path, scalar: .decimal(value)),
-            query: query
-        ) ? 1 : 0
-
+        return scalarMatchCount(.decimal(value), dataType: dataType, path: path, query: query, siblings: siblings, report: report)
     case let .boolean(value):
-        return findingMatches(
-            fieldPresentation(dataType: dataType, path: path, scalar: .boolean(value)),
-            query: query
-        ) ? 1 : 0
-
+        return scalarMatchCount(.boolean(value), dataType: dataType, path: path, query: query, siblings: siblings, report: report)
     case .null:
-        return findingMatches(
-            fieldPresentation(dataType: dataType, path: path, scalar: .null),
-            query: query
-        ) ? 1 : 0
+        return scalarMatchCount(.null, dataType: dataType, path: path, query: query, siblings: siblings, report: report)
     }
+}
+
+private func scalarMatchCount(
+    _ scalar: ProfileScalar,
+    dataType: SystemProfilerDataType,
+    path: [String],
+    query: FindingQuery,
+    siblings: [String: ProfileValue],
+    report: ValueReportContext
+) -> Int {
+    let presentation: FieldPresentation = fieldPresentation(dataType: dataType, path: path, scalar: scalar)
+    let needsValueExplanation: Bool = query.filter == .worthALook || !query.normalizedText.isEmpty
+    let explanation: ValueExplanation? = needsValueExplanation
+        ? valueExplanation(dataType: dataType, path: path, scalar: scalar, siblings: siblings, report: report)
+        : nil
+
+    return findingMatches(presentation, valueExplanation: explanation, query: query) ? 1 : 0
 }
 
 func queryForDescendants(parentLabel: String, query: FindingQuery) -> FindingQuery {
@@ -178,8 +221,12 @@ func queryForDescendants(parentLabel: String, query: FindingQuery) -> FindingQue
     return FindingQuery(text: "", filter: .all)
 }
 
-private func findingMatches(_ presentation: FieldPresentation, query: FindingQuery) -> Bool {
-    guard findingMatchesFilter(presentation, filter: query.filter) else {
+private func findingMatches(
+    _ presentation: FieldPresentation,
+    valueExplanation: ValueExplanation?,
+    query: FindingQuery
+) -> Bool {
+    guard findingMatchesFilter(presentation, valueExplanation: valueExplanation, filter: query.filter) else {
         return false
     }
 
@@ -189,15 +236,21 @@ private func findingMatches(_ presentation: FieldPresentation, query: FindingQue
         return true
     }
 
-    return findingSearchCorpus(presentation).contains {
+    return findingSearchCorpus(presentation, valueExplanation: valueExplanation).contains {
         $0.localizedCaseInsensitiveContains(searchText)
     }
 }
 
-private func findingMatchesFilter(_ presentation: FieldPresentation, filter: FindingFilter) -> Bool {
+private func findingMatchesFilter(
+    _ presentation: FieldPresentation,
+    valueExplanation: ValueExplanation?,
+    filter: FindingFilter
+) -> Bool {
     switch filter {
     case .all:
         true
+    case .worthALook:
+        valueExplanation?.status == .worthReviewing
     case .explained:
         presentation.explanation != nil
     case .privacy:
@@ -205,7 +258,10 @@ private func findingMatchesFilter(_ presentation: FieldPresentation, filter: Fin
     }
 }
 
-private func findingSearchCorpus(_ presentation: FieldPresentation) -> [String] {
+private func findingSearchCorpus(
+    _ presentation: FieldPresentation,
+    valueExplanation: ValueExplanation?
+) -> [String] {
     var values: [String] = [
         presentation.title,
         presentation.displayedValue,
@@ -221,6 +277,10 @@ private func findingSearchCorpus(_ presentation: FieldPresentation) -> [String] 
         if let privacy = explanation.privacy {
             values.append(privacy)
         }
+    }
+
+    if let valueExplanation {
+        values.append(valueExplanation.summary)
     }
 
     return values

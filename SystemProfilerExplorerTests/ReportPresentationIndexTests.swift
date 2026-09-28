@@ -121,6 +121,58 @@ struct ReportPresentationIndexTests {
         #expect(indexingDuration < .seconds(15))
         #expect(queryDuration < .seconds(3))
     }
+
+    @Test
+    func worthALookFilterAndValueSummarySearchMatchRecursiveBehavior() throws {
+        let report = SystemProfilerReport(
+            sections: [
+                SystemProfilerSection(
+                    dataType: .power,
+                    items: [
+                        .object([
+                            "sppower_battery_charge_info": .object([
+                                "sppower_battery_state_of_charge": .integer(4),
+                                "sppower_battery_is_charging": .string("FALSE"),
+                                "sppower_battery_at_warn_level": .string("TRUE")
+                            ]),
+                            "sppower_battery_health_info": .object([
+                                "sppower_battery_cycle_count": .integer(16),
+                                "sppower_battery_health": .string("Good")
+                            ])
+                        ])
+                    ]
+                ),
+                SystemProfilerSection(
+                    dataType: .wifi,
+                    items: [
+                        .object([
+                            "spairport_current_network_information": .object([
+                                "spairport_network_phymode": .string("802.11ax")
+                            ])
+                        ])
+                    ]
+                )
+            ],
+            commandArguments: [],
+            standardError: "",
+            startedAt: Date(timeIntervalSince1970: 3_000),
+            completedAt: Date(timeIntervalSince1970: 3_001)
+        )
+        let index: ReportPresentationIndex = try makeReportPresentationIndex(report)
+        let worthALook = FindingQuery(text: "", filter: .worthALook)
+
+        #expect(index.worthReviewingFindingCount == 2)
+        #expect(worthReviewingFindingCount(report) == 2)
+        #expect(try index.queryResult(for: worthALook).findingCount == 2)
+
+        // "Wi-Fi 6" appears only in the value summary for 802.11ax.
+        for query in [worthALook, FindingQuery(text: "Wi-Fi 6", filter: .all), FindingQuery(text: "Connect power", filter: .worthALook)] {
+            let indexedCount: Int = try index.queryResult(for: query).findingCount
+            #expect(indexedCount == matchingFindingCount(report, query: query), "\(query)")
+        }
+
+        #expect(try index.queryResult(for: FindingQuery(text: "Wi-Fi 6", filter: .all)).findingCount == 1)
+    }
 }
 
 private func representativeReport() -> SystemProfilerReport {

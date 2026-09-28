@@ -29,6 +29,7 @@ struct ProfileReportView: View {
     @State private var isSearching: Bool = false
     @State private var indexingErrorMessage: String?
     @State private var queryTask: Task<Void, Never>?
+    @State private var recentSearchTask: Task<Void, Never>?
     @State private var isShowingSkippedCollection: Bool = false
     @State private var isShowingSnapshotTimeline: Bool = false
     @State private var isShowingSystemReview: Bool = false
@@ -52,6 +53,7 @@ struct ProfileReportView: View {
                 ReportIndexingView()
             }
         }
+        .environment(\.valueReportContext, valueReportContext(for: report))
         .task(id: report.completedAt) {
             await preparePresentationIndex()
         }
@@ -60,6 +62,7 @@ struct ProfileReportView: View {
         }
         .onDisappear {
             queryTask?.cancel()
+            recentSearchTask?.cancel()
             comparisonTask?.cancel()
         }
         .sheet(isPresented: $isShowingExportReview) {
@@ -110,12 +113,24 @@ struct ProfileReportView: View {
         )
 
         VStack(alignment: .leading, spacing: 16) {
+            if !presentationIndex.glance.isEmpty || presentationIndex.worthReviewingFindingCount > 0 {
+                AtAGlanceCard(
+                    sentences: presentationIndex.glance,
+                    worthReviewingCount: presentationIndex.worthReviewingFindingCount,
+                    showWorthReviewing: { selectedFilter = .worthALook }
+                )
+            }
+
             CollectionCoverageCard(
                 coverage: collectionCoverage(for: report),
                 showSkippedCollection: { isShowingSkippedCollection = true }
             )
 
-            ReportSummaryStrip(summary: summary)
+            ReportSummaryStrip(
+                summary: summary,
+                worthReviewingCount: presentationIndex.worthReviewingFindingCount,
+                showWorthReviewing: { selectedFilter = .worthALook }
+            )
 
             if summary.findingCount >= largeReportFindingThreshold {
                 LargeReportNotice()
@@ -126,7 +141,8 @@ struct ProfileReportView: View {
                 selectedFilter: $selectedFilter,
                 isSearching: isSearching,
                 recentSearches: recentSearches,
-                applyRecentSearch: applyRecentSearch
+                applyRecentSearch: applyRecentSearch,
+                submitSearch: submitSearch
             )
 
             FindingBookmarkBar(
@@ -260,10 +276,15 @@ struct ProfileReportView: View {
         } catch is CancellationError {
             return
         } catch {
-            indexingErrorMessage = "The report could not be prepared for display. \(String(reflecting: error))"
+            indexingErrorMessage = "The report could not be prepared for display. \(error.localizedDescription)"
         }
 
         isPreparingIndex = false
+
+        // The search or filter may have changed while the index was being built.
+        if presentationIndex != nil, query != currentQuery {
+            scheduleQuery(query)
+        }
     }
 
     private func retryIndexing() {
@@ -296,11 +317,11 @@ struct ProfileReportView: View {
                 displayedQueryResult = result
                 isSearching = false
                 queryTask = nil
-                recordRecentSearch(newQuery)
+                scheduleRecentSearchRecording(newQuery)
             } catch is CancellationError {
                 return
             } catch {
-                indexingErrorMessage = "The report search failed. \(String(reflecting: error))"
+                indexingErrorMessage = "The report search failed. \(error.localizedDescription)"
                 isSearching = false
                 queryTask = nil
             }
@@ -327,7 +348,7 @@ struct ProfileReportView: View {
                 return
             }
 
-            comparisonErrorMessage = "The report picker failed. \(String(reflecting: error))"
+            comparisonErrorMessage = "The report picker failed. \(error.localizedDescription)"
         }
     }
 
@@ -341,8 +362,10 @@ struct ProfileReportView: View {
             do {
                 let comparison: ReportComparison = try await Task.detached(priority: .userInitiated) {
                     let data: Data = try Data(contentsOf: reportURL, options: .mappedIfSafe)
-                    let export: ReportExportEnvelope = try decodeReportExport(data)
-                    let baselineReport: SystemProfilerReport = try comparisonBaselineReport(from: export)
+                    let baselineReport: SystemProfilerReport = try loadComparisonBaseline(
+                        from: data,
+                        importedAt: fileModificationDate(reportURL)
+                    )
                     return try compareReports(baseline: baselineReport, current: currentReport)
                 }.value
 
@@ -353,7 +376,7 @@ struct ProfileReportView: View {
                 comparisonTask = nil
                 return
             } catch {
-                comparisonErrorMessage = "The selected report could not be compared. \(String(reflecting: error))"
+                comparisonErrorMessage = "The selected report could not be compared. \(error.localizedDescription)"
             }
 
             isPreparingComparison = false
@@ -410,6 +433,28 @@ struct ProfileReportView: View {
     private func applyRecentSearch(_ search: String) {
         highlightedSourcePath = nil
         searchText = search
+    }
+
+    /// Saves a search once it has been left unchanged for a moment, so partly typed
+    /// words don't fill the Recent menu. Pressing Return saves it immediately.
+    private func scheduleRecentSearchRecording(_ findingQuery: FindingQuery) {
+        recentSearchTask?.cancel()
+        recentSearchTask = Task {
+            do {
+                try await Task.sleep(for: .seconds(2))
+            } catch {
+                return
+            }
+
+            if query == findingQuery {
+                recordRecentSearch(findingQuery)
+            }
+        }
+    }
+
+    private func submitSearch() {
+        recentSearchTask?.cancel()
+        recordRecentSearch(query)
     }
 
     private func recordRecentSearch(_ findingQuery: FindingQuery) {
@@ -677,9 +722,24 @@ private struct ReportIndexingFailureView: View {
 
 private struct ReportSummaryStrip: View {
     let summary: ReportSummary
+    let worthReviewingCount: Int
+    let showWorthReviewing: () -> Void
 
     var body: some View {
         HStack(spacing: 10) {
+            Button(action: showWorthReviewing) {
+                SummaryCard(
+                    title: "Worth a look",
+                    value: worthReviewingCount,
+                    symbolName: ValueStatus.worthReviewing.symbolName,
+                    tint: worthReviewingCount > 0 ? ValueStatus.worthReviewing.tint : .secondary
+                )
+            }
+            .buttonStyle(.plain)
+            .disabled(worthReviewingCount == 0)
+            .help(worthReviewingCount > 0 ? "Show only findings worth a look" : "No findings need a look")
+            .accessibilityIdentifier("summary-worth-a-look")
+
             SummaryCard(
                 title: "Records",
                 value: summary.recordCount,
@@ -702,7 +762,7 @@ private struct ReportSummaryStrip: View {
                 title: "Privacy",
                 value: summary.privacyFindingCount,
                 symbolName: "eye.slash",
-                tint: .orange
+                tint: .purple
             )
         }
         .accessibilityIdentifier("report-summary")
@@ -749,6 +809,7 @@ private struct FindingControls: View {
     let isSearching: Bool
     let recentSearches: [String]
     let applyRecentSearch: (String) -> Void
+    let submitSearch: () -> Void
 
     var body: some View {
         HStack(spacing: 12) {
@@ -757,6 +818,7 @@ private struct FindingControls: View {
                     .foregroundStyle(.secondary)
                 TextField("Search values and explanations", text: $searchText)
                     .textFieldStyle(.plain)
+                    .onSubmit(submitSearch)
                     .accessibilityIdentifier("finding-search")
 
                 if isSearching {
@@ -808,7 +870,7 @@ private struct FindingControls: View {
                 }
             }
             .pickerStyle(.segmented)
-            .frame(width: 330)
+            .frame(width: 470)
             .accessibilityIdentifier("finding-filter")
         }
     }
@@ -917,7 +979,8 @@ private struct ProfileSectionView: View {
                             bookmarkedSourcePaths: bookmarkedSourcePaths,
                             toggleBookmark: toggleBookmark,
                             openSourceLocation: openSourceLocation,
-                            highlightedSourcePath: highlightedSourcePath
+                            highlightedSourcePath: highlightedSourcePath,
+                            siblings: [:]
                         )
 
                         if record.id != visibleRecords.last?.id {
@@ -1002,8 +1065,12 @@ private struct ProfileValueDisclosure: View {
     let toggleBookmark: (String) -> Void
     let openSourceLocation: (String) -> Void
     let highlightedSourcePath: String?
+    /// The other fields of the object containing this value, for context-aware value explanations.
+    let siblings: [String: ProfileValue]
 
-    @State private var isManuallyExpanded: Bool = false
+    @Environment(\.valueReportContext) private var valueReportContext
+    /// The user's own expand or collapse choice, which overrides automatic expansion.
+    @State private var manualExpansion: Bool?
 
     var body: some View {
         switch value {
@@ -1023,7 +1090,8 @@ private struct ProfileValueDisclosure: View {
                             bookmarkedSourcePaths: bookmarkedSourcePaths,
                             toggleBookmark: toggleBookmark,
                             openSourceLocation: openSourceLocation,
-                            highlightedSourcePath: highlightedSourcePath
+                            highlightedSourcePath: highlightedSourcePath,
+                            siblings: object
                         )
                     }
                 }
@@ -1050,7 +1118,8 @@ private struct ProfileValueDisclosure: View {
                             bookmarkedSourcePaths: bookmarkedSourcePaths,
                             toggleBookmark: toggleBookmark,
                             openSourceLocation: openSourceLocation,
-                            highlightedSourcePath: highlightedSourcePath
+                            highlightedSourcePath: highlightedSourcePath,
+                            siblings: [:]
                         )
                     }
                 }
@@ -1087,6 +1156,13 @@ private struct ProfileValueDisclosure: View {
 
         return ScalarProfileRow(
             presentation: presentation,
+            valueExplanation: presentation.isLogContent ? nil : valueExplanation(
+                dataType: dataType,
+                path: path,
+                scalar: scalar,
+                siblings: siblings,
+                report: valueReportContext
+            ),
             depth: depth,
             isBookmarked: bookmarkedSourcePaths.contains(presentation.sourcePath),
             toggleBookmark: toggleBookmark,
@@ -1097,8 +1173,8 @@ private struct ProfileValueDisclosure: View {
 
     private var expansionBinding: Binding<Bool> {
         Binding(
-            get: { automaticallyExpandResults || isManuallyExpanded },
-            set: { isManuallyExpanded = $0 }
+            get: { manualExpansion ?? automaticallyExpandResults },
+            set: { manualExpansion = $0 }
         )
     }
 
@@ -1115,7 +1191,9 @@ private struct ProfileValueDisclosure: View {
                 label: displayName(for: field.key),
                 dataType: dataType,
                 path: path + [field.key],
-                query: descendantQuery
+                query: descendantQuery,
+                siblings: object,
+                report: valueReportContext
             )
         }
     }
@@ -1135,7 +1213,8 @@ private struct ProfileValueDisclosure: View {
                 label: itemLabel,
                 dataType: dataType,
                 path: path + ["[]"],
-                query: descendantQuery
+                query: descendantQuery,
+                report: valueReportContext
             ) else {
                 return nil
             }
@@ -1157,6 +1236,7 @@ private struct ProfileFieldRow: View {
     let toggleBookmark: (String) -> Void
     let openSourceLocation: (String) -> Void
     let highlightedSourcePath: String?
+    let siblings: [String: ProfileValue]
 
     var body: some View {
         ProfileValueDisclosure(
@@ -1170,7 +1250,8 @@ private struct ProfileFieldRow: View {
             bookmarkedSourcePaths: bookmarkedSourcePaths,
             toggleBookmark: toggleBookmark,
             openSourceLocation: openSourceLocation,
-            highlightedSourcePath: highlightedSourcePath
+            highlightedSourcePath: highlightedSourcePath,
+            siblings: siblings
         )
 
         if shouldShowDivider(after: value) {
@@ -1202,14 +1283,21 @@ private struct ProfileGroupLabel: View {
 
 private struct ScalarProfileRow: View {
     let presentation: FieldPresentation
+    let valueExplanation: ValueExplanation?
     let depth: Int
     let isBookmarked: Bool
     let toggleBookmark: (String) -> Void
     let openSourceLocation: (String) -> Void
     let isHighlighted: Bool
 
+    @Environment(\.explanationDetailMode) private var detailMode
+
     var body: some View {
         DisclosureGroup {
+            if let valueExplanation {
+                ValueMeaningView(explanation: valueExplanation)
+            }
+
             if presentation.isLogContent {
                 DiagnosticLogView(presentation: presentation, openSourceLocation: openSourceLocation)
             } else if let explanation = presentation.explanation {
@@ -1224,38 +1312,108 @@ private struct ScalarProfileRow: View {
                     openSourceLocation: openSourceLocation
                 )
             }
+
+            if !presentation.isLogContent {
+                GlossaryTermsRow(texts: explanationTexts)
+            }
         } label: {
-            HStack(alignment: .firstTextBaseline, spacing: 12) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(presentation.title)
-                        .foregroundStyle(.secondary)
-                    ExplanationCoverageBadge(coverage: explanationCoverage(for: presentation))
+            VStack(alignment: .leading, spacing: 6) {
+                scalarHeader
+
+                if let valueExplanation {
+                    ValueSummaryLine(explanation: valueExplanation)
                 }
-                .frame(maxWidth: 280, alignment: .leading)
 
-                Spacer(minLength: 12)
-
-                Text(presentation.isLogContent ? "Log excerpt • expand to review" : presentation.displayedValue)
-                    .font(.body.monospaced())
-                    .textSelection(.enabled)
-                    .multilineTextAlignment(.trailing)
-
-                Button {
-                    toggleBookmark(presentation.sourcePath)
-                } label: {
-                    Image(systemName: isBookmarked ? "bookmark.fill" : "bookmark")
+                if detailMode == .developer {
+                    ScalarDeveloperDetails(presentation: presentation)
                 }
-                .buttonStyle(.borderless)
-                .foregroundStyle(isBookmarked ? Color.accentColor : .secondary)
-                .accessibilityLabel(isBookmarked ? "Remove bookmark" : "Bookmark finding")
-                .accessibilityIdentifier("bookmark-\(presentation.sourcePath)")
             }
         }
         .padding(.leading, CGFloat(depth * 14))
         .padding(.horizontal, 14)
         .padding(.vertical, 9)
         .background(isHighlighted ? Color.accentColor.opacity(0.14) : Color.clear, in: RoundedRectangle(cornerRadius: 9))
+        .contextMenu {
+            Button("Copy Value") {
+                copyToPasteboard(presentation.rawValue)
+            }
+            Button("Copy Source Path") {
+                copyToPasteboard(presentation.sourcePath)
+            }
+            Button("Copy as Markdown") {
+                copyToPasteboard(findingMarkdown(presentation: presentation, valueExplanation: valueExplanation))
+            }
+        }
         .accessibilityIdentifier("finding-\(presentation.sourcePath)")
+    }
+
+    private var explanationTexts: [String] {
+        var texts: [String] = []
+
+        if let valueExplanation {
+            texts += [valueExplanation.summary, valueExplanation.detail, valueExplanation.suggestedAction].compactMap { $0 }
+            texts += valueExplanation.confidence?.reasons ?? []
+        }
+
+        if let explanation = presentation.explanation {
+            texts += [explanation.meaning, explanation.significance, explanation.interpretation, explanation.privacy].compactMap { $0 }
+        }
+
+        return texts
+    }
+
+    private var scalarHeader: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(presentation.title)
+                    .foregroundStyle(.secondary)
+
+                if detailMode == .developer {
+                    ExplanationCoverageBadge(coverage: explanationCoverage(for: presentation))
+                }
+            }
+            .frame(maxWidth: 280, alignment: .leading)
+
+            Spacer(minLength: 12)
+
+            Text(presentation.isLogContent ? "Log excerpt • expand to review" : presentation.displayedValue)
+                .font(.body.monospaced())
+                .textSelection(.enabled)
+                .multilineTextAlignment(.trailing)
+
+            Button {
+                toggleBookmark(presentation.sourcePath)
+            } label: {
+                Image(systemName: isBookmarked ? "bookmark.fill" : "bookmark")
+            }
+            .buttonStyle(.borderless)
+            .foregroundStyle(isBookmarked ? Color.accentColor : .secondary)
+            .accessibilityLabel(isBookmarked ? "Remove bookmark" : "Bookmark finding")
+            .accessibilityIdentifier("bookmark-\(presentation.sourcePath)")
+        }
+    }
+}
+
+/// Raw details shown under a finding in Developer mode.
+private struct ScalarDeveloperDetails: View {
+    let presentation: FieldPresentation
+
+    var body: some View {
+        HStack(spacing: 14) {
+            Text(presentation.sourcePath)
+                .lineLimit(1)
+                .truncationMode(.middle)
+
+            if presentation.displayedValue != presentation.rawValue {
+                Text("raw: \(presentation.rawValue)")
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+            }
+        }
+        .font(.caption.monospaced())
+        .foregroundStyle(.tertiary)
+        .textSelection(.enabled)
+        .accessibilityIdentifier("developer-details")
     }
 }
 
@@ -1263,9 +1421,14 @@ private struct ExplanationCoverageBadge: View {
     let coverage: ExplanationCoverage
 
     var body: some View {
-        Label(coverage.title, systemImage: coverage.symbolName)
+        Label {
+            Text(coverage.title)
+                .foregroundStyle(.secondary)
+        } icon: {
+            Image(systemName: coverage.symbolName)
+                .foregroundStyle(coverageColor)
+        }
             .font(.caption2.weight(.medium))
-            .foregroundStyle(coverageColor)
             .lineLimit(1)
     }
 
@@ -1283,9 +1446,18 @@ private struct FieldExplanationView: View {
     let explanation: FieldExplanation
     let openSourceLocation: (String) -> Void
 
+    @Environment(\.explanationDetailMode) private var detailMode
+
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            ExplanationCoverageDetail(coverage: explanationCoverage(for: presentation))
+            Text("About this field")
+                .font(.caption.weight(.semibold))
+                .textCase(.uppercase)
+                .foregroundStyle(.secondary)
+
+            if detailMode == .developer {
+                ExplanationCoverageDetail(coverage: explanationCoverage(for: presentation))
+            }
 
             ExplanationSection(
                 title: "What it means",
@@ -1311,6 +1483,22 @@ private struct FieldExplanationView: View {
                 )
             }
 
+            if detailMode == .developer {
+                FieldSourceDetails(presentation: presentation, openSourceLocation: openSourceLocation)
+            }
+        }
+        .padding(14)
+        .background(Color.accentColor.opacity(0.055), in: RoundedRectangle(cornerRadius: 11))
+        .padding(.top, 8)
+    }
+}
+
+private struct FieldSourceDetails: View {
+    let presentation: FieldPresentation
+    let openSourceLocation: (String) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
             Divider()
 
             VStack(alignment: .leading, spacing: 5) {
@@ -1332,9 +1520,6 @@ private struct FieldExplanationView: View {
             .buttonStyle(.bordered)
             .accessibilityIdentifier("open-raw-source-\(presentation.sourcePath)")
         }
-        .padding(14)
-        .background(Color.accentColor.opacity(0.055), in: RoundedRectangle(cornerRadius: 11))
-        .padding(.top, 8)
     }
 }
 
@@ -1380,6 +1565,8 @@ private struct MissingExplanationView: View {
     let presentation: FieldPresentation
     let openSourceLocation: (String) -> Void
 
+    @Environment(\.explanationDetailMode) private var detailMode
+
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Label("Unrecognized field", systemImage: "questionmark.circle")
@@ -1387,17 +1574,20 @@ private struct MissingExplanationView: View {
             Text("The value is preserved exactly as system_profiler reported it. The app does not infer a meaning for an unrecognized field.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
-            LabeledContent("Source field", value: presentation.sourcePath)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .textSelection(.enabled)
 
-            Button {
-                openSourceLocation(presentation.sourcePath)
-            } label: {
-                Label("Show Raw Source Location", systemImage: "arrow.turn.down.right")
+            if detailMode == .developer {
+                LabeledContent("Source field", value: presentation.sourcePath)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+
+                Button {
+                    openSourceLocation(presentation.sourcePath)
+                } label: {
+                    Label("Show Raw Source Location", systemImage: "arrow.turn.down.right")
+                }
+                .buttonStyle(.bordered)
             }
-            .buttonStyle(.bordered)
         }
         .padding(14)
         .background(.quaternary.opacity(0.45), in: RoundedRectangle(cornerRadius: 11))
@@ -1477,4 +1667,10 @@ private func shouldShowDivider(after value: ProfileValue) -> Bool {
     case .object, .array: false
     case .string, .integer, .decimal, .boolean, .null: true
     }
+}
+
+private func copyToPasteboard(_ text: String) {
+    let pasteboard: NSPasteboard = .general
+    pasteboard.clearContents()
+    pasteboard.setString(text, forType: .string)
 }

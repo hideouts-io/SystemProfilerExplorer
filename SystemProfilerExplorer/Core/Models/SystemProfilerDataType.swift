@@ -51,6 +51,7 @@ enum SystemProfilerDataType: String, CaseIterable, Sendable, Codable, Hashable {
     case usb = "SPUSBHostDataType"
     case networkVolumes = "SPNetworkVolumeDataType"
     case wifi = "SPAirPortDataType"
+    case appleVirtualPlatform = "SPAppleVirtualPlatformDataType"
 
     var title: String {
         switch self {
@@ -104,6 +105,7 @@ enum SystemProfilerDataType: String, CaseIterable, Sendable, Codable, Hashable {
         case .usb: "USB"
         case .networkVolumes: "Network Volumes"
         case .wifi: "Wi-Fi"
+        case .appleVirtualPlatform: "Apple Virtual Platform"
         }
     }
 }

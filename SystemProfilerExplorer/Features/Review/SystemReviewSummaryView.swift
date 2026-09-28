@@ -138,7 +138,7 @@ struct SystemReviewSummaryView: View {
             }
             isShowingFileExporter = true
         } catch {
-            exportErrorMessage = "The system review could not be prepared. \(String(reflecting: error))"
+            exportErrorMessage = "The system review could not be prepared. \(error.localizedDescription)"
         }
     }
 
@@ -148,7 +148,7 @@ struct SystemReviewSummaryView: View {
             exportDocument = nil
             dismiss()
         case let .failure(error):
-            exportErrorMessage = "The selected file could not be written. \(String(reflecting: error))"
+            exportErrorMessage = "The selected file could not be written. \(error.localizedDescription)"
         }
     }
 }

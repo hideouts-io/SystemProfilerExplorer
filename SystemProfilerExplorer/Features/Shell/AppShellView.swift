@@ -8,10 +8,13 @@ struct AppShellView: View {
     @State private var selectedWorkspace: AppWorkspace = .subject(.overview)
     @State private var reports: [ProfilerSubject: SystemProfilerReport] = [:]
     @State private var findingCounts: [ProfilerSubject: Int] = [:]
+    @State private var worthReviewingCounts: [ProfilerSubject: Int] = [:]
     @State private var collectionHealth: [ProfilerSubject: CollectionAttemptHealth] = [:]
     @State private var scanState: ScanState = .idle
     @State private var scanTask: Task<Void, Never>?
     @State private var isShowingRawReportImporter: Bool = false
+    @State private var isShowingGlossary: Bool = false
+    @AppStorage(explanationDetailModeStorageKey) private var explanationDetailMode: ExplanationDetailMode = .beginner
 
     init(collector: any SystemProfilerCollecting, parser: SystemProfilerParser) {
         self.collector = collector
@@ -23,22 +26,42 @@ struct AppShellView: View {
             AppHeader(
                 scanState: scanState,
                 selectedSubject: selectedSubject,
+                selectedCollectionHealth: selectedSubject.flatMap { collectionHealth[$0] } ?? .notCollected,
                 canScan: selectedSubject.flatMap(scanConfiguration(for:)) != nil,
                 canImport: selectedSubject == .reports,
                 startScan: startScan,
                 importReport: showRawReportImporter,
-                cancelScan: cancelScan
+                cancelScan: cancelScan,
+                showGlossary: { isShowingGlossary = true },
+                explanationDetailMode: $explanationDetailMode
             )
             Divider()
             WorkspaceTabBar(
                 selectedWorkspace: $selectedWorkspace,
                 findingCounts: findingCounts,
+                worthReviewingCounts: worthReviewingCounts,
                 collectionHealth: collectionHealth
             )
             Divider()
             workspaceContent
         }
         .background(Color(nsColor: .windowBackgroundColor))
+        .environment(\.explanationDetailMode, explanationDetailMode)
+        .sheet(isPresented: $isShowingGlossary) {
+            GlossarySheet()
+        }
+        .focusedSceneValue(
+            \.appCommandActions,
+            AppCommandActions(
+                scanTitle: selectedSubject.map { "Scan \($0.title)" } ?? "Scan",
+                canScan: !scanState.isRunning && selectedSubject.flatMap(scanConfiguration(for:)) != nil,
+                isScanning: scanState.isRunning,
+                scan: startScan,
+                cancel: cancelScan,
+                importReport: showRawReportImporter,
+                showGlossary: { isShowingGlossary = true }
+            )
+        )
         .fileImporter(
             isPresented: $isShowingRawReportImporter,
             allowedContentTypes: [.json],
@@ -72,6 +95,7 @@ struct AppShellView: View {
                 let report: SystemProfilerReport = prepared.report
                 reports[subject] = report
                 findingCounts[subject] = prepared.findingCount
+                worthReviewingCounts[subject] = prepared.worthReviewingCount
                 scanState = .completed(subject: subject, date: report.completedAt)
                 collectionHealth[subject] = .completed
             } catch is CancellationError {
@@ -89,7 +113,7 @@ struct AppShellView: View {
             } catch {
                 scanState = .failed(
                     subject: subject,
-                    message: "The scan failed with an unexpected error: \(String(reflecting: error))"
+                    message: "The scan failed with an unexpected error: \(error.localizedDescription)"
                 )
                 collectionHealth[subject] = .failed
             }
@@ -137,7 +161,7 @@ struct AppShellView: View {
 
             scanState = .failed(
                 subject: .reports,
-                message: "The report picker failed. \(String(reflecting: error))"
+                message: "The report picker failed. \(error.localizedDescription)"
             )
             collectionHealth[.reports] = .failed
         }
@@ -159,7 +183,7 @@ struct AppShellView: View {
                 let prepared: PreparedReport = try await Task.detached(priority: .userInitiated) {
                     let data: Data = try readSecurityScopedData(reportURL)
                     return try PreparedReport(
-                        report: reportParser.parseImportedReport(data, importedAt: Date())
+                        report: loadViewableReport(from: data, importedAt: Date(), parser: reportParser)
                     )
                 }.value
 
@@ -167,6 +191,7 @@ struct AppShellView: View {
                 let report: SystemProfilerReport = prepared.report
                 reports[.reports] = report
                 findingCounts[.reports] = prepared.findingCount
+                worthReviewingCounts[.reports] = prepared.worthReviewingCount
                 scanState = .completed(subject: .reports, date: report.completedAt)
                 collectionHealth[.reports] = .imported
             } catch is CancellationError {
@@ -184,7 +209,7 @@ struct AppShellView: View {
             } catch {
                 scanState = .failed(
                     subject: .reports,
-                    message: "The selected report could not be imported. \(String(reflecting: error))"
+                    message: "The selected report could not be imported. \(error.localizedDescription)"
                 )
                 collectionHealth[.reports] = .failed
             }
@@ -225,15 +250,17 @@ struct AppShellView: View {
     }
 }
 
-/// A parsed report plus the finding count shown in its tab, computed off the main actor
+/// A parsed report plus the counts shown in its tab, computed off the main actor
 /// so the tab bar never walks the whole report while rendering.
 private struct PreparedReport: Sendable {
     let report: SystemProfilerReport
     let findingCount: Int
+    let worthReviewingCount: Int
 
     init(report: SystemProfilerReport) {
         self.report = report
         findingCount = reportSummary(report).findingCount
+        worthReviewingCount = worthReviewingFindingCount(report)
     }
 }
 
@@ -251,11 +278,14 @@ private func readSecurityScopedData(_ url: URL) throws -> Data {
 private struct AppHeader: View {
     let scanState: ScanState
     let selectedSubject: ProfilerSubject?
+    let selectedCollectionHealth: CollectionAttemptHealth
     let canScan: Bool
     let canImport: Bool
     let startScan: () -> Void
     let importReport: () -> Void
     let cancelScan: () -> Void
+    let showGlossary: () -> Void
+    @Binding var explanationDetailMode: ExplanationDetailMode
 
     var body: some View {
         HStack(spacing: 12) {
@@ -275,7 +305,27 @@ private struct AppHeader: View {
 
             Spacer()
 
-            Label(scanState.statusTitle, systemImage: scanState.statusSymbolName)
+            Button(action: showGlossary) {
+                Image(systemName: "character.book.closed")
+            }
+            .buttonStyle(.borderless)
+            .help("Glossary of terms used in explanations")
+            .accessibilityLabel("Glossary")
+            .accessibilityIdentifier("open-glossary")
+
+            Picker("Explanation detail", selection: $explanationDetailMode) {
+                ForEach(ExplanationDetailMode.allCases) { mode in
+                    Text(mode.title).tag(mode)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .fixedSize()
+            .help(explanationDetailMode.help)
+            .accessibilityLabel("Explanation detail")
+            .accessibilityIdentifier("explanation-detail-mode")
+
+            Label(statusTitle, systemImage: statusSymbolName)
                 .font(.caption.weight(.medium))
                 .foregroundStyle(statusColor)
                 .padding(.horizontal, 10)
@@ -308,11 +358,36 @@ private struct AppHeader: View {
         .padding(.vertical, 12)
     }
 
+    /// The pill follows the running scan, or the last scan when it was for this tab.
+    /// Otherwise it describes the selected tab rather than another tab's scan.
+    private var describesScanState: Bool {
+        scanState.isRunning
+            || selectedSubject == nil
+            || scanState.subject == nil
+            || scanState.subject == selectedSubject
+    }
+
+    private var statusTitle: String {
+        describesScanState ? scanState.statusTitle : selectedCollectionHealth.title
+    }
+
+    private var statusSymbolName: String {
+        describesScanState ? scanState.statusSymbolName : selectedCollectionHealth.symbolName
+    }
+
     private var statusColor: Color {
-        switch scanState {
-        case .failed: .red
-        case .completed: .green
-        case .idle, .running, .importing, .cancelled: .secondary
+        if describesScanState {
+            return switch scanState {
+            case .failed: .red
+            case .completed: .green
+            case .idle, .running, .importing, .cancelled: .secondary
+            }
+        }
+
+        return switch selectedCollectionHealth {
+        case .completed, .imported: .green
+        case .timedOut, .permissionLimited, .unavailable, .failed: .orange
+        case .notCollected, .running: .secondary
         }
     }
 }
@@ -320,6 +395,7 @@ private struct AppHeader: View {
 private struct WorkspaceTabBar: View {
     @Binding var selectedWorkspace: AppWorkspace
     let findingCounts: [ProfilerSubject: Int]
+    let worthReviewingCounts: [ProfilerSubject: Int]
     let collectionHealth: [ProfilerSubject: CollectionAttemptHealth]
 
     var body: some View {
@@ -330,6 +406,7 @@ private struct WorkspaceTabBar: View {
                         subject: subject,
                         isSelected: selectedWorkspace == .subject(subject),
                         findingCount: findingCounts[subject],
+                        worthReviewingCount: worthReviewingCounts[subject] ?? 0,
                         collectionHealth: collectionHealth[subject] ?? .notCollected,
                         select: { selectedWorkspace = .subject(subject) }
                     )
@@ -360,6 +437,7 @@ private struct SubjectTab: View {
     let subject: ProfilerSubject
     let isSelected: Bool
     let findingCount: Int?
+    let worthReviewingCount: Int
     let collectionHealth: CollectionAttemptHealth
     let select: () -> Void
 
@@ -376,6 +454,19 @@ private struct SubjectTab: View {
                         .padding(.vertical, 2)
                         .background(.quaternary, in: Capsule())
                         .accessibilityLabel("\(findingCount) findings")
+
+                    if worthReviewingCount > 0 {
+                        Label {
+                            Text(worthReviewingCount.formatted())
+                                .foregroundStyle(.primary)
+                        } icon: {
+                            Image(systemName: ValueStatus.worthReviewing.symbolName)
+                                .foregroundStyle(ValueStatus.worthReviewing.tint)
+                        }
+                            .font(.caption2.weight(.semibold).monospacedDigit())
+                            .help("\(worthReviewingCount) worth a look")
+                            .accessibilityLabel("\(worthReviewingCount) worth a look")
+                    }
 
                     Image(systemName: "checkmark.circle.fill")
                         .font(.caption2)
@@ -578,12 +669,12 @@ private struct ReadinessCard: View {
     private var readinessMessage: String {
         if canScan {
             if subject == .reports {
-                return "Run a complete read-only scan of this Mac, or import an existing system_profiler -json report for local analysis."
+                return "Run a complete read-only scan of this Mac, or import a system_profiler -json file or a report exported from this app."
             }
 
             return "Run a read-only scan to organize \(subject.title.lowercased()) data into structured, collapsible findings."
         } else {
-            return "Collection support for \(subject.title.lowercased()) will be added after the Hardware and Storage foundation is verified."
+            return "\(subject.title) can't be scanned yet."
         }
     }
 }
@@ -632,13 +723,21 @@ private struct ScanFailureCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Label("The scan could not be completed", systemImage: "exclamationmark.triangle.fill")
+            Label {
+                Text("The scan could not be completed")
+            } icon: {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.red)
+            }
                 .font(.headline)
-                .foregroundStyle(.red)
 
-            Label(collectionHealth.title, systemImage: collectionHealth.symbolName)
+            Label {
+                Text(collectionHealth.title)
+            } icon: {
+                Image(systemName: collectionHealth.symbolName)
+                    .foregroundStyle(.orange)
+            }
                 .font(.subheadline.weight(.medium))
-                .foregroundStyle(.orange)
 
             Text(collectionHealthDetail)
                 .font(.callout)

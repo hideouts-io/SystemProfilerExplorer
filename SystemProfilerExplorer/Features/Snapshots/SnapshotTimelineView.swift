@@ -93,12 +93,9 @@ struct SnapshotTimelineView: View {
         .accessibilityIdentifier("snapshot-timeline")
     }
 
+    /// Falls back to the default if the stored preference is missing or from another version.
     private var retention: SnapshotRetention {
-        guard let retention = SnapshotRetention(rawValue: storedRetention) else {
-            preconditionFailure("The stored snapshot retention preference is invalid.")
-        }
-
-        return retention
+        SnapshotRetention(rawValue: storedRetention) ?? .ten
     }
 
     private var retentionBinding: Binding<SnapshotRetention> {
@@ -142,7 +139,7 @@ struct SnapshotTimelineView: View {
         } catch is CancellationError {
             return
         } catch {
-            snapshotErrorMessage = "The local snapshot history could not be loaded. \(String(reflecting: error))"
+            snapshotErrorMessage = "The local snapshot history could not be loaded. \(error.localizedDescription)"
         }
 
         isLoading = false
@@ -179,7 +176,7 @@ struct SnapshotTimelineView: View {
                 isSaving = false
                 return
             } catch {
-                snapshotErrorMessage = "The snapshot could not be saved. \(String(reflecting: error))"
+                snapshotErrorMessage = "The snapshot could not be saved. \(error.localizedDescription)"
             }
 
             isSaving = false
@@ -199,7 +196,7 @@ struct SnapshotTimelineView: View {
             } catch is CancellationError {
                 return
             } catch {
-                snapshotErrorMessage = "The snapshot could not be compared. \(String(reflecting: error))"
+                snapshotErrorMessage = "The snapshot could not be compared. \(error.localizedDescription)"
             }
         }
     }
@@ -226,7 +223,7 @@ struct SnapshotTimelineView: View {
             } catch is CancellationError {
                 return
             } catch {
-                snapshotErrorMessage = "The snapshot could not be deleted. \(String(reflecting: error))"
+                snapshotErrorMessage = "The snapshot could not be deleted. \(error.localizedDescription)"
             }
         }
     }

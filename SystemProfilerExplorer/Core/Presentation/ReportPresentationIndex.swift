@@ -2,6 +2,10 @@ import Foundation
 
 struct ReportPresentationIndex: Sendable, Equatable {
     let summary: ReportSummary
+    /// Findings whose value explanation status is "Worth a look".
+    let worthReviewingFindingCount: Int
+    /// Plain-language sentences summarizing the report.
+    let glance: [String]
     fileprivate let sections: [IndexedReportSection]
     fileprivate let explanationSearchCorpora: [String]
 
@@ -108,6 +112,8 @@ func makeReportPresentationIndex(_ report: SystemProfilerReport) throws -> Repor
     var explainedFindingCount: Int = 0
     var privacyFindingCount: Int = 0
     var indexedValueCount: Int = 0
+    var worthReviewingFindingCount: Int = 0
+    let valueContext: ValueReportContext = valueReportContext(for: report)
 
     for section in report.sections {
         var indexedRecords: [IndexedReportRecord] = []
@@ -123,6 +129,8 @@ func makeReportPresentationIndex(_ report: SystemProfilerReport) throws -> Repor
                 dataType: section.dataType,
                 path: [],
                 ancestorLabels: [],
+                siblings: [:],
+                valueContext: valueContext,
                 indexedValueCount: &indexedValueCount,
                 explanationInterner: &explanationInterner,
                 findings: &findings
@@ -131,6 +139,7 @@ func makeReportPresentationIndex(_ report: SystemProfilerReport) throws -> Repor
             findingCount += findings.count
             explainedFindingCount += findings.lazy.filter(\.hasExplanation).count
             privacyFindingCount += findings.lazy.filter(\.hasPrivacyGuidance).count
+            worthReviewingFindingCount += findings.lazy.filter(\.isWorthReviewing).count
             indexedRecords.append(IndexedReportRecord(index: recordIndex, findings: findings))
         }
 
@@ -150,6 +159,8 @@ func makeReportPresentationIndex(_ report: SystemProfilerReport) throws -> Repor
             explainedFindingCount: explainedFindingCount,
             privacyFindingCount: privacyFindingCount
         ),
+        worthReviewingFindingCount: worthReviewingFindingCount,
+        glance: reportGlance(report),
         sections: indexedSections,
         explanationSearchCorpora: explanationInterner.values
     )
@@ -170,8 +181,10 @@ private struct IndexedFinding: Sendable, Equatable {
     let directSearchCorpus: String
     let ancestorLabelSearchCorpus: String
     let explanationSearchCorpusIndex: Int?
+    let valueSummaryCorpusIndex: Int?
     let hasExplanation: Bool
     let hasPrivacyGuidance: Bool
+    let isWorthReviewing: Bool
 }
 
 private struct ExplanationSearchCorpusInterner {
@@ -179,13 +192,16 @@ private struct ExplanationSearchCorpusInterner {
     private var indices: [String: Int] = [:]
 
     mutating func index(for explanation: FieldExplanation) -> Int {
-        let corpus: String = [
+        index(forCorpus: [
             explanation.meaning,
             explanation.significance,
             explanation.interpretation,
             explanation.privacy ?? ""
-        ].joined(separator: "\n")
+        ].joined(separator: "\n"))
+    }
 
+    /// Stores each distinct text once; many findings share the same explanation.
+    mutating func index(forCorpus corpus: String) -> Int {
         if let existingIndex = indices[corpus] {
             return existingIndex
         }
@@ -203,6 +219,8 @@ private func appendIndexedFindings(
     dataType: SystemProfilerDataType,
     path: [String],
     ancestorLabels: [String],
+    siblings: [String: ProfileValue],
+    valueContext: ValueReportContext,
     indexedValueCount: inout Int,
     explanationInterner: inout ExplanationSearchCorpusInterner,
     findings: inout [IndexedFinding]
@@ -228,6 +246,8 @@ private func appendIndexedFindings(
                 dataType: dataType,
                 path: path + [key],
                 ancestorLabels: descendantLabels,
+                siblings: object,
+                valueContext: valueContext,
                 indexedValueCount: &indexedValueCount,
                 explanationInterner: &explanationInterner,
                 findings: &findings
@@ -242,6 +262,8 @@ private func appendIndexedFindings(
                 dataType: dataType,
                 path: path + ["[]"],
                 ancestorLabels: descendantLabels,
+                siblings: [:],
+                valueContext: valueContext,
                 indexedValueCount: &indexedValueCount,
                 explanationInterner: &explanationInterner,
                 findings: &findings
@@ -254,6 +276,8 @@ private func appendIndexedFindings(
             dataType: dataType,
             path: path,
             ancestorLabels: descendantLabels,
+            siblings: siblings,
+            valueContext: valueContext,
             explanationInterner: &explanationInterner,
             findings: &findings
         )
@@ -264,6 +288,8 @@ private func appendIndexedFindings(
             dataType: dataType,
             path: path,
             ancestorLabels: descendantLabels,
+            siblings: siblings,
+            valueContext: valueContext,
             explanationInterner: &explanationInterner,
             findings: &findings
         )
@@ -274,6 +300,8 @@ private func appendIndexedFindings(
             dataType: dataType,
             path: path,
             ancestorLabels: descendantLabels,
+            siblings: siblings,
+            valueContext: valueContext,
             explanationInterner: &explanationInterner,
             findings: &findings
         )
@@ -284,6 +312,8 @@ private func appendIndexedFindings(
             dataType: dataType,
             path: path,
             ancestorLabels: descendantLabels,
+            siblings: siblings,
+            valueContext: valueContext,
             explanationInterner: &explanationInterner,
             findings: &findings
         )
@@ -294,6 +324,8 @@ private func appendIndexedFindings(
             dataType: dataType,
             path: path,
             ancestorLabels: descendantLabels,
+            siblings: siblings,
+            valueContext: valueContext,
             explanationInterner: &explanationInterner,
             findings: &findings
         )
@@ -305,6 +337,8 @@ private func appendIndexedFinding(
     dataType: SystemProfilerDataType,
     path: [String],
     ancestorLabels: [String],
+    siblings: [String: ProfileValue],
+    valueContext: ValueReportContext,
     explanationInterner: inout ExplanationSearchCorpusInterner,
     findings: inout [IndexedFinding]
 ) {
@@ -315,6 +349,16 @@ private func appendIndexedFinding(
     )
     let explanationIndex: Int? = presentation.explanation.map {
         explanationInterner.index(for: $0)
+    }
+    let valueExplanation: ValueExplanation? = valueExplanation(
+        dataType: dataType,
+        path: path,
+        scalar: scalar,
+        siblings: siblings,
+        report: valueContext
+    )
+    let valueSummaryIndex: Int? = valueExplanation.map {
+        explanationInterner.index(forCorpus: $0.summary)
     }
     let directSearchCorpus: String = [
         presentation.title,
@@ -331,8 +375,10 @@ private func appendIndexedFinding(
             directSearchCorpus: directSearchCorpus,
             ancestorLabelSearchCorpus: ancestorLabelSearchCorpus,
             explanationSearchCorpusIndex: explanationIndex,
+            valueSummaryCorpusIndex: valueSummaryIndex,
             hasExplanation: presentation.explanation != nil,
-            hasPrivacyGuidance: presentation.explanation?.privacy != nil
+            hasPrivacyGuidance: presentation.explanation?.privacy != nil,
+            isWorthReviewing: valueExplanation?.status == .worthReviewing
         )
     )
 }
@@ -345,6 +391,10 @@ private func findingMatches(
     switch query.filter {
     case .all:
         break
+    case .worthALook:
+        guard finding.isWorthReviewing else {
+            return false
+        }
     case .explained:
         guard finding.hasExplanation else {
             return false
@@ -367,6 +417,11 @@ private func findingMatches(
 
     if query.filter == .all,
        finding.ancestorLabelSearchCorpus.localizedCaseInsensitiveContains(searchText) {
+        return true
+    }
+
+    if let valueSummaryIndex = finding.valueSummaryCorpusIndex,
+       explanationSearchCorpora[valueSummaryIndex].localizedCaseInsensitiveContains(searchText) {
         return true
     }
 

@@ -18,7 +18,7 @@ struct WhatChangedDashboardView: View {
         VStack(alignment: .leading, spacing: 22) {
             WorkspaceHeading(
                 title: "What Changed?",
-                detail: "Compare a saved private report with a current collected report, then triage the reported differences without treating them as a diagnosis.",
+                detail: "Compare a saved report (a full export from this app, or system_profiler -json output) with a current collected report, then triage the reported differences without treating them as a diagnosis.",
                 symbolName: "arrow.left.arrow.right.square"
             )
 
@@ -91,7 +91,7 @@ struct WhatChangedDashboardView: View {
                 return
             }
 
-            errorMessage = "The saved-report picker failed. \(String(reflecting: error))"
+            errorMessage = "The saved-report picker failed. \(error.localizedDescription)"
         }
     }
 
@@ -114,8 +114,10 @@ struct WhatChangedDashboardView: View {
                     }
 
                     let data: Data = try Data(contentsOf: reportURL, options: .mappedIfSafe)
-                    let export: ReportExportEnvelope = try decodeReportExport(data)
-                    let baseline: SystemProfilerReport = try comparisonBaselineReport(from: export)
+                    let baseline: SystemProfilerReport = try loadComparisonBaseline(
+                        from: data,
+                        importedAt: fileModificationDate(reportURL)
+                    )
                     return try compareReports(baseline: baseline, current: currentReport)
                 }.value
                 comparison = preparedComparison
@@ -123,7 +125,7 @@ struct WhatChangedDashboardView: View {
                 isPreparingComparison = false
                 return
             } catch {
-                errorMessage = "The saved report could not be compared. \(String(reflecting: error))"
+                errorMessage = "The saved report could not be compared. \(error.localizedDescription)"
             }
 
             isPreparingComparison = false
