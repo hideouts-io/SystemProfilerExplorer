@@ -103,18 +103,33 @@ struct ValueExplanation: Sendable, Equatable {
 struct ValueReportContext: Sendable, Equatable {
     /// Names of connected USB devices, or nil when the report has no USB section.
     let usbDeviceNames: [String]?
+    /// Mount points of the storage volumes in the report.
+    var storageMountPoints: [String] = []
 
     static let empty: ValueReportContext = ValueReportContext(usbDeviceNames: nil)
 }
 
 func valueReportContext(for report: SystemProfilerReport) -> ValueReportContext {
-    guard let usbSection = report.sections.first(where: { $0.dataType == .usb }) else {
-        return .empty
+    var usbDeviceNames: [String]?
+
+    if let usbSection = report.sections.first(where: { $0.dataType == .usb }) {
+        var names: [String] = []
+        usbSection.items.forEach { collectDeviceNames($0, into: &names) }
+        usbDeviceNames = names
     }
 
-    var names: [String] = []
-    usbSection.items.forEach { collectDeviceNames($0, into: &names) }
-    return ValueReportContext(usbDeviceNames: names)
+    let mountPoints: [String] = report.sections
+        .filter { $0.dataType == .storage }
+        .flatMap(\.items)
+        .compactMap { item in
+            guard case let .object(volume) = item, case let .string(mountPoint)? = volume["mount_point"] else {
+                return nil
+            }
+
+            return mountPoint
+        }
+
+    return ValueReportContext(usbDeviceNames: usbDeviceNames, storageMountPoints: mountPoints)
 }
 
 private func collectDeviceNames(_ value: ProfileValue, into names: inout [String]) {

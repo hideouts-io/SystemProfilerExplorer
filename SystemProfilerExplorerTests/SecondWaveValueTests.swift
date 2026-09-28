@@ -137,3 +137,28 @@ struct VendorIdentifierTests {
             == "Made by Nordic Semiconductor (Bluetooth company ID 0x0059).")
     }
 }
+
+struct SharedVolumeSpaceTests {
+    @Test
+    func lowSpaceOnSharedAPFSVolumesIsFlaggedOnce() {
+        let volumes: [String: Int64] = ["/": 90, "/System/Volumes/Data": 90]
+        let report = SystemProfilerReport(
+            sections: [
+                SystemProfilerSection(dataType: .storage, items: volumes.map { mountPoint, free in
+                    .object([
+                        "mount_point": .string(mountPoint),
+                        "free_space_in_bytes": .integer(free),
+                        "size_in_bytes": .integer(1_000),
+                        "physical_drive": .object(["protocol": .string("Apple Fabric")])
+                    ])
+                })
+            ],
+            commandArguments: [],
+            standardError: "",
+            startedAt: .now,
+            completedAt: .now
+        )
+
+        #expect(worthReviewingFindingCount(report) == 1)
+    }
+}
