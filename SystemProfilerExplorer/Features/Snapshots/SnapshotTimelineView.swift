@@ -24,7 +24,6 @@ struct SnapshotTimelineView: View {
                     SnapshotSaveCard(
                         snapshotName: $snapshotName,
                         selectedPrivacy: $selectedPrivacy,
-                        retention: retentionBinding,
                         isSaving: isSaving,
                         save: saveSnapshot
                     )
@@ -57,8 +56,17 @@ struct SnapshotTimelineView: View {
 
             Divider()
 
-            HStack {
-                Text("Snapshots stay on this Mac. To compare, open What Changed and pick a snapshot.")
+            HStack(spacing: 12) {
+                Picker("History", selection: retentionBinding) {
+                    ForEach(SnapshotRetention.allCases) { value in
+                        Text(value.title).tag(value)
+                    }
+                }
+                .fixedSize()
+                .help("How many snapshots to keep; older ones are removed when you save a new one")
+                .accessibilityIdentifier("snapshot-retention")
+
+                Text("Snapshots stay on this Mac. To compare, open What Changed.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Spacer()
@@ -256,7 +264,6 @@ private struct SnapshotTimelineHeader: View {
 private struct SnapshotSaveCard: View {
     @Binding var snapshotName: String
     @Binding var selectedPrivacy: SnapshotPrivacy
-    @Binding var retention: SnapshotRetention
     let isSaving: Bool
     let save: () -> Void
 
@@ -281,13 +288,6 @@ private struct SnapshotSaveCard: View {
                 .foregroundStyle(.secondary)
 
             HStack {
-                Picker("Retention", selection: $retention) {
-                    ForEach(SnapshotRetention.allCases) { value in
-                        Text(value.title).tag(value)
-                    }
-                }
-                .frame(width: 180)
-
                 Spacer()
 
                 Button(action: save) {

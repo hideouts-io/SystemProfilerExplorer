@@ -302,7 +302,7 @@ private struct AppHeader: View {
             Spacer()
 
             Button(action: showGlossary) {
-                Image(systemName: "character.book.closed")
+                Label("Glossary", systemImage: "character.book.closed")
             }
             .buttonStyle(.borderless)
             .help("Glossary of terms used in explanations")
@@ -553,7 +553,6 @@ private struct SubjectWorkspace: View {
                         startScan: startScan,
                         importReport: importReport
                     )
-                    CapabilityStrip()
                 }
             }
             .frame(maxWidth: 980, alignment: .leading)
@@ -650,6 +649,11 @@ private struct ReadinessCard: View {
                             .foregroundStyle(.secondary)
                     }
                 }
+
+                Label("Read-only · everything stays on this Mac", systemImage: "lock.shield")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(.top, 4)
             }
         }
         .frame(maxWidth: .infinity)
@@ -765,61 +769,6 @@ private struct ScanFailureCard: View {
             "The requested collection did not return usable JSON. This does not prove the related hardware or service is absent."
         case .failed, .notCollected, .running, .completed, .imported:
             "This tab has no complete collection result. Review the error details before interpreting absent findings."
-        }
-    }
-}
-
-private struct CapabilityStrip: View {
-    var body: some View {
-        HStack(spacing: 12) {
-            CapabilityCard(
-                title: "Structured",
-                detail: "Preserves source data",
-                symbolName: "list.bullet.indent"
-            )
-            CapabilityCard(
-                title: "Private",
-                detail: "Processed on this Mac",
-                symbolName: "hand.raised"
-            )
-            CapabilityCard(
-                title: "Explainable",
-                detail: "Evidence linked to context",
-                symbolName: "text.book.closed"
-            )
-        }
-    }
-}
-
-private struct CapabilityCard: View {
-    let title: String
-    let detail: String
-    let symbolName: String
-
-    var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: symbolName)
-                .font(.title3)
-                .foregroundStyle(Color.accentColor)
-                .frame(width: 34, height: 34)
-                .background(Color.accentColor.opacity(0.1), in: RoundedRectangle(cornerRadius: 9))
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.subheadline.weight(.semibold))
-                Text(detail)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            Spacer(minLength: 0)
-        }
-        .padding(14)
-        .frame(maxWidth: .infinity)
-        .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 13))
-        .overlay {
-            RoundedRectangle(cornerRadius: 13)
-                .stroke(Color(nsColor: .separatorColor).opacity(0.45), lineWidth: 1)
         }
     }
 }
