@@ -9,6 +9,21 @@ struct ReportPresentationIndex: Sendable, Equatable {
     fileprivate let sections: [IndexedReportSection]
     fileprivate let explanationSearchCorpora: [String]
 
+    /// Worth-a-look findings in each record, keyed by record index, for one section.
+    func worthReviewingCountsByRecord(for dataType: SystemProfilerDataType) -> [Int: Int] {
+        guard let section = sections.first(where: { $0.dataType == dataType }) else {
+            return [:]
+        }
+
+        return section.records.reduce(into: [:]) { counts, record in
+            let count: Int = record.findings.lazy.filter(\.isWorthReviewing).count
+
+            if count > 0 {
+                counts[record.index] = count
+            }
+        }
+    }
+
     func queryResult(for query: FindingQuery) throws -> ReportQueryResult {
         guard query.isActive else {
             return ReportQueryResult(

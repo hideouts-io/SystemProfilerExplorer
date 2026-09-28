@@ -38,4 +38,30 @@ struct RecordNameTests {
         #expect(try index.queryResult(for: query).findingCount == 1)
         #expect(matchingFindingCount(report, query: query) == 1)
     }
+
+    @Test
+    func worthReviewingCountsAreKeptPerRecord() throws {
+        let lowBattery: ProfileValue = .object([
+            "sppower_battery_charge_info": .object([
+                "sppower_battery_state_of_charge": .integer(4),
+                "sppower_battery_is_charging": .string("FALSE")
+            ])
+        ])
+        let report = SystemProfilerReport(
+            sections: [
+                SystemProfilerSection(dataType: .power, items: [
+                    .object(["_name": .string("sppower_information")]),
+                    lowBattery
+                ])
+            ],
+            commandArguments: [],
+            standardError: "",
+            startedAt: .now,
+            completedAt: .now
+        )
+        let index: ReportPresentationIndex = try makeReportPresentationIndex(report)
+
+        #expect(index.worthReviewingCountsByRecord(for: .power) == [1: 1])
+        #expect(index.worthReviewingCountsByRecord(for: .storage).isEmpty)
+    }
 }

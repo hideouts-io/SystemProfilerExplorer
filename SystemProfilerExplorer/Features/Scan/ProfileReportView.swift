@@ -217,6 +217,7 @@ struct ProfileReportView: View {
                     ProfileSectionView(
                         section: section,
                         queryResult: queryResult,
+                        worthReviewingCounts: presentationIndex.worthReviewingCountsByRecord(for: section.dataType),
                         automaticallyExpandResults: automaticallyExpandResults,
                         bookmarkedSourcePaths: bookmarkedSourcePaths,
                         toggleBookmark: toggleBookmark,
@@ -939,6 +940,8 @@ private struct NoMatchingFindingsView: View {
 private struct ProfileSectionView: View {
     let section: SystemProfilerSection
     let queryResult: ReportQueryResult
+    /// Worth-a-look findings per record index, shown on collapsed record rows.
+    let worthReviewingCounts: [Int: Int]
     let automaticallyExpandResults: Bool
     let bookmarkedSourcePaths: Set<String>
     let toggleBookmark: (String) -> Void
@@ -980,7 +983,9 @@ private struct ProfileSectionView: View {
                             toggleBookmark: toggleBookmark,
                             openSourceLocation: openSourceLocation,
                             highlightedSourcePath: highlightedSourcePath,
-                            siblings: [:]
+                            siblings: [:],
+                            worthReviewingCount: worthReviewingCounts[record.index] ?? 0,
+                            expandsByDefault: visibleRecords.count == 1
                         )
 
                         if record.id != visibleRecords.last?.id {
@@ -1067,6 +1072,10 @@ private struct ProfileValueDisclosure: View {
     let highlightedSourcePath: String?
     /// The other fields of the object containing this value, for context-aware value explanations.
     let siblings: [String: ProfileValue]
+    /// Worth-a-look findings inside this group, shown while it's collapsed.
+    var worthReviewingCount: Int = 0
+    /// Open without a click, as for the only record in a section.
+    var expandsByDefault: Bool = false
 
     @Environment(\.valueReportContext) private var valueReportContext
     /// The user's own expand or collapse choice, which overrides automatic expansion.
@@ -1097,7 +1106,12 @@ private struct ProfileValueDisclosure: View {
                 }
                 .padding(.top, 6)
             } label: {
-                ProfileGroupLabel(label: friendlyReportGroupName(label), count: fields.count, depth: depth)
+                ProfileGroupLabel(
+                    label: friendlyReportGroupName(label),
+                    count: fields.count,
+                    depth: depth,
+                    worthReviewingCount: worthReviewingCount
+                )
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 11)
@@ -1125,7 +1139,12 @@ private struct ProfileValueDisclosure: View {
                 }
                 .padding(.top, 6)
             } label: {
-                ProfileGroupLabel(label: friendlyReportGroupName(label), count: items.count, depth: depth)
+                ProfileGroupLabel(
+                    label: friendlyReportGroupName(label),
+                    count: items.count,
+                    depth: depth,
+                    worthReviewingCount: worthReviewingCount
+                )
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 11)
@@ -1173,7 +1192,7 @@ private struct ProfileValueDisclosure: View {
 
     private var expansionBinding: Binding<Bool> {
         Binding(
-            get: { manualExpansion ?? automaticallyExpandResults },
+            get: { manualExpansion ?? (automaticallyExpandResults || expandsByDefault) },
             set: { manualExpansion = $0 }
         )
     }
@@ -1265,18 +1284,41 @@ private struct ProfileGroupLabel: View {
     let label: String
     let count: Int
     let depth: Int
+    let worthReviewingCount: Int
+
+    @Environment(\.explanationDetailMode) private var detailMode
 
     var body: some View {
         HStack {
             Text(label)
                 .font(depth == 0 ? .headline : .subheadline.weight(.medium))
-            Spacer()
-            Text("\(count)")
-                .font(.caption.monospacedDigit())
-                .foregroundStyle(.secondary)
+
+            if worthReviewingCount > 0 {
+                Label {
+                    Text("\(worthReviewingCount) worth a look")
+                } icon: {
+                    Image(systemName: ValueStatus.worthReviewing.symbolName)
+                        .foregroundStyle(ValueStatus.worthReviewing.tint)
+                }
+                .font(.caption.weight(.semibold))
                 .padding(.horizontal, 7)
-                .padding(.vertical, 3)
-                .background(.quaternary, in: Capsule())
+                .padding(.vertical, 2)
+                .background(ValueStatus.worthReviewing.tint.opacity(0.13), in: Capsule())
+                .accessibilityIdentifier("record-worth-a-look")
+            }
+
+            Spacer()
+
+            // Field counts are a developer detail.
+            if detailMode == .developer {
+                Text("\(count)")
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 3)
+                    .background(.quaternary, in: Capsule())
+                    .help("\(count) fields")
+            }
         }
     }
 }
