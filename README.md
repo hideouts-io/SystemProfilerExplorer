@@ -50,7 +50,7 @@ The app can scan this Mac directly or import an existing raw JSON report. Proces
 The features below describe the current source on `main`. The downloadable v0.1.1 release predates the collection-health, comparison dashboard, snapshot, review-summary, and diagnostic-log improvements; build from source to use them until a newer release is published.
 
 - All 51 `system_profiler` data types represented by the app’s current macOS toolchain
-- Eight readable subject tabs: Overview, Hardware, Storage, Network, Software, Security, Power, and Reports
+- A sidebar with eight subjects (Overview, Hardware, Storage, Network, Software, Security, Power, and Reports) and the What Changed? tool
 - Complete Reports scan plus focused, faster subject scans
 - Collapsible records and explanations with source provenance
 - Search across names, values, fields, and explanations
@@ -92,11 +92,11 @@ Each recognized finding separates meaning, significance, interpretation limits, 
 
 ## Coverage
 
-The focused tabs organize commonly reviewed findings by subject. Reports is the exhaustive view: it requests every supported data type, preserves sections even when the Mac returns no records, and displays collection coverage rather than silently treating missing data as absence. The **What Changed?** workspace analyzes already collected reports; it never launches a hidden scan or merges data from different collection times.
+The focused subjects organize commonly reviewed findings. Reports is the exhaustive view: it requests every supported data type, preserves sections even when the Mac returns no records, and displays collection coverage rather than silently treating missing data as absence. The **What Changed?** workspace analyzes already collected reports; it never launches a hidden scan or merges data from different collection times.
 
 For every live scan, each requested data type is marked as **Collected**, **No records**, **Skipped**, **Unavailable**, **Timed out**, or **Permission-limited**. **No records** means `system_profiler` returned an empty section. **Unavailable**, **Timed out**, and **Permission-limited** are shown only when matching diagnostic text supports that scan-level label; otherwise the app records a missing JSON section as **Skipped** instead of guessing a cause. Use **View Incomplete Collection** in the Collection coverage card to inspect every incomplete data type and the diagnostic output from `system_profiler`. Imported JSON does not preserve its original command scope, so it reports only the data types present in that source file.
 
-| Tab | Purpose |
+| Subject | Purpose |
 | --- | --- |
 | Overview | Launch a full scan, import a report, and review app capabilities and privacy boundaries. |
 | Hardware | Hardware overview, memory, displays, buses, cameras, audio, controllers, and attached devices. |
@@ -172,7 +172,7 @@ The approval is specific to this app. Do not globally disable Gatekeeper, and do
 
 ### Scan this Mac
 
-Choose a subject tab and start its focused scan, or choose **Scan Reports** to run a complete scan. `system_profiler` can take several minutes for large software inventories; progress remains visible while it runs.
+Choose a subject in the sidebar and start its focused scan, or choose **Scan Reports** to run a complete scan. `system_profiler` can take several minutes for large software inventories; progress remains visible while it runs.
 
 ### Import raw `system_profiler` JSON
 
@@ -192,7 +192,7 @@ Use the **Beginner / Developer** switch in the header to choose how much technic
 
 ### Search and filter
 
-Search matches displayed values, source fields, record names, and explanation text, including the plain-language meaning of values. Use **Worth a Look** to see only values that may need attention, **Explained** to focus on interpreted fields, or **Privacy** to review values that deserve care before sharing. The recent-search menu keeps recent searched terms. Records that contain values worth a look are marked, and Developer mode adds finding counts to sections and tabs.
+Search matches displayed values, source fields, record names, and explanation text, including the plain-language meaning of values. Use **Worth a Look** to see only values that may need attention, **Explained** to focus on interpreted fields, or **Privacy** to review values that deserve care before sharing. The recent-search menu keeps recent searched terms. Records that contain values worth a look are marked, and Developer mode adds finding counts to sections and the sidebar.
 
 ### Bookmark and trace a finding
 
@@ -225,7 +225,7 @@ Choose **Share › Report File** to save the scan data. The export review offers
 
 A current scan can be compared with a compatible full report created from the same subject or full-report scope. Named records are matched independently of order; unnamed records and array elements are matched by position. Added, removed, and changed values identify structured differences, not their cause or security impact.
 
-Compare in the **What Changed?** tab. Pick a saved snapshot of the same report (or compare with the latest in one click), or choose a file: a full export from this app or raw `system_profiler -json` output. It then presents clear added, removed, and changed totals. Differences are grouped as **Review First**, **Worth Reviewing**, or **Informational** to guide triage—not to assign a threat level. Expand a difference for its baseline/current values, raw source location, and a plain-language explanation grounded in the app’s explanation catalog.
+Compare in **What Changed?**, under Tools in the sidebar. Pick a saved snapshot of the same report (or compare with the latest in one click), or choose a file: a full export from this app or raw `system_profiler -json` output. It then presents clear added, removed, and changed totals. Differences are grouped as **Review First**, **Worth Reviewing**, or **Informational** to guide triage—not to assign a threat level. Expand a difference for its baseline/current values, raw source location, and a plain-language explanation grounded in the app’s explanation catalog.
 
 For a readable document, choose **Share › Summary**. The app exports Markdown or PDF with At a glance, the values worth a look, the full explanations of any bookmarked findings, collection limits (including skipped sections), and an explicit privacy warning. It never folds raw JSON into this summary; use **Share › Report File** when raw evidence is required.
 
