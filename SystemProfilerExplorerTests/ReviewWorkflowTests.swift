@@ -1,4 +1,5 @@
 import Foundation
+import PDFKit
 import Testing
 @testable import SystemProfilerExplorer
 
@@ -78,6 +79,57 @@ struct ReviewWorkflowTests {
         let header: String = String(decoding: pdf.prefix(4), as: UTF8.self)
 
         #expect(header == "%PDF")
+    }
+
+    @Test
+    @MainActor
+    func reviewPDFPaginatesLongSummariesWithoutDroppingText() throws {
+        let markdown: String = (1...400)
+            .map { "Line \($0): selected finding" }
+            .joined(separator: "\n")
+        let document: PDFDocument = try #require(PDFDocument(data: makeSystemReviewPDF(markdown: markdown)))
+        let text: String = document.string ?? ""
+
+        #expect(document.pageCount > 1)
+        #expect(document.page(at: 0)?.bounds(for: .mediaBox).size == CGSize(width: 612, height: 792))
+        #expect(text.contains("Line 1:"))
+        #expect(text.contains("Line 400:"))
+    }
+
+    @Test
+    func snapshotHistorySkipsUnreadableFilesInsteadOfFailing() throws {
+        let applicationSupportURL: URL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer {
+            try? FileManager.default.removeItem(at: applicationSupportURL)
+        }
+
+        let store: SnapshotStore = SnapshotStore(applicationSupportURL: applicationSupportURL)
+        let saved: SystemProfilerSnapshot = try store.saveSnapshot(
+            name: "Baseline",
+            privacy: .full,
+            report: workflowReport(),
+            retention: .unlimited
+        )
+        let snapshotDirectoryURL: URL = applicationSupportURL
+            .appendingPathComponent("com.netctl.SystemProfilerExplorer", isDirectory: true)
+            .appendingPathComponent("Snapshots", isDirectory: true)
+        let damagedFileName: String = "\(UUID().uuidString).systemprofiler-snapshot"
+        try Data("not a snapshot".utf8).write(to: snapshotDirectoryURL.appendingPathComponent(damagedFileName))
+        try Data("{}".utf8).write(to: snapshotDirectoryURL.appendingPathComponent("renamed.systemprofiler-snapshot"))
+
+        let history: SnapshotHistory = try store.loadSnapshotHistory()
+
+        #expect(history.snapshots.map(\.id) == [saved.id])
+        #expect(history.unreadableFileNames == [damagedFileName, "renamed.systemprofiler-snapshot"].sorted())
+
+        _ = try store.saveSnapshot(
+            name: "After Update",
+            privacy: .full,
+            report: workflowReport(),
+            retention: .five
+        )
+        #expect(try store.loadSnapshots().count == 2)
     }
 }
 

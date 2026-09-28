@@ -144,11 +144,19 @@ private func formattedValue(_ scalar: ProfileScalar, path: [String]) -> String {
     case let .string(value) where key == "medium_type":
         return value.uppercased()
 
-    case let .string(value) where value.contains("_"):
+    case let .string(value) where isEnumeratedToken(value):
         return displayName(for: value)
 
     case .string, .integer, .decimal, .boolean, .null:
         return scalar.rawDescription
+    }
+}
+
+/// Matches system_profiler enumeration tokens such as `spairport_status_connected`.
+/// Paths, volume names, and identifiers keep their reported spelling.
+private func isEnumeratedToken(_ value: String) -> Bool {
+    value.contains("_") && value.unicodeScalars.allSatisfy { scalar in
+        ("a"..."z").contains(scalar) || ("0"..."9").contains(scalar) || scalar == "_"
     }
 }
 

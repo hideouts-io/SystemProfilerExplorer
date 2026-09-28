@@ -26,6 +26,18 @@ struct ProfilerSubjectTests {
     }
 
     @Test
+    func collectorWaitsPastSystemProfilerTimeoutForPartialReports() {
+        for subject in ProfilerSubject.allCases {
+            guard let request = scanConfiguration(for: subject)?.request else {
+                continue
+            }
+
+            #expect(request.arguments.contains(String(request.timeoutSeconds)))
+            #expect(request.collectorDeadlineSeconds > request.timeoutSeconds)
+        }
+    }
+
+    @Test
     func subjectConfigurationsContainExpectedCoreDataTypes() throws {
         let hardware = try #require(scanConfiguration(for: .hardware))
         let network = try #require(scanConfiguration(for: .network))
