@@ -61,8 +61,12 @@ struct DiagnosticLogView: View {
                 }
                 .accessibilityIdentifier("log-original-text")
             } else if let analysisError {
-                Text("Log analysis failed: \(analysisError). The original source remains available below.")
-                    .foregroundStyle(.orange)
+                Label {
+                    Text("Log analysis failed: \(analysisError). The original source remains available below.")
+                } icon: {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                }
             } else {
                 ProgressView("Preparing log summary…")
             }

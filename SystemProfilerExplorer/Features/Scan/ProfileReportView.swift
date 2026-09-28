@@ -1421,9 +1421,14 @@ private struct ExplanationCoverageBadge: View {
     let coverage: ExplanationCoverage
 
     var body: some View {
-        Label(coverage.title, systemImage: coverage.symbolName)
+        Label {
+            Text(coverage.title)
+                .foregroundStyle(.secondary)
+        } icon: {
+            Image(systemName: coverage.symbolName)
+                .foregroundStyle(coverageColor)
+        }
             .font(.caption2.weight(.medium))
-            .foregroundStyle(coverageColor)
             .lineLimit(1)
     }
 

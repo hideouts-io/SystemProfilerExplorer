@@ -11,15 +11,22 @@ extension ValueStatus {
     }
 }
 
-/// Status is always shown as icon plus word, never by color alone.
+/// Status is always shown as icon plus word, never by color alone. The word uses the
+/// primary label color so it stays readable; orange and green text on a light background
+/// fall well below accessible contrast.
 struct ValueStatusBadge: View {
     let status: ValueStatus
 
     var body: some View {
-        Label(status.title, systemImage: status.symbolName)
+        Label {
+            Text(status.title)
+                .foregroundStyle(.primary)
+        } icon: {
+            Image(systemName: status.symbolName)
+                .foregroundStyle(status.tint)
+        }
             .font(.caption2.weight(.semibold))
             .labelStyle(.titleAndIcon)
-            .foregroundStyle(status.tint)
             .padding(.horizontal, 7)
             .padding(.vertical, 2)
             .background(status.tint.opacity(0.13), in: Capsule())
@@ -172,13 +179,14 @@ struct AtAGlanceCard: View {
 
             if worthReviewingCount > 0 {
                 Button(action: showWorthReviewing) {
-                    Label(
-                        "\(worthReviewingCount) \(worthReviewingCount == 1 ? "finding is" : "findings are") worth a look",
-                        systemImage: ValueStatus.worthReviewing.symbolName
-                    )
+                    Label {
+                        Text("\(worthReviewingCount) \(worthReviewingCount == 1 ? "finding is" : "findings are") worth a look")
+                    } icon: {
+                        Image(systemName: ValueStatus.worthReviewing.symbolName)
+                            .foregroundStyle(ValueStatus.worthReviewing.tint)
+                    }
                 }
                 .buttonStyle(.link)
-                .foregroundStyle(ValueStatus.worthReviewing.tint)
                 .accessibilityIdentifier("glance-worth-a-look")
             }
         }

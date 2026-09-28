@@ -456,9 +456,14 @@ private struct SubjectTab: View {
                         .accessibilityLabel("\(findingCount) findings")
 
                     if worthReviewingCount > 0 {
-                        Label(worthReviewingCount.formatted(), systemImage: ValueStatus.worthReviewing.symbolName)
+                        Label {
+                            Text(worthReviewingCount.formatted())
+                                .foregroundStyle(.primary)
+                        } icon: {
+                            Image(systemName: ValueStatus.worthReviewing.symbolName)
+                                .foregroundStyle(ValueStatus.worthReviewing.tint)
+                        }
                             .font(.caption2.weight(.semibold).monospacedDigit())
-                            .foregroundStyle(ValueStatus.worthReviewing.tint)
                             .help("\(worthReviewingCount) worth a look")
                             .accessibilityLabel("\(worthReviewingCount) worth a look")
                     }
@@ -718,13 +723,21 @@ private struct ScanFailureCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Label("The scan could not be completed", systemImage: "exclamationmark.triangle.fill")
+            Label {
+                Text("The scan could not be completed")
+            } icon: {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.red)
+            }
                 .font(.headline)
-                .foregroundStyle(.red)
 
-            Label(collectionHealth.title, systemImage: collectionHealth.symbolName)
+            Label {
+                Text(collectionHealth.title)
+            } icon: {
+                Image(systemName: collectionHealth.symbolName)
+                    .foregroundStyle(.orange)
+            }
                 .font(.subheadline.weight(.medium))
-                .foregroundStyle(.orange)
 
             Text(collectionHealthDetail)
                 .font(.callout)
