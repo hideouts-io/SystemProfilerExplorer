@@ -65,7 +65,7 @@ func matchingRecordSelection(
     var matchingCount: Int = 0
 
     for (index, value) in items.enumerated() {
-        let label: String = value.preferredName ?? "Record \(index + 1)"
+        let label: String = recordDisplayLabel(value, fallback: "Record \(index + 1)")
 
         guard profileValueMatches(
             value,
@@ -121,7 +121,7 @@ func profileValueMatches(
         return values.enumerated().contains { offset, item in
             profileValueMatches(
                 item,
-                label: item.preferredName ?? "Item \(offset + 1)",
+                label: recordDisplayLabel(item, fallback: "Item \(offset + 1)"),
                 dataType: dataType,
                 path: path + ["[]"],
                 query: descendantQuery,
@@ -173,7 +173,7 @@ func matchingFindingCount(
         return values.enumerated().reduce(0) { result, item in
             result + matchingFindingCount(
                 item.element,
-                label: item.element.preferredName ?? "Item \(item.offset + 1)",
+                label: recordDisplayLabel(item.element, fallback: "Item \(item.offset + 1)"),
                 dataType: dataType,
                 path: path + ["[]"],
                 query: descendantQuery,
@@ -262,12 +262,7 @@ private func findingSearchCorpus(
     _ presentation: FieldPresentation,
     valueExplanation: ValueExplanation?
 ) -> [String] {
-    var values: [String] = [
-        presentation.title,
-        presentation.displayedValue,
-        presentation.rawValue,
-        presentation.sourcePath
-    ]
+    var values: [String] = [presentation.title] + presentation.searchableValueTexts + [presentation.sourcePath]
 
     if let explanation = presentation.explanation {
         values.append(explanation.meaning)

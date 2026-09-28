@@ -56,8 +56,35 @@ struct SystemProfilerSnapshot: Identifiable, Sendable, Equatable, Codable {
     let report: ReportExportEnvelope
 }
 
+/// What snapshot lists need, read without decoding the snapshot's report values.
+struct SnapshotSummary: Identifiable, Sendable, Equatable {
+    let id: UUID
+    let name: String
+    let createdAt: Date
+    let privacy: SnapshotPrivacy
+    let dataTypes: [SystemProfilerDataType]
+
+    init(id: UUID, name: String, createdAt: Date, privacy: SnapshotPrivacy, dataTypes: [SystemProfilerDataType]) {
+        self.id = id
+        self.name = name
+        self.createdAt = createdAt
+        self.privacy = privacy
+        self.dataTypes = dataTypes
+    }
+
+    init(_ snapshot: SystemProfilerSnapshot) {
+        self.init(
+            id: snapshot.id,
+            name: snapshot.name,
+            createdAt: snapshot.createdAt,
+            privacy: snapshot.privacy,
+            dataTypes: snapshot.report.report.sections.map(\.dataType)
+        )
+    }
+}
+
 struct SnapshotHistory: Sendable, Equatable {
-    let snapshots: [SystemProfilerSnapshot]
+    let snapshots: [SnapshotSummary]
     let unreadableFileNames: [String]
 }
 
@@ -84,12 +111,9 @@ struct SnapshotStore: Sendable {
             .appendingPathComponent("Snapshots", isDirectory: true)
     }
 
-    func loadSnapshots() throws -> [SystemProfilerSnapshot] {
-        try loadSnapshotHistory().snapshots
-    }
-
-    /// Loads every readable snapshot. A damaged, renamed, or unsupported file is skipped
-    /// and reported instead of hiding the rest of the history.
+    /// Lists every readable snapshot, newest first, reading only each file's summary.
+    /// A damaged, renamed, or unsupported file is skipped and reported instead of hiding
+    /// the rest of the history.
     func loadSnapshotHistory() throws -> SnapshotHistory {
         let fileManager: FileManager = .default
         guard fileManager.fileExists(atPath: directoryURL.path) else {
@@ -102,12 +126,13 @@ struct SnapshotStore: Sendable {
             options: [.skipsHiddenFiles]
         )
         let snapshotURLs: [URL] = files.filter { $0.pathExtension == "systemprofiler-snapshot" }
-        var snapshots: [SystemProfilerSnapshot] = []
+        var snapshots: [SnapshotSummary] = []
         var unreadableFileNames: [String] = []
 
         for snapshotURL in snapshotURLs {
             do {
-                snapshots.append(try loadSnapshot(snapshotURL))
+                try validateSnapshotFileName(snapshotURL)
+                snapshots.append(try decodeSnapshotSummary(Data(contentsOf: snapshotURL, options: .mappedIfSafe)))
             } catch {
                 unreadableFileNames.append(snapshotURL.lastPathComponent)
             }
@@ -154,8 +179,13 @@ struct SnapshotStore: Sendable {
         return snapshot
     }
 
-    func deleteSnapshot(_ snapshot: SystemProfilerSnapshot) throws {
-        let snapshotURL: URL = snapshotURL(for: snapshot.id)
+    /// Loads one snapshot in full, for comparison.
+    func loadSnapshot(id: UUID) throws -> SystemProfilerSnapshot {
+        try loadSnapshot(snapshotURL(for: id))
+    }
+
+    func deleteSnapshot(id: UUID) throws {
+        let snapshotURL: URL = snapshotURL(for: id)
         let fileManager: FileManager = .default
         guard fileManager.fileExists(atPath: snapshotURL.path) else {
             throw CocoaError(.fileNoSuchFile)
@@ -169,10 +199,9 @@ struct SnapshotStore: Sendable {
             return
         }
 
-        let snapshots: [SystemProfilerSnapshot] = try loadSnapshots()
-        let expiredSnapshots: ArraySlice<SystemProfilerSnapshot> = snapshots.dropFirst(maximumCount)
-        for snapshot in expiredSnapshots {
-            try deleteSnapshot(snapshot)
+        let snapshots: [SnapshotSummary] = try loadSnapshotHistory().snapshots
+        for snapshot in snapshots.dropFirst(maximumCount) {
+            try deleteSnapshot(id: snapshot.id)
         }
     }
 
@@ -191,12 +220,14 @@ struct SnapshotStore: Sendable {
     }
 
     private func loadSnapshot(_ url: URL) throws -> SystemProfilerSnapshot {
+        try validateSnapshotFileName(url)
+        return try decodeSnapshot(Data(contentsOf: url, options: .mappedIfSafe))
+    }
+
+    private func validateSnapshotFileName(_ url: URL) throws {
         guard UUID(uuidString: url.deletingPathExtension().lastPathComponent) != nil else {
             throw SnapshotStoreError.invalidSnapshotFile
         }
-
-        let data: Data = try Data(contentsOf: url, options: .mappedIfSafe)
-        return try decodeSnapshot(data)
     }
 }
 
@@ -231,4 +262,51 @@ func decodeSnapshot(_ data: Data) throws -> SystemProfilerSnapshot {
     }
 
     return snapshot
+}
+
+/// Decodes only a snapshot's identity and data types; report values are skipped.
+func decodeSnapshotSummary(_ data: Data) throws -> SnapshotSummary {
+    let decoder: JSONDecoder = JSONDecoder()
+    decoder.dateDecodingStrategy = .iso8601
+    let file: SnapshotSummaryFile = try decoder.decode(SnapshotSummaryFile.self, from: data)
+
+    guard file.report.formatIdentifier == reportExportFormatIdentifier else {
+        throw ReportExportError.invalidFormat(identifier: file.report.formatIdentifier)
+    }
+
+    guard file.report.formatVersion == reportExportFormatVersion else {
+        throw ReportExportError.unsupportedVersion(version: file.report.formatVersion)
+    }
+
+    return SnapshotSummary(
+        id: file.id,
+        name: file.name,
+        createdAt: file.createdAt,
+        privacy: file.privacy,
+        dataTypes: file.report.report.sections.map(\.dataType)
+    )
+}
+
+/// The parts of a snapshot file that lists need. Undeclared keys, including every
+/// section's items, are not decoded.
+private struct SnapshotSummaryFile: Decodable {
+    struct Envelope: Decodable {
+        struct StoredReport: Decodable {
+            struct Section: Decodable {
+                let dataType: SystemProfilerDataType
+            }
+
+            let sections: [Section]
+        }
+
+        let formatIdentifier: String
+        let formatVersion: Int
+        let report: StoredReport
+    }
+
+    let id: UUID
+    let name: String
+    let createdAt: Date
+    let privacy: SnapshotPrivacy
+    let report: Envelope
 }

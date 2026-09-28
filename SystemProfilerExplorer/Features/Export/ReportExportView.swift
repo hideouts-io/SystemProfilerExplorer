@@ -301,9 +301,13 @@ private struct ExportPrivacyChoice: View {
                     HStack {
                         Text(title)
                             .font(.subheadline.weight(.semibold))
-                        Text(badge)
+                        Label {
+                            Text(badge)
+                        } icon: {
+                            Image(systemName: privacy == .redacted ? "checkmark.shield.fill" : "lock.fill")
+                                .foregroundStyle(privacy == .redacted ? Color.green : Color.orange)
+                        }
                             .font(.caption2.weight(.semibold))
-                            .foregroundStyle(privacy == .redacted ? Color.green : Color.orange)
                             .padding(.horizontal, 7)
                             .padding(.vertical, 3)
                             .background(.quaternary, in: Capsule())

@@ -235,6 +235,16 @@ let storageValueRules: [ValueRule] = [
         let percent: String = fraction.formatted(.percent.precision(.fractionLength(0)))
         let amounts: String = "\(formattedByteCount(free)) of \(formattedByteCount(size))"
 
+        // APFS system and data volumes share one pool of space. When the data volume is in
+        // the report, it carries the warning, so the same shortage isn't flagged twice.
+        if context.sibling("mount_point") == "/",
+           context.report.storageMountPoints.contains("/System/Volumes/Data") {
+            return .info(
+                "\(percent) free (\(amounts)).",
+                detail: "The system volume shares its space with the data volume, which shows the same free space."
+            )
+        }
+
         if fraction < lowFreeSpaceFraction {
             return .review(
                 "Only \(percent) free (\(amounts)).",

@@ -18,11 +18,6 @@ struct ProfileReportView: View {
     @State private var searchText: String = ""
     @State private var selectedFilter: FindingFilter = .all
     @State private var isShowingExportReview: Bool = false
-    @State private var isShowingComparisonImporter: Bool = false
-    @State private var isPreparingComparison: Bool = false
-    @State private var reportComparison: ReportComparison?
-    @State private var comparisonErrorMessage: String?
-    @State private var comparisonTask: Task<Void, Never>?
     @State private var presentationIndex: ReportPresentationIndex?
     @State private var displayedQueryResult: ReportQueryResult?
     @State private var isPreparingIndex: Bool = true
@@ -33,7 +28,9 @@ struct ProfileReportView: View {
     @State private var isShowingSkippedCollection: Bool = false
     @State private var isShowingSnapshotTimeline: Bool = false
     @State private var isShowingSystemReview: Bool = false
-    @State private var highlightedSourcePath: String?
+    @State private var highlightedLocation: String?
+    @State private var isShowingCoverageDetails: Bool = false
+    @Environment(\.explanationDetailMode) private var detailMode
     @AppStorage("bookmarked-finding-source-paths") private var storedBookmarks: String = ""
     @AppStorage("recent-finding-searches") private var storedRecentSearches: String = ""
 
@@ -63,13 +60,9 @@ struct ProfileReportView: View {
         .onDisappear {
             queryTask?.cancel()
             recentSearchTask?.cancel()
-            comparisonTask?.cancel()
         }
         .sheet(isPresented: $isShowingExportReview) {
             ReportExportReviewView(report: report)
-        }
-        .sheet(item: $reportComparison) { comparison in
-            ReportComparisonView(comparison: comparison)
         }
         .sheet(isPresented: $isShowingSkippedCollection) {
             SkippedCollectionView(
@@ -83,19 +76,10 @@ struct ProfileReportView: View {
         .sheet(isPresented: $isShowingSystemReview) {
             SystemReviewSummaryView(
                 report: report,
-                selectedSourcePaths: bookmarkedSourcePaths
+                selectedSourcePaths: bookmarkedSourcePaths,
+                glance: presentationIndex?.glance ?? [],
+                worthReviewingItems: presentationIndex?.worthReviewingItems ?? []
             )
-        }
-        .fileImporter(
-            isPresented: $isShowingComparisonImporter,
-            allowedContentTypes: [.json],
-            allowsMultipleSelection: false,
-            onCompletion: importComparisonBaseline
-        )
-        .alert("Comparison Failed", isPresented: comparisonErrorBinding) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(comparisonErrorMessage ?? "The reports could not be compared.")
         }
     }
 
@@ -112,28 +96,28 @@ struct ProfileReportView: View {
             matchCount: matchCount
         )
 
-        VStack(alignment: .leading, spacing: 16) {
-            if !presentationIndex.glance.isEmpty || presentationIndex.worthReviewingFindingCount > 0 {
-                AtAGlanceCard(
-                    sentences: presentationIndex.glance,
-                    worthReviewingCount: presentationIndex.worthReviewingFindingCount,
-                    showWorthReviewing: { selectedFilter = .worthALook }
-                )
-            }
+        let coverage: CollectionCoverage = collectionCoverage(for: report)
 
-            CollectionCoverageCard(
-                coverage: collectionCoverage(for: report),
+        VStack(alignment: .leading, spacing: 16) {
+            AtAGlanceCard(
+                sentences: presentationIndex.glance,
+                worthReviewingItems: presentationIndex.worthReviewingItems,
+                showItem: showWorthReviewingItem,
+                showAllWorthReviewing: showAllWorthReviewing
+            )
+
+            CollectionCoverageSummary(
+                coverage: coverage,
+                isShowingDetails: $isShowingCoverageDetails,
                 showSkippedCollection: { isShowingSkippedCollection = true }
             )
 
-            ReportSummaryStrip(
-                summary: summary,
-                worthReviewingCount: presentationIndex.worthReviewingFindingCount,
-                showWorthReviewing: { selectedFilter = .worthALook }
-            )
+            if detailMode == .developer {
+                ReportSummaryStrip(summary: summary)
 
-            if summary.findingCount >= largeReportFindingThreshold {
-                LargeReportNotice()
+                if summary.findingCount >= largeReportFindingThreshold {
+                    LargeReportNotice()
+                }
             }
 
             FindingControls(
@@ -145,104 +129,94 @@ struct ProfileReportView: View {
                 submitSearch: submitSearch
             )
 
-            FindingBookmarkBar(
-                bookmarkCount: bookmarkedSourcePaths.count,
-                bookmarkedSourcePaths: bookmarkedSourcePaths,
-                openSourceLocation: openSourceLocation
-            )
+            if !bookmarkedSourcePaths.isEmpty {
+                FindingBookmarkBar(
+                    bookmarkCount: bookmarkedSourcePaths.count,
+                    bookmarkedSourcePaths: bookmarkedSourcePaths,
+                    openSourceLocation: openSourceLocation
+                )
+            }
 
-            HStack {
-                Text("Raw JSON export stays separate from local review summaries and snapshots.")
+            HStack(spacing: 10) {
+                Text(resultDescription(
+                    matchCount: matchCount,
+                    totalCount: summary.findingCount,
+                    query: displayedQuery
+                ))
                     .font(.caption)
                     .foregroundStyle(.secondary)
+
                 Spacer()
-                Button {
-                    isShowingComparisonImporter = true
-                } label: {
-                    HStack(spacing: 7) {
-                        if isPreparingComparison {
-                            ProgressView()
-                                .controlSize(.small)
-                        } else {
-                            Image(systemName: "arrow.left.arrow.right")
-                        }
 
-                        Text(isPreparingComparison ? "Comparing…" : "Compare with Saved Report…")
-                    }
-                }
-                .buttonStyle(.bordered)
-                .disabled(isPreparingComparison)
-                .accessibilityIdentifier("compare-report")
-
-                Button {
-                    isShowingSnapshotTimeline = true
-                } label: {
-                    Label("Snapshots", systemImage: "clock.arrow.circlepath")
-                }
-                .buttonStyle(.bordered)
-                .accessibilityIdentifier("open-snapshots")
-
-                Button {
-                    isShowingSystemReview = true
-                } label: {
-                    Label("Review Summary", systemImage: "doc.text.magnifyingglass")
-                }
-                .buttonStyle(.bordered)
-                .accessibilityIdentifier("open-system-review")
-
-                Button {
-                    isShowingExportReview = true
-                } label: {
-                    Label("Export Report", systemImage: "square.and.arrow.up")
-                }
-                .buttonStyle(.bordered)
-                .accessibilityIdentifier("export-report")
+                reportActions
             }
 
             if matchCount == 0 {
                 NoMatchingFindingsView(clearQuery: clearQuery)
             } else {
-                HStack {
-                    Text(resultDescription(
-                        matchCount: matchCount,
-                        totalCount: summary.findingCount,
-                        query: displayedQuery
-                    ))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                }
-
                 ForEach(report.sections) { section in
                     ProfileSectionView(
                         section: section,
                         queryResult: queryResult,
+                        worthReviewingCounts: presentationIndex.worthReviewingCountsByRecord(for: section.dataType),
                         automaticallyExpandResults: automaticallyExpandResults,
                         bookmarkedSourcePaths: bookmarkedSourcePaths,
                         toggleBookmark: toggleBookmark,
                         openSourceLocation: openSourceLocation,
-                        highlightedSourcePath: highlightedSourcePath
+                        highlightedLocation: highlightedLocation
                     )
                 }
             }
 
-            ScanProvenanceView(report: report)
+            if detailMode == .developer {
+                ScanProvenanceView(report: report)
+            }
         }
+    }
+
+    @ViewBuilder
+    private var reportActions: some View {
+        Button {
+            isShowingSnapshotTimeline = true
+        } label: {
+            Label("Snapshots", systemImage: "clock.arrow.circlepath")
+        }
+        .buttonStyle(.bordered)
+        .help("Save this report as a baseline to compare with later in What Changed")
+        .accessibilityIdentifier("open-snapshots")
+
+        Menu {
+            Button("Summary…") {
+                isShowingSystemReview = true
+            }
+            .help("A readable Markdown or PDF summary")
+
+            Button("Report File…") {
+                isShowingExportReview = true
+            }
+            .help("The full scan data as JSON, redacted or complete")
+        } label: {
+            Label("Share", systemImage: "square.and.arrow.up")
+        }
+        .fixedSize()
+        .accessibilityIdentifier("share-report")
+    }
+
+    /// Shows only the values worth a look, with the chosen one highlighted.
+    private func showWorthReviewingItem(_ item: WorthReviewingItem) {
+        searchText = ""
+        selectedFilter = .worthALook
+        highlightedLocation = item.location
+    }
+
+    private func showAllWorthReviewing() {
+        searchText = ""
+        selectedFilter = .worthALook
+        highlightedLocation = nil
     }
 
     private var query: FindingQuery {
         FindingQuery(text: searchText, filter: selectedFilter)
-    }
-
-    private var comparisonErrorBinding: Binding<Bool> {
-        Binding(
-            get: { comparisonErrorMessage != nil },
-            set: { isPresented in
-                if !isPresented {
-                    comparisonErrorMessage = nil
-                }
-            }
-        )
     }
 
     private func preparePresentationIndex() async {
@@ -328,78 +302,22 @@ struct ProfileReportView: View {
         }
     }
 
-    private func importComparisonBaseline(_ result: Result<[URL], any Error>) {
-        switch result {
-        case let .success(urls):
-            guard urls.count == 1, let reportURL = urls.first else {
-                comparisonErrorMessage = ReportComparisonError
-                    .expectedSingleFile(count: urls.count)
-                    .localizedDescription
-                return
-            }
-
-            prepareComparison(reportURL: reportURL)
-
-        case let .failure(error):
-            let cocoaError: NSError = error as NSError
-
-            if cocoaError.domain == NSCocoaErrorDomain,
-               cocoaError.code == NSUserCancelledError {
-                return
-            }
-
-            comparisonErrorMessage = "The report picker failed. \(error.localizedDescription)"
-        }
-    }
-
-    private func prepareComparison(reportURL: URL) {
-        let currentReport: SystemProfilerReport = report
-
-        comparisonTask?.cancel()
-        isPreparingComparison = true
-
-        comparisonTask = Task {
-            do {
-                let comparison: ReportComparison = try await Task.detached(priority: .userInitiated) {
-                    let data: Data = try Data(contentsOf: reportURL, options: .mappedIfSafe)
-                    let baselineReport: SystemProfilerReport = try loadComparisonBaseline(
-                        from: data,
-                        importedAt: fileModificationDate(reportURL)
-                    )
-                    return try compareReports(baseline: baselineReport, current: currentReport)
-                }.value
-
-                try Task.checkCancellation()
-                reportComparison = comparison
-            } catch is CancellationError {
-                isPreparingComparison = false
-                comparisonTask = nil
-                return
-            } catch {
-                comparisonErrorMessage = "The selected report could not be compared. \(error.localizedDescription)"
-            }
-
-            isPreparingComparison = false
-            comparisonTask = nil
-        }
-    }
-
     private func resultDescription(
         matchCount: Int,
         totalCount: Int,
         query: FindingQuery
     ) -> String {
         if query.isActive {
-            return "Showing \(matchCount) of \(totalCount) findings"
+            return "Showing \(matchCount.formatted()) of \(totalCount.formatted()) \(findingNoun(totalCount, mode: detailMode))"
         }
 
-        return "\(totalCount) findings"
+        return "\(totalCount.formatted()) \(findingNoun(totalCount, mode: detailMode))"
     }
 
     private func clearQuery() {
         searchText = ""
         selectedFilter = .all
-        highlightedSourcePath = nil
+        highlightedLocation = nil
     }
 
     private var bookmarkedSourcePaths: Set<String> {
@@ -412,26 +330,32 @@ struct ProfileReportView: View {
             .map(String.init)
     }
 
-    private func toggleBookmark(_ sourcePath: String) {
-        var paths: Set<String> = bookmarkedSourcePaths
+    /// Bookmarks store a value's location. A bookmark saved before locations existed holds
+    /// the field's source path; toggling that value removes it.
+    private func toggleBookmark(_ location: String) {
+        var bookmarks: Set<String> = bookmarkedSourcePaths
+        let legacySourcePath: String = sourcePath(fromLocation: location)
 
-        if paths.contains(sourcePath) {
-            paths.remove(sourcePath)
+        if bookmarks.contains(location) {
+            bookmarks.remove(location)
+        } else if bookmarks.contains(legacySourcePath) {
+            bookmarks.remove(legacySourcePath)
         } else {
-            paths.insert(sourcePath)
+            bookmarks.insert(location)
         }
 
-        storedBookmarks = paths.sorted().joined(separator: "\n")
+        storedBookmarks = bookmarks.sorted().joined(separator: "\n")
     }
 
-    private func openSourceLocation(_ sourcePath: String) {
+    /// Shows a value: searches for its field and highlights the exact row.
+    private func openSourceLocation(_ location: String) {
         selectedFilter = .all
-        highlightedSourcePath = sourcePath
-        searchText = sourcePath
+        highlightedLocation = location
+        searchText = sourcePath(fromLocation: location)
     }
 
     private func applyRecentSearch(_ search: String) {
-        highlightedSourcePath = nil
+        highlightedLocation = nil
         searchText = search
     }
 
@@ -494,6 +418,54 @@ private struct LargeReportNotice: View {
                 .stroke(Color.accentColor.opacity(0.2), lineWidth: 1)
         }
         .accessibilityIdentifier("large-report-notice")
+    }
+}
+
+/// One line when every requested data type was collected; the full breakdown when
+/// something is incomplete or the user asks for details.
+private struct CollectionCoverageSummary: View {
+    let coverage: CollectionCoverage
+    @Binding var isShowingDetails: Bool
+    let showSkippedCollection: () -> Void
+
+    var body: some View {
+        if !coverage.incompleteEntries.isEmpty || isShowingDetails {
+            VStack(alignment: .leading, spacing: 6) {
+                CollectionCoverageCard(coverage: coverage, showSkippedCollection: showSkippedCollection)
+
+                if coverage.incompleteEntries.isEmpty {
+                    Button("Hide collection details") { isShowingDetails = false }
+                        .buttonStyle(.link)
+                        .font(.caption)
+                }
+            }
+        } else {
+            HStack(spacing: 8) {
+                Label {
+                    Text(completeDescription)
+                } icon: {
+                    Image(systemName: ValueStatus.normal.symbolName)
+                        .foregroundStyle(ValueStatus.normal.tint)
+                }
+
+                Button("Details") { isShowingDetails = true }
+                    .buttonStyle(.link)
+
+                Spacer()
+            }
+            .font(.callout)
+            .accessibilityIdentifier("collection-coverage-summary")
+        }
+    }
+
+    private var completeDescription: String {
+        let count: Int = coverage.entries.count
+        let noun: String = count == 1 ? "data type" : "data types"
+
+        return switch coverage.source {
+        case .liveScan: "All \(count) requested \(noun) were collected."
+        case .importedReport: "Imported report with \(count) \(noun)."
+        }
     }
 }
 
@@ -571,12 +543,17 @@ private struct CollectionCoverageCard: View {
             }
         }
         .padding(16)
-        .background(Color.orange.opacity(0.055), in: RoundedRectangle(cornerRadius: 14))
+        .background(coverageTint.opacity(0.055), in: RoundedRectangle(cornerRadius: 14))
         .overlay {
             RoundedRectangle(cornerRadius: 14)
-                .stroke(Color.orange.opacity(0.2), lineWidth: 1)
+                .stroke(coverageTint.opacity(0.2), lineWidth: 1)
         }
         .accessibilityIdentifier("collection-coverage")
+    }
+
+    /// Orange only when something wasn't collected.
+    private var coverageTint: Color {
+        coverage.incompleteEntries.isEmpty ? .secondary : .orange
     }
 
     private var coverageExplanation: String {
@@ -722,24 +699,9 @@ private struct ReportIndexingFailureView: View {
 
 private struct ReportSummaryStrip: View {
     let summary: ReportSummary
-    let worthReviewingCount: Int
-    let showWorthReviewing: () -> Void
 
     var body: some View {
         HStack(spacing: 10) {
-            Button(action: showWorthReviewing) {
-                SummaryCard(
-                    title: "Worth a look",
-                    value: worthReviewingCount,
-                    symbolName: ValueStatus.worthReviewing.symbolName,
-                    tint: worthReviewingCount > 0 ? ValueStatus.worthReviewing.tint : .secondary
-                )
-            }
-            .buttonStyle(.plain)
-            .disabled(worthReviewingCount == 0)
-            .help(worthReviewingCount > 0 ? "Show only findings worth a look" : "No findings need a look")
-            .accessibilityIdentifier("summary-worth-a-look")
-
             SummaryCard(
                 title: "Records",
                 value: summary.recordCount,
@@ -870,6 +832,7 @@ private struct FindingControls: View {
                 }
             }
             .pickerStyle(.segmented)
+            .labelsHidden()
             .frame(width: 470)
             .accessibilityIdentifier("finding-filter")
         }
@@ -939,13 +902,16 @@ private struct NoMatchingFindingsView: View {
 private struct ProfileSectionView: View {
     let section: SystemProfilerSection
     let queryResult: ReportQueryResult
+    /// Worth-a-look findings per record index, shown on collapsed record rows.
+    let worthReviewingCounts: [Int: Int]
     let automaticallyExpandResults: Bool
     let bookmarkedSourcePaths: Set<String>
     let toggleBookmark: (String) -> Void
     let openSourceLocation: (String) -> Void
-    let highlightedSourcePath: String?
+    let highlightedLocation: String?
 
     @State private var visibleRecordLimit: Int = recordPageSize
+    @Environment(\.explanationDetailMode) private var detailMode
 
     var body: some View {
         let selection: MatchingRecordSelection = queryResult.recordSelection(
@@ -959,7 +925,9 @@ private struct ProfileSectionView: View {
                 HStack {
                     Text(dataTypeTitle(section.dataType))
                         .font(.title3.weight(.semibold))
-                    FindingCountBadge(count: queryResult.findingCount(for: section.dataType))
+                    if detailMode == .developer {
+                        FindingCountBadge(count: queryResult.findingCount(for: section.dataType))
+                    }
                     Spacer()
                     Text(recordDescription(selection: selection))
                         .font(.caption)
@@ -969,7 +937,7 @@ private struct ProfileSectionView: View {
                 LazyVStack(spacing: 0) {
                     ForEach(visibleRecords) { record in
                         ProfileValueDisclosure(
-                            label: record.value.preferredName ?? "Record \(record.index + 1)",
+                            label: recordDisplayLabel(record.value, fallback: "Record \(record.index + 1)"),
                             value: record.value,
                             depth: 0,
                             dataType: section.dataType,
@@ -979,8 +947,12 @@ private struct ProfileSectionView: View {
                             bookmarkedSourcePaths: bookmarkedSourcePaths,
                             toggleBookmark: toggleBookmark,
                             openSourceLocation: openSourceLocation,
-                            highlightedSourcePath: highlightedSourcePath,
-                            siblings: [:]
+                            highlightedLocation: highlightedLocation,
+                            siblings: [:],
+                            recordIndex: record.index,
+                            arrayIndices: [],
+                            worthReviewingCount: worthReviewingCounts[record.index] ?? 0,
+                            expandsByDefault: visibleRecords.count == 1
                         )
 
                         if record.id != visibleRecords.last?.id {
@@ -1064,9 +1036,16 @@ private struct ProfileValueDisclosure: View {
     let bookmarkedSourcePaths: Set<String>
     let toggleBookmark: (String) -> Void
     let openSourceLocation: (String) -> Void
-    let highlightedSourcePath: String?
+    let highlightedLocation: String?
     /// The other fields of the object containing this value, for context-aware value explanations.
     let siblings: [String: ProfileValue]
+    /// Which record and array items this value is in, for its location.
+    let recordIndex: Int
+    let arrayIndices: [Int]
+    /// Worth-a-look findings inside this group, shown while it's collapsed.
+    var worthReviewingCount: Int = 0
+    /// Open without a click, as for the only record in a section.
+    var expandsByDefault: Bool = false
 
     @Environment(\.valueReportContext) private var valueReportContext
     /// The user's own expand or collapse choice, which overrides automatic expansion.
@@ -1090,14 +1069,21 @@ private struct ProfileValueDisclosure: View {
                             bookmarkedSourcePaths: bookmarkedSourcePaths,
                             toggleBookmark: toggleBookmark,
                             openSourceLocation: openSourceLocation,
-                            highlightedSourcePath: highlightedSourcePath,
-                            siblings: object
+                            highlightedLocation: highlightedLocation,
+                            siblings: object,
+                            recordIndex: recordIndex,
+                            arrayIndices: arrayIndices
                         )
                     }
                 }
                 .padding(.top, 6)
             } label: {
-                ProfileGroupLabel(label: friendlyReportGroupName(label), count: fields.count, depth: depth)
+                ProfileGroupLabel(
+                    label: friendlyReportGroupName(label),
+                    count: fields.count,
+                    depth: depth,
+                    worthReviewingCount: worthReviewingCount
+                )
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 11)
@@ -1108,7 +1094,7 @@ private struct ProfileValueDisclosure: View {
                 LazyVStack(spacing: 0) {
                     ForEach(items) { item in
                         ProfileFieldRow(
-                            label: item.value.preferredName ?? "Item \(item.index + 1)",
+                            label: recordDisplayLabel(item.value, fallback: "Item \(item.index + 1)"),
                             value: item.value,
                             depth: depth + 1,
                             dataType: dataType,
@@ -1118,14 +1104,21 @@ private struct ProfileValueDisclosure: View {
                             bookmarkedSourcePaths: bookmarkedSourcePaths,
                             toggleBookmark: toggleBookmark,
                             openSourceLocation: openSourceLocation,
-                            highlightedSourcePath: highlightedSourcePath,
-                            siblings: [:]
+                            highlightedLocation: highlightedLocation,
+                            siblings: [:],
+                            recordIndex: recordIndex,
+                            arrayIndices: arrayIndices + [item.index]
                         )
                     }
                 }
                 .padding(.top, 6)
             } label: {
-                ProfileGroupLabel(label: friendlyReportGroupName(label), count: items.count, depth: depth)
+                ProfileGroupLabel(
+                    label: friendlyReportGroupName(label),
+                    count: items.count,
+                    depth: depth,
+                    worthReviewingCount: worthReviewingCount
+                )
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 11)
@@ -1154,8 +1147,16 @@ private struct ProfileValueDisclosure: View {
             scalar: scalar
         )
 
+        let location: String = findingLocation(
+            dataType: dataType,
+            recordIndex: recordIndex,
+            path: path,
+            arrayIndices: arrayIndices
+        )
+
         return ScalarProfileRow(
             presentation: presentation,
+            location: location,
             valueExplanation: presentation.isLogContent ? nil : valueExplanation(
                 dataType: dataType,
                 path: path,
@@ -1164,16 +1165,16 @@ private struct ProfileValueDisclosure: View {
                 report: valueReportContext
             ),
             depth: depth,
-            isBookmarked: bookmarkedSourcePaths.contains(presentation.sourcePath),
+            isBookmarked: bookmarkMatches(bookmarkedSourcePaths, location: location, sourcePath: presentation.sourcePath),
             toggleBookmark: toggleBookmark,
             openSourceLocation: openSourceLocation,
-            isHighlighted: highlightedSourcePath == presentation.sourcePath
+            isHighlighted: highlightedLocation == location || highlightedLocation == presentation.sourcePath
         )
     }
 
     private var expansionBinding: Binding<Bool> {
         Binding(
-            get: { manualExpansion ?? automaticallyExpandResults },
+            get: { manualExpansion ?? (automaticallyExpandResults || expandsByDefault) },
             set: { manualExpansion = $0 }
         )
     }
@@ -1206,7 +1207,7 @@ private struct ProfileValueDisclosure: View {
         }
 
         return values.enumerated().compactMap { index, value in
-            let itemLabel: String = value.preferredName ?? "Item \(index + 1)"
+            let itemLabel: String = recordDisplayLabel(value, fallback: "Item \(index + 1)")
 
             guard profileValueMatches(
                 value,
@@ -1235,8 +1236,10 @@ private struct ProfileFieldRow: View {
     let bookmarkedSourcePaths: Set<String>
     let toggleBookmark: (String) -> Void
     let openSourceLocation: (String) -> Void
-    let highlightedSourcePath: String?
+    let highlightedLocation: String?
     let siblings: [String: ProfileValue]
+    let recordIndex: Int
+    let arrayIndices: [Int]
 
     var body: some View {
         ProfileValueDisclosure(
@@ -1250,8 +1253,10 @@ private struct ProfileFieldRow: View {
             bookmarkedSourcePaths: bookmarkedSourcePaths,
             toggleBookmark: toggleBookmark,
             openSourceLocation: openSourceLocation,
-            highlightedSourcePath: highlightedSourcePath,
-            siblings: siblings
+            highlightedLocation: highlightedLocation,
+            siblings: siblings,
+            recordIndex: recordIndex,
+            arrayIndices: arrayIndices
         )
 
         if shouldShowDivider(after: value) {
@@ -1265,24 +1270,49 @@ private struct ProfileGroupLabel: View {
     let label: String
     let count: Int
     let depth: Int
+    let worthReviewingCount: Int
+
+    @Environment(\.explanationDetailMode) private var detailMode
 
     var body: some View {
         HStack {
             Text(label)
                 .font(depth == 0 ? .headline : .subheadline.weight(.medium))
-            Spacer()
-            Text("\(count)")
-                .font(.caption.monospacedDigit())
-                .foregroundStyle(.secondary)
+
+            if worthReviewingCount > 0 {
+                Label {
+                    Text("\(worthReviewingCount) worth a look")
+                } icon: {
+                    Image(systemName: ValueStatus.worthReviewing.symbolName)
+                        .foregroundStyle(ValueStatus.worthReviewing.tint)
+                }
+                .font(.caption.weight(.semibold))
                 .padding(.horizontal, 7)
-                .padding(.vertical, 3)
-                .background(.quaternary, in: Capsule())
+                .padding(.vertical, 2)
+                .background(ValueStatus.worthReviewing.tint.opacity(0.13), in: Capsule())
+                .accessibilityIdentifier("record-worth-a-look")
+            }
+
+            Spacer()
+
+            // Field counts are a developer detail.
+            if detailMode == .developer {
+                Text("\(count)")
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 3)
+                    .background(.quaternary, in: Capsule())
+                    .help("\(count) fields")
+            }
         }
     }
 }
 
 private struct ScalarProfileRow: View {
     let presentation: FieldPresentation
+    /// This value's exact position, used for its bookmark and "show source" link.
+    let location: String
     let valueExplanation: ValueExplanation?
     let depth: Int
     let isBookmarked: Bool
@@ -1299,17 +1329,17 @@ private struct ScalarProfileRow: View {
             }
 
             if presentation.isLogContent {
-                DiagnosticLogView(presentation: presentation, openSourceLocation: openSourceLocation)
+                DiagnosticLogView(presentation: presentation, openSourceLocation: openThisLocation)
             } else if let explanation = presentation.explanation {
                 FieldExplanationView(
                     presentation: presentation,
                     explanation: explanation,
-                    openSourceLocation: openSourceLocation
+                    openSourceLocation: openThisLocation
                 )
             } else {
                 MissingExplanationView(
                     presentation: presentation,
-                    openSourceLocation: openSourceLocation
+                    openSourceLocation: openThisLocation
                 )
             }
 
@@ -1347,6 +1377,11 @@ private struct ScalarProfileRow: View {
         .accessibilityIdentifier("finding-\(presentation.sourcePath)")
     }
 
+    /// "Show Raw Source Location" in this row opens this exact value, not every record.
+    private var openThisLocation: (String) -> Void {
+        { _ in openSourceLocation(location) }
+    }
+
     private var explanationTexts: [String] {
         var texts: [String] = []
 
@@ -1382,7 +1417,7 @@ private struct ScalarProfileRow: View {
                 .multilineTextAlignment(.trailing)
 
             Button {
-                toggleBookmark(presentation.sourcePath)
+                toggleBookmark(location)
             } label: {
                 Image(systemName: isBookmarked ? "bookmark.fill" : "bookmark")
             }
@@ -1464,6 +1499,30 @@ private struct FieldExplanationView: View {
                 symbolName: "text.book.closed",
                 text: explanation.meaning
             )
+
+            // Beginners get the meaning up front; the careful detail is one click away.
+            if detailMode == .developer {
+                detailSections
+                FieldSourceDetails(presentation: presentation, openSourceLocation: openSourceLocation)
+            } else {
+                DisclosureGroup("More about this field") {
+                    detailSections
+                        .padding(.top, 8)
+                }
+                .font(.callout)
+                .accessibilityIdentifier("more-about-field")
+            }
+        }
+        .padding(14)
+        .background(Color.accentColor.opacity(0.055), in: RoundedRectangle(cornerRadius: 11))
+        .padding(.top, 8)
+    }
+}
+
+extension FieldExplanationView {
+    @ViewBuilder
+    fileprivate var detailSections: some View {
+        VStack(alignment: .leading, spacing: 14) {
             ExplanationSection(
                 title: "Why it matters",
                 symbolName: "scope",
@@ -1482,14 +1541,7 @@ private struct FieldExplanationView: View {
                     text: privacy
                 )
             }
-
-            if detailMode == .developer {
-                FieldSourceDetails(presentation: presentation, openSourceLocation: openSourceLocation)
-            }
         }
-        .padding(14)
-        .background(Color.accentColor.opacity(0.055), in: RoundedRectangle(cornerRadius: 11))
-        .padding(.top, 8)
     }
 }
 

@@ -26,6 +26,19 @@ struct FieldPresentation: Sendable, Equatable {
     let sourcePath: String
     let explanation: FieldExplanation?
 
+    /// Text that search matches for the value: what's shown, the raw value, and for
+    /// tokens the full readable form ("Spairport Status Connected"), which the shortened
+    /// display leaves out.
+    var searchableValueTexts: [String] {
+        var texts: [String] = [displayedValue, rawValue]
+
+        if isEnumeratedToken(rawValue) {
+            texts.append(displayName(for: rawValue))
+        }
+
+        return texts
+    }
+
     var isLogContent: Bool {
         (dataType == .logs || dataType == .syncServices) && sourcePath.hasSuffix(".contents")
     }
@@ -110,6 +123,20 @@ func displayName(for key: String) -> String {
     switch key {
     case "log_tree_name": return "Diagnostic Logs"
     case "summary_tree_name": return "Overview"
+    // Group keys system_profiler names with internal prefixes.
+    case "spfirewall_applications": return "App Firewall Rules"
+    case "spairport_airport_interfaces": return "Wi-Fi Interfaces"
+    case "spairport_current_network_information": return "Current Network"
+    case "spairport_airport_other_local_wireless_networks": return "Other Nearby Networks"
+    case "sppower_battery_charge_info": return "Charge"
+    case "sppower_battery_health_info": return "Health"
+    case "sppower_battery_model_info": return "Battery Model"
+    case "controller_properties": return "Bluetooth Controller"
+    case "device_connected": return "Connected Devices"
+    case "device_not_connected": return "Paired Devices, Not Connected"
+    case "spnetworklocation_services": return "Services"
+    case "spdevtools_sdks": return "SDKs"
+    case "spdisplays_ndrvs": return "Displays"
     default: break
     }
 
@@ -145,7 +172,7 @@ private func formattedValue(_ scalar: ProfileScalar, path: [String]) -> String {
         return value.uppercased()
 
     case let .string(value) where isEnumeratedToken(value):
-        return displayName(for: value)
+        return readableToken(value, field: key)
 
     case .string, .integer, .decimal, .boolean, .null:
         return scalar.rawDescription
@@ -170,6 +197,48 @@ private func displayWord(_ word: String) -> String {
     case "ssd": "SSD"
     case "udid": "UDID"
     case "uuid": "UUID"
+    case "usb": "USB"
+    case "gpu": "GPU"
+    case "vm": "VM"
+    case "wep": "WEP"
+    case "wpa": "WPA"
+    case "wpa2": "WPA2"
+    case "wpa3": "WPA3"
+    case "ltr": "LTR"
+    case "rtl": "RTL"
     default: word.prefix(1).uppercased() + word.dropFirst()
     }
+}
+
+/// Shortens an enumeration token for display. On/off states show their state word
+/// (`integrity_enabled` → "Enabled"), and words the value repeats from its field are
+/// dropped (`spfirewall_globalstate_limit_connections` → "Limit Connections"). The raw
+/// token stays available as the finding's raw value.
+func readableToken(_ value: String, field: String) -> String {
+    let words: [Substring] = value.split(separator: "_")
+
+    if decodeBooleanLike(value) != nil, let state = words.last {
+        return value.lowercased().hasSuffix("not_supported") ? "Not Supported" : displayWord(String(state))
+    }
+
+    let fieldWords: [Substring] = field.split(separator: "_")
+    var dropped: Int = 0
+
+    while dropped < min(words.count - 1, fieldWords.count), words[dropped] == fieldWords[dropped] {
+        dropped += 1
+    }
+
+    // The value may repeat the field with a different prefix, as in
+    // pairport_security_mode_wpa3_transition under spairport_security_mode.
+    if dropped == 0, let lastFieldWord = fieldWords.last,
+       let index = words.lastIndex(of: lastFieldWord), index < words.count - 1 {
+        dropped = index + 1
+    }
+
+    // A leading system_profiler namespace such as "spfirewall" isn't meaningful on its own.
+    if dropped == 0, let first = words.first, first.hasPrefix("sp"), first.count > 2, words.count > 1 {
+        dropped = 1
+    }
+
+    return displayName(for: words.dropFirst(dropped).joined(separator: "_"))
 }

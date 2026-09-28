@@ -1,13 +1,42 @@
 import Foundation
 
+/// A value worth a look, listed in At a Glance so it's visible without opening records.
+struct WorthReviewingItem: Identifiable, Sendable, Equatable {
+    let id: Int
+    let dataType: SystemProfilerDataType
+    let recordLabel: String
+    let fieldTitle: String
+    let summary: String
+    let sourcePath: String
+    /// This value's position, for highlighting exactly one row.
+    let location: String
+}
+
 struct ReportPresentationIndex: Sendable, Equatable {
     let summary: ReportSummary
     /// Findings whose value explanation status is "Worth a look".
     let worthReviewingFindingCount: Int
     /// Plain-language sentences summarizing the report.
     let glance: [String]
+    /// Every value worth a look, in report order.
+    let worthReviewingItems: [WorthReviewingItem]
     fileprivate let sections: [IndexedReportSection]
     fileprivate let explanationSearchCorpora: [String]
+
+    /// Worth-a-look findings in each record, keyed by record index, for one section.
+    func worthReviewingCountsByRecord(for dataType: SystemProfilerDataType) -> [Int: Int] {
+        guard let section = sections.first(where: { $0.dataType == dataType }) else {
+            return [:]
+        }
+
+        return section.records.reduce(into: [:]) { counts, record in
+            let count: Int = record.findings.lazy.filter(\.isWorthReviewing).count
+
+            if count > 0 {
+                counts[record.index] = count
+            }
+        }
+    }
 
     func queryResult(for query: FindingQuery) throws -> ReportQueryResult {
         guard query.isActive else {
@@ -113,6 +142,7 @@ func makeReportPresentationIndex(_ report: SystemProfilerReport) throws -> Repor
     var privacyFindingCount: Int = 0
     var indexedValueCount: Int = 0
     var worthReviewingFindingCount: Int = 0
+    var worthReviewingItems: [WorthReviewingItem] = []
     let valueContext: ValueReportContext = valueReportContext(for: report)
 
     for section in report.sections {
@@ -120,7 +150,7 @@ func makeReportPresentationIndex(_ report: SystemProfilerReport) throws -> Repor
         recordCount += section.items.count
 
         for (recordIndex, value) in section.items.enumerated() {
-            let recordLabel: String = value.preferredName ?? "Record \(recordIndex + 1)"
+            let recordLabel: String = recordDisplayLabel(value, fallback: "Record \(recordIndex + 1)")
             var findings: [IndexedFinding] = []
 
             try appendIndexedFindings(
@@ -128,12 +158,15 @@ func makeReportPresentationIndex(_ report: SystemProfilerReport) throws -> Repor
                 label: recordLabel,
                 dataType: section.dataType,
                 path: [],
+                recordIndex: recordIndex,
+                arrayIndices: [],
                 ancestorLabels: [],
                 siblings: [:],
                 valueContext: valueContext,
                 indexedValueCount: &indexedValueCount,
                 explanationInterner: &explanationInterner,
-                findings: &findings
+                findings: &findings,
+                worthReviewingItems: &worthReviewingItems
             )
 
             findingCount += findings.count
@@ -161,6 +194,7 @@ func makeReportPresentationIndex(_ report: SystemProfilerReport) throws -> Repor
         ),
         worthReviewingFindingCount: worthReviewingFindingCount,
         glance: reportGlance(report),
+        worthReviewingItems: worthReviewingItems,
         sections: indexedSections,
         explanationSearchCorpora: explanationInterner.values
     )
@@ -218,12 +252,15 @@ private func appendIndexedFindings(
     label: String,
     dataType: SystemProfilerDataType,
     path: [String],
+    recordIndex: Int,
+    arrayIndices: [Int],
     ancestorLabels: [String],
     siblings: [String: ProfileValue],
     valueContext: ValueReportContext,
     indexedValueCount: inout Int,
     explanationInterner: inout ExplanationSearchCorpusInterner,
-    findings: inout [IndexedFinding]
+    findings: inout [IndexedFinding],
+    worthReviewingItems: inout [WorthReviewingItem]
 ) throws {
     indexedValueCount += 1
 
@@ -245,12 +282,15 @@ private func appendIndexedFindings(
                 label: displayName(for: key),
                 dataType: dataType,
                 path: path + [key],
+                recordIndex: recordIndex,
+                arrayIndices: arrayIndices,
                 ancestorLabels: descendantLabels,
                 siblings: object,
                 valueContext: valueContext,
                 indexedValueCount: &indexedValueCount,
                 explanationInterner: &explanationInterner,
-                findings: &findings
+                findings: &findings,
+                worthReviewingItems: &worthReviewingItems
             )
         }
 
@@ -258,15 +298,18 @@ private func appendIndexedFindings(
         for (index, item) in values.enumerated() {
             try appendIndexedFindings(
                 item,
-                label: item.preferredName ?? "Item \(index + 1)",
+                label: recordDisplayLabel(item, fallback: "Item \(index + 1)"),
                 dataType: dataType,
                 path: path + ["[]"],
+                recordIndex: recordIndex,
+                arrayIndices: arrayIndices + [index],
                 ancestorLabels: descendantLabels,
                 siblings: [:],
                 valueContext: valueContext,
                 indexedValueCount: &indexedValueCount,
                 explanationInterner: &explanationInterner,
-                findings: &findings
+                findings: &findings,
+                worthReviewingItems: &worthReviewingItems
             )
         }
 
@@ -275,11 +318,14 @@ private func appendIndexedFindings(
             scalar: .string(value),
             dataType: dataType,
             path: path,
+            recordIndex: recordIndex,
+            arrayIndices: arrayIndices,
             ancestorLabels: descendantLabels,
             siblings: siblings,
             valueContext: valueContext,
             explanationInterner: &explanationInterner,
-            findings: &findings
+            findings: &findings,
+            worthReviewingItems: &worthReviewingItems
         )
 
     case let .integer(value):
@@ -287,11 +333,14 @@ private func appendIndexedFindings(
             scalar: .integer(value),
             dataType: dataType,
             path: path,
+            recordIndex: recordIndex,
+            arrayIndices: arrayIndices,
             ancestorLabels: descendantLabels,
             siblings: siblings,
             valueContext: valueContext,
             explanationInterner: &explanationInterner,
-            findings: &findings
+            findings: &findings,
+            worthReviewingItems: &worthReviewingItems
         )
 
     case let .decimal(value):
@@ -299,11 +348,14 @@ private func appendIndexedFindings(
             scalar: .decimal(value),
             dataType: dataType,
             path: path,
+            recordIndex: recordIndex,
+            arrayIndices: arrayIndices,
             ancestorLabels: descendantLabels,
             siblings: siblings,
             valueContext: valueContext,
             explanationInterner: &explanationInterner,
-            findings: &findings
+            findings: &findings,
+            worthReviewingItems: &worthReviewingItems
         )
 
     case let .boolean(value):
@@ -311,11 +363,14 @@ private func appendIndexedFindings(
             scalar: .boolean(value),
             dataType: dataType,
             path: path,
+            recordIndex: recordIndex,
+            arrayIndices: arrayIndices,
             ancestorLabels: descendantLabels,
             siblings: siblings,
             valueContext: valueContext,
             explanationInterner: &explanationInterner,
-            findings: &findings
+            findings: &findings,
+            worthReviewingItems: &worthReviewingItems
         )
 
     case .null:
@@ -323,11 +378,14 @@ private func appendIndexedFindings(
             scalar: .null,
             dataType: dataType,
             path: path,
+            recordIndex: recordIndex,
+            arrayIndices: arrayIndices,
             ancestorLabels: descendantLabels,
             siblings: siblings,
             valueContext: valueContext,
             explanationInterner: &explanationInterner,
-            findings: &findings
+            findings: &findings,
+            worthReviewingItems: &worthReviewingItems
         )
     }
 }
@@ -336,11 +394,14 @@ private func appendIndexedFinding(
     scalar: ProfileScalar,
     dataType: SystemProfilerDataType,
     path: [String],
+    recordIndex: Int,
+    arrayIndices: [Int],
     ancestorLabels: [String],
     siblings: [String: ProfileValue],
     valueContext: ValueReportContext,
     explanationInterner: inout ExplanationSearchCorpusInterner,
-    findings: inout [IndexedFinding]
+    findings: inout [IndexedFinding],
+    worthReviewingItems: inout [WorthReviewingItem]
 ) {
     let presentation: FieldPresentation = fieldPresentation(
         dataType: dataType,
@@ -360,12 +421,8 @@ private func appendIndexedFinding(
     let valueSummaryIndex: Int? = valueExplanation.map {
         explanationInterner.index(forCorpus: $0.summary)
     }
-    let directSearchCorpus: String = [
-        presentation.title,
-        presentation.displayedValue,
-        presentation.rawValue,
-        presentation.sourcePath
-    ].joined(separator: "\n")
+    let directSearchCorpus: String = ([presentation.title] + presentation.searchableValueTexts + [presentation.sourcePath])
+        .joined(separator: "\n")
     let ancestorLabelSearchCorpus: String = ancestorLabels
         .dropLast()
         .joined(separator: "\n")
@@ -381,6 +438,20 @@ private func appendIndexedFinding(
             isWorthReviewing: valueExplanation?.status == .worthReviewing
         )
     )
+
+    if let valueExplanation, valueExplanation.status == .worthReviewing {
+        worthReviewingItems.append(
+            WorthReviewingItem(
+                id: worthReviewingItems.count,
+                dataType: dataType,
+                recordLabel: ancestorLabels.first ?? dataType.title,
+                fieldTitle: presentation.title,
+                summary: valueExplanation.summary,
+                sourcePath: presentation.sourcePath,
+                location: findingLocation(dataType: dataType, recordIndex: recordIndex, path: path, arrayIndices: arrayIndices)
+            )
+        )
+    }
 }
 
 private func findingMatches(

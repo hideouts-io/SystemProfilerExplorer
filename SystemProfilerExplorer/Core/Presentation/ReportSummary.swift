@@ -30,7 +30,7 @@ func matchingFindingCount(_ report: SystemProfilerReport, query: FindingQuery) -
         section.items.enumerated().reduce(sectionResult) { itemResult, item in
             itemResult + matchingFindingCount(
                 item.element,
-                label: item.element.preferredName ?? "Record \(item.offset + 1)",
+                label: recordDisplayLabel(item.element, fallback: "Record \(item.offset + 1)"),
                 dataType: section.dataType,
                 path: [],
                 query: query,

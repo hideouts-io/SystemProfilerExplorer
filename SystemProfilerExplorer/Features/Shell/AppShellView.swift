@@ -14,6 +14,7 @@ struct AppShellView: View {
     @State private var scanTask: Task<Void, Never>?
     @State private var isShowingRawReportImporter: Bool = false
     @State private var isShowingGlossary: Bool = false
+    @State private var activityStartedAt: Date = .now
     @AppStorage(explanationDetailModeStorageKey) private var explanationDetailMode: ExplanationDetailMode = .beginner
 
     init(collector: any SystemProfilerCollecting, parser: SystemProfilerParser) {
@@ -22,30 +23,33 @@ struct AppShellView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            AppHeader(
-                scanState: scanState,
-                selectedSubject: selectedSubject,
-                selectedCollectionHealth: selectedSubject.flatMap { collectionHealth[$0] } ?? .notCollected,
-                canScan: selectedSubject.flatMap(scanConfiguration(for:)) != nil,
-                canImport: selectedSubject == .reports,
-                startScan: startScan,
-                importReport: showRawReportImporter,
-                cancelScan: cancelScan,
-                showGlossary: { isShowingGlossary = true },
-                explanationDetailMode: $explanationDetailMode
-            )
-            Divider()
-            WorkspaceTabBar(
-                selectedWorkspace: $selectedWorkspace,
+        NavigationSplitView {
+            AppSidebar(
+                selection: sidebarSelection,
                 findingCounts: findingCounts,
                 worthReviewingCounts: worthReviewingCounts,
                 collectionHealth: collectionHealth
             )
-            Divider()
-            workspaceContent
+            .navigationSplitViewColumnWidth(min: 190, ideal: 210, max: 280)
+        } detail: {
+            VStack(spacing: 0) {
+                AppHeader(
+                    scanState: scanState,
+                    selectedSubject: selectedSubject,
+                    selectedCollectionHealth: selectedSubject.flatMap { collectionHealth[$0] } ?? .notCollected,
+                    canScan: selectedSubject.flatMap(scanConfiguration(for:)) != nil,
+                    canImport: selectedSubject == .reports,
+                    startScan: startScan,
+                    importReport: showRawReportImporter,
+                    cancelScan: cancelScan,
+                    showGlossary: { isShowingGlossary = true },
+                    explanationDetailMode: $explanationDetailMode
+                )
+                Divider()
+                workspaceContent
+            }
+            .background(Color(nsColor: .windowBackgroundColor))
         }
-        .background(Color(nsColor: .windowBackgroundColor))
         .environment(\.explanationDetailMode, explanationDetailMode)
         .sheet(isPresented: $isShowingGlossary) {
             GlossarySheet()
@@ -70,6 +74,19 @@ struct AppShellView: View {
         )
     }
 
+    /// The sidebar's selection. A sidebar list can report no selection; that's ignored so
+    /// a workspace is always shown.
+    private var sidebarSelection: Binding<AppWorkspace?> {
+        Binding(
+            get: { selectedWorkspace },
+            set: { newValue in
+                if let newValue {
+                    selectedWorkspace = newValue
+                }
+            }
+        )
+    }
+
     private func startScan() {
         // One collection at a time: a new scan must not race the previous process or
         // let the previous task overwrite this scan's state when it finishes.
@@ -81,6 +98,7 @@ struct AppShellView: View {
 
         let reportParser: SystemProfilerParser = parser
 
+        activityStartedAt = .now
         scanState = .running(subject: subject)
         collectionHealth[subject] = .running
 
@@ -175,6 +193,7 @@ struct AppShellView: View {
         let reportParser: SystemProfilerParser = parser
 
         selectedWorkspace = .subject(.reports)
+        activityStartedAt = .now
         scanState = .importing(subject: .reports)
         collectionHealth[.reports] = .running
 
@@ -234,14 +253,11 @@ struct AppShellView: View {
                 subject: subject,
                 report: reports[subject],
                 scanState: scanState,
+                activityStartedAt: activityStartedAt,
                 collectionHealth: collectionHealth[subject] ?? .notCollected,
                 startScan: startScan,
                 importReport: showRawReportImporter
             )
-        case .highlights:
-            WorkspaceScrollContainer {
-                SystemHighlightsWorkspaceView(reports: reports)
-            }
         case .changes:
             WorkspaceScrollContainer {
                 WhatChangedDashboardView(reports: reports)
@@ -289,24 +305,10 @@ private struct AppHeader: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Image(systemName: "cpu.fill")
-                .font(.system(size: 18, weight: .semibold))
-                .foregroundStyle(Color.accentColor)
-                .frame(width: 32, height: 32)
-                .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 9))
-
-            VStack(alignment: .leading, spacing: 1) {
-                Text("System Profiler Explorer")
-                    .font(.headline)
-                Text("Understand what macOS reports about this Mac")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
             Spacer()
 
             Button(action: showGlossary) {
-                Image(systemName: "character.book.closed")
+                Label("Glossary", systemImage: "character.book.closed")
             }
             .buttonStyle(.borderless)
             .help("Glossary of terms used in explanations")
@@ -355,7 +357,7 @@ private struct AppHeader: View {
             }
         }
         .padding(.horizontal, 20)
-        .padding(.vertical, 12)
+        .padding(.vertical, 10)
     }
 
     /// The pill follows the running scan, or the last scan when it was for this tab.
@@ -392,137 +394,93 @@ private struct AppHeader: View {
     }
 }
 
-private struct WorkspaceTabBar: View {
-    @Binding var selectedWorkspace: AppWorkspace
+private struct AppSidebar: View {
+    @Binding var selection: AppWorkspace?
     let findingCounts: [ProfilerSubject: Int]
     let worthReviewingCounts: [ProfilerSubject: Int]
     let collectionHealth: [ProfilerSubject: CollectionAttemptHealth]
 
     var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 6) {
+        List(selection: $selection) {
+            Section("This Mac") {
                 ForEach(ProfilerSubject.allCases) { subject in
-                    SubjectTab(
+                    SubjectSidebarRow(
                         subject: subject,
-                        isSelected: selectedWorkspace == .subject(subject),
                         findingCount: findingCounts[subject],
                         worthReviewingCount: worthReviewingCounts[subject] ?? 0,
-                        collectionHealth: collectionHealth[subject] ?? .notCollected,
-                        select: { selectedWorkspace = .subject(subject) }
+                        collectionHealth: collectionHealth[subject] ?? .notCollected
                     )
+                    .tag(AppWorkspace.subject(subject))
+                    .accessibilityIdentifier("subject-tab-\(subject.rawValue)")
                 }
-
-                Divider()
-                    .frame(height: 22)
-
-                WorkspaceTab(
-                    workspace: .highlights,
-                    isSelected: selectedWorkspace == .highlights,
-                    select: { selectedWorkspace = .highlights }
-                )
-                WorkspaceTab(
-                    workspace: .changes,
-                    isSelected: selectedWorkspace == .changes,
-                    select: { selectedWorkspace = .changes }
-                )
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 9)
+
+            Section("Tools") {
+                Label(AppWorkspace.changes.title, systemImage: AppWorkspace.changes.symbolName)
+                    .tag(AppWorkspace.changes)
+                    .accessibilityIdentifier("workspace-tab-\(AppWorkspace.changes.id)")
+            }
         }
-        .background(.bar)
+        .listStyle(.sidebar)
     }
 }
 
-private struct SubjectTab: View {
+private struct SubjectSidebarRow: View {
     let subject: ProfilerSubject
-    let isSelected: Bool
     let findingCount: Int?
     let worthReviewingCount: Int
     let collectionHealth: CollectionAttemptHealth
-    let select: () -> Void
+
+    @Environment(\.explanationDetailMode) private var detailMode
 
     var body: some View {
-        Button(action: select) {
-            HStack(spacing: 6) {
-                Label(subject.title, systemImage: subject.symbolName)
+        HStack(spacing: 6) {
+            Label(subject.title, systemImage: subject.symbolName)
 
-                if let findingCount {
-                    Text(findingCount.formatted())
-                        .font(.caption2.weight(.semibold).monospacedDigit())
-                        .foregroundStyle(isSelected ? Color.accentColor : .secondary)
-                        .padding(.horizontal, 5)
-                        .padding(.vertical, 2)
-                        .background(.quaternary, in: Capsule())
-                        .accessibilityLabel("\(findingCount) findings")
+            Spacer(minLength: 4)
 
-                    if worthReviewingCount > 0 {
-                        Label {
-                            Text(worthReviewingCount.formatted())
-                                .foregroundStyle(.primary)
-                        } icon: {
-                            Image(systemName: ValueStatus.worthReviewing.symbolName)
-                                .foregroundStyle(ValueStatus.worthReviewing.tint)
-                        }
-                            .font(.caption2.weight(.semibold).monospacedDigit())
-                            .help("\(worthReviewingCount) worth a look")
-                            .accessibilityLabel("\(worthReviewingCount) worth a look")
+            if let findingCount {
+                if worthReviewingCount > 0 {
+                    Label {
+                        Text(worthReviewingCount.formatted())
+                    } icon: {
+                        Image(systemName: ValueStatus.worthReviewing.symbolName)
+                            .foregroundStyle(ValueStatus.worthReviewing.tint)
                     }
-
+                    .font(.caption.weight(.semibold).monospacedDigit())
+                    .help("\(worthReviewingCount) worth a look")
+                    .accessibilityLabel("\(worthReviewingCount) worth a look")
+                } else if detailMode == .beginner {
                     Image(systemName: "checkmark.circle.fill")
-                        .font(.caption2)
+                        .font(.caption)
                         .foregroundStyle(.green)
-                        .accessibilityLabel("Scan available")
-                } else if collectionHealth != .notCollected {
-                    Image(systemName: collectionHealth.symbolName)
-                        .font(.caption2)
-                        .foregroundStyle(collectionHealthTint)
-                        .accessibilityLabel(collectionHealth.title)
+                        .help("Scanned; nothing needs a look")
+                        .accessibilityLabel("Scanned, nothing needs a look")
                 }
-            }
-                .font(.subheadline.weight(isSelected ? .semibold : .medium))
-                .foregroundStyle(isSelected ? Color.accentColor : Color.primary)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(tabBackground)
-                .contentShape(RoundedRectangle(cornerRadius: 9))
-        }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier("subject-tab-\(subject.rawValue)")
-        .accessibilityAddTraits(isSelected ? .isSelected : [])
-    }
 
-    private var tabBackground: some ShapeStyle {
-        isSelected ? Color.accentColor.opacity(0.14) : Color.clear
+                // The total is a developer detail.
+                if detailMode == .developer {
+                    Text(findingCount.formatted())
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                        .accessibilityLabel("\(findingCount) findings")
+                }
+            } else if collectionHealth != .notCollected {
+                Image(systemName: collectionHealth.symbolName)
+                    .font(.caption)
+                    .foregroundStyle(collectionHealthTint)
+                    .help(collectionHealth.title)
+                    .accessibilityLabel(collectionHealth.title)
+            }
+        }
     }
 
     private var collectionHealthTint: Color {
         switch collectionHealth {
         case .completed, .imported: .green
-        case .running: .secondary
+        case .running, .notCollected: .secondary
         case .timedOut, .permissionLimited, .unavailable, .failed: .orange
-        case .notCollected: .secondary
         }
-    }
-}
-
-private struct WorkspaceTab: View {
-    let workspace: AppWorkspace
-    let isSelected: Bool
-    let select: () -> Void
-
-    var body: some View {
-        Button(action: select) {
-            Label(workspace.title, systemImage: workspace.symbolName)
-                .font(.subheadline.weight(isSelected ? .semibold : .medium))
-                .foregroundStyle(isSelected ? Color.accentColor : Color.primary)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(isSelected ? Color.accentColor.opacity(0.14) : Color.clear)
-                .contentShape(RoundedRectangle(cornerRadius: 9))
-        }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier("workspace-tab-\(workspace.id)")
-        .accessibilityAddTraits(isSelected ? .isSelected : [])
     }
 }
 
@@ -530,6 +488,7 @@ private struct SubjectWorkspace: View {
     let subject: ProfilerSubject
     let report: SystemProfilerReport?
     let scanState: ScanState
+    let activityStartedAt: Date
     let collectionHealth: CollectionAttemptHealth
     let startScan: () -> Void
     let importReport: () -> Void
@@ -540,7 +499,7 @@ private struct SubjectWorkspace: View {
                 SubjectHeading(subject: subject)
 
                 if isScanning(subject, scanState: scanState) {
-                    ScanningCard(subject: subject, scanState: scanState)
+                    ScanningCard(subject: subject, scanState: scanState, startedAt: activityStartedAt)
                 } else if let failureMessage = failureMessage(subject, scanState: scanState) {
                     ScanFailureCard(
                         message: failureMessage,
@@ -557,7 +516,6 @@ private struct SubjectWorkspace: View {
                         startScan: startScan,
                         importReport: importReport
                     )
-                    CapabilityStrip()
                 }
             }
             .frame(maxWidth: 980, alignment: .leading)
@@ -654,6 +612,11 @@ private struct ReadinessCard: View {
                             .foregroundStyle(.secondary)
                     }
                 }
+
+                Label("Read-only · everything stays on this Mac", systemImage: "lock.shield")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(.top, 4)
             }
         }
         .frame(maxWidth: .infinity)
@@ -682,37 +645,72 @@ private struct ReadinessCard: View {
 private struct ScanningCard: View {
     let subject: ProfilerSubject
     let scanState: ScanState
+    let startedAt: Date
 
     var body: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: 14) {
             ProgressView()
                 .controlSize(.large)
             Text(activityTitle)
                 .font(.title3.weight(.semibold))
+
+            TimelineView(.periodic(from: startedAt, by: 1)) { context in
+                Text("Elapsed \(elapsedDescription(until: context.date))")
+                    .font(.callout.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+            .accessibilityIdentifier("scan-elapsed")
+
             Text(activityDetail)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: 600)
+
+            if !isImporting {
+                Text("Press Command-Period to cancel.")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+            }
         }
         .frame(maxWidth: .infinity)
-        .padding(48)
+        .padding(40)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 18))
         .accessibilityIdentifier("scan-progress")
     }
 
-    private var activityTitle: String {
-        guard case .importing = scanState else {
-            return "Scanning \(subject.title)"
+    private var isImporting: Bool {
+        if case .importing = scanState {
+            return true
         }
 
-        return "Importing \(subject.title)"
+        return false
+    }
+
+    private var activityTitle: String {
+        isImporting ? "Importing \(subject.title)" : "Scanning \(subject.title)"
     }
 
     private var activityDetail: String {
-        guard case .importing = scanState else {
-            return "system_profiler is collecting structured data locally. This can take a moment."
+        guard !isImporting else {
+            return "The selected report is being checked and organized on this Mac."
         }
 
-        return "The selected JSON report is being validated and organized locally."
+        guard let request = scanConfiguration(for: subject)?.request else {
+            return "system_profiler is collecting information on this Mac."
+        }
+
+        let titles: [String] = request.dataTypes.map(\.title)
+        let collecting: String = titles.count <= 6
+            ? titles.formatted(.list(type: .and))
+            : "\(titles.count) kinds of information about this Mac"
+        let limit: String = Duration.seconds(request.collectorDeadlineSeconds).formatted(.units(allowed: [.minutes, .seconds], width: .wide))
+
+        return "Collecting \(collecting). This can take up to \(limit)."
+    }
+
+    private func elapsedDescription(until date: Date) -> String {
+        Duration.seconds(max(0, Int(date.timeIntervalSince(startedAt)))).formatted(.time(pattern: .minuteSecond))
     }
 }
 
@@ -769,61 +767,6 @@ private struct ScanFailureCard: View {
             "The requested collection did not return usable JSON. This does not prove the related hardware or service is absent."
         case .failed, .notCollected, .running, .completed, .imported:
             "This tab has no complete collection result. Review the error details before interpreting absent findings."
-        }
-    }
-}
-
-private struct CapabilityStrip: View {
-    var body: some View {
-        HStack(spacing: 12) {
-            CapabilityCard(
-                title: "Structured",
-                detail: "Preserves source data",
-                symbolName: "list.bullet.indent"
-            )
-            CapabilityCard(
-                title: "Private",
-                detail: "Processed on this Mac",
-                symbolName: "hand.raised"
-            )
-            CapabilityCard(
-                title: "Explainable",
-                detail: "Evidence linked to context",
-                symbolName: "text.book.closed"
-            )
-        }
-    }
-}
-
-private struct CapabilityCard: View {
-    let title: String
-    let detail: String
-    let symbolName: String
-
-    var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: symbolName)
-                .font(.title3)
-                .foregroundStyle(Color.accentColor)
-                .frame(width: 34, height: 34)
-                .background(Color.accentColor.opacity(0.1), in: RoundedRectangle(cornerRadius: 9))
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.subheadline.weight(.semibold))
-                Text(detail)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            Spacer(minLength: 0)
-        }
-        .padding(14)
-        .frame(maxWidth: .infinity)
-        .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 13))
-        .overlay {
-            RoundedRectangle(cornerRadius: 13)
-                .stroke(Color(nsColor: .separatorColor).opacity(0.45), lineWidth: 1)
         }
     }
 }

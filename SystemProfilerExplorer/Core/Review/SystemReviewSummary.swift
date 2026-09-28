@@ -4,8 +4,9 @@ struct SystemReviewFinding: Identifiable, Sendable, Equatable {
     let dataType: SystemProfilerDataType
     let recordLabel: String
     let presentation: FieldPresentation
+    let location: String
 
-    var id: String { presentation.sourcePath }
+    var id: String { location }
 
     var coverage: ExplanationCoverage {
         explanationCoverage(for: presentation)
@@ -15,11 +16,13 @@ struct SystemReviewFinding: Identifiable, Sendable, Equatable {
 func systemReviewFindings(_ report: SystemProfilerReport) -> [SystemReviewFinding] {
     report.sections.flatMap { section in
         section.items.enumerated().flatMap { index, value in
-            let recordLabel: String = value.preferredName ?? "Record \(index + 1)"
+            let recordLabel: String = recordDisplayLabel(value, fallback: "Record \(index + 1)")
             return systemReviewFindings(
                 value: value,
                 dataType: section.dataType,
                 path: [],
+                recordIndex: index,
+                arrayIndices: [],
                 recordLabel: recordLabel
             )
         }
@@ -30,12 +33,16 @@ func selectedSystemReviewFindings(
     report: SystemProfilerReport,
     selectedSourcePaths: Set<String>
 ) -> [SystemReviewFinding] {
-    systemReviewFindings(report).filter { selectedSourcePaths.contains($0.presentation.sourcePath) }
+    systemReviewFindings(report).filter {
+        bookmarkMatches(selectedSourcePaths, location: $0.location, sourcePath: $0.presentation.sourcePath)
+    }
 }
 
 func makeSystemReviewMarkdown(
     report: SystemProfilerReport,
-    selectedFindings: [SystemReviewFinding]
+    selectedFindings: [SystemReviewFinding],
+    glance: [String] = [],
+    worthReviewingItems: [WorthReviewingItem] = []
 ) -> String {
     let coverage: CollectionCoverage = collectionCoverage(for: report)
     var lines: [String] = [
@@ -44,19 +51,27 @@ func makeSystemReviewMarkdown(
         "Generated: \(report.completedAt.formatted(date: .long, time: .standard))",
         "",
         "> **Privacy warning:** This document may contain device names, network details, serial identifiers, installed-software information, and other sensitive system data. Review it before sharing.",
-        "",
-        "## Selected Findings",
-        "",
-        "Selected findings: \(selectedFindings.count)",
         ""
     ]
 
-    if selectedFindings.isEmpty {
-        lines += [
-            "No findings were selected. Bookmark findings in the app before creating a focused review summary.",
-            ""
-        ]
+    if !glance.isEmpty {
+        lines += ["## At a Glance", ""] + glance.map { "- \(markdownEscaped($0))" } + [""]
+    }
+
+    lines += ["## Worth a Look", ""]
+
+    if worthReviewingItems.isEmpty {
+        lines += ["Nothing in this scan needs a look.", ""]
     } else {
+        lines += worthReviewingItems.map { item in
+            "- **\(markdownEscaped(item.summary))** (\(item.dataType.title) › \(markdownEscaped(item.recordLabel)) › \(markdownEscaped(item.fieldTitle)))"
+        }
+        lines.append("")
+    }
+
+    if !selectedFindings.isEmpty {
+        lines += ["## Bookmarked Findings", "", "Bookmarked findings: \(selectedFindings.count)", ""]
+
         for finding in selectedFindings {
             appendMarkdownFinding(finding, lines: &lines)
         }
@@ -111,8 +126,12 @@ private func systemReviewFindings(
     value: ProfileValue,
     dataType: SystemProfilerDataType,
     path: [String],
+    recordIndex: Int,
+    arrayIndices: [Int],
     recordLabel: String
 ) -> [SystemReviewFinding] {
+    let scalar: ProfileScalar
+
     switch value {
     case let .object(object):
         return object
@@ -123,42 +142,37 @@ private func systemReviewFindings(
                     value: field.value,
                     dataType: dataType,
                     path: path + [field.key],
+                    recordIndex: recordIndex,
+                    arrayIndices: arrayIndices,
                     recordLabel: recordLabel
                 )
             }
     case let .array(values):
-        return values.flatMap { item in
+        return values.enumerated().flatMap { index, item in
             systemReviewFindings(
                 value: item,
                 dataType: dataType,
                 path: path + ["[]"],
+                recordIndex: recordIndex,
+                arrayIndices: arrayIndices + [index],
                 recordLabel: recordLabel
             )
         }
-    case let .string(value):
-        return [systemReviewFinding(dataType: dataType, path: path, scalar: .string(value), recordLabel: recordLabel)]
-    case let .integer(value):
-        return [systemReviewFinding(dataType: dataType, path: path, scalar: .integer(value), recordLabel: recordLabel)]
-    case let .decimal(value):
-        return [systemReviewFinding(dataType: dataType, path: path, scalar: .decimal(value), recordLabel: recordLabel)]
-    case let .boolean(value):
-        return [systemReviewFinding(dataType: dataType, path: path, scalar: .boolean(value), recordLabel: recordLabel)]
-    case .null:
-        return [systemReviewFinding(dataType: dataType, path: path, scalar: .null, recordLabel: recordLabel)]
+    case let .string(value): scalar = .string(value)
+    case let .integer(value): scalar = .integer(value)
+    case let .decimal(value): scalar = .decimal(value)
+    case let .boolean(value): scalar = .boolean(value)
+    case .null: scalar = .null
     }
-}
 
-private func systemReviewFinding(
-    dataType: SystemProfilerDataType,
-    path: [String],
-    scalar: ProfileScalar,
-    recordLabel: String
-) -> SystemReviewFinding {
-    SystemReviewFinding(
-        dataType: dataType,
-        recordLabel: recordLabel,
-        presentation: fieldPresentation(dataType: dataType, path: path, scalar: scalar)
-    )
+    return [
+        SystemReviewFinding(
+            dataType: dataType,
+            recordLabel: recordLabel,
+            presentation: fieldPresentation(dataType: dataType, path: path, scalar: scalar),
+            location: findingLocation(dataType: dataType, recordIndex: recordIndex, path: path, arrayIndices: arrayIndices)
+        )
+    ]
 }
 
 private func appendMarkdownFinding(

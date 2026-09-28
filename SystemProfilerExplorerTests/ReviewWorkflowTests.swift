@@ -58,6 +58,55 @@ struct ReviewWorkflowTests {
     }
 
     @Test
+    func summaryWorksWithoutBookmarks() {
+        let item = WorthReviewingItem(
+            id: 0,
+            dataType: .storage,
+            recordLabel: "Data",
+            fieldTitle: "Available Space",
+            summary: "Only 9% free (90 GB of 1 TB).",
+            sourcePath: "SPStorageDataType.free_space_in_bytes",
+            location: "SPStorageDataType[0].free_space_in_bytes"
+        )
+        let markdown: String = makeSystemReviewMarkdown(
+            report: workflowReport(),
+            selectedFindings: [],
+            glance: ["This Mac runs macOS 27.0."],
+            worthReviewingItems: [item]
+        )
+
+        #expect(markdown.contains("## At a Glance\n\n- This Mac runs macOS 27.0."))
+        #expect(markdown.contains("- **Only 9% free (90 GB of 1 TB).** (Storage › Data › Available Space)"))
+        #expect(!markdown.contains("## Bookmarked Findings"))
+        #expect(makeSystemReviewMarkdown(report: workflowReport(), selectedFindings: []).contains("Nothing in this scan needs a look."))
+    }
+
+    @Test
+    func onlyFullSnapshotsOfTheSameReportCanBeCompared() {
+        func snapshot(_ privacy: SnapshotPrivacy, _ report: SystemProfilerReport) -> SystemProfilerSnapshot {
+            SystemProfilerSnapshot(
+                id: UUID(),
+                name: "Baseline",
+                createdAt: .now,
+                privacy: privacy,
+                report: privacy == .full ? makeFullReportExport(report) : makeRedactedReportExport(report)
+            )
+        }
+        let current: SystemProfilerReport = workflowReport()
+        let otherSubject = SystemProfilerReport(
+            sections: [SystemProfilerSection(dataType: .firewall, items: [])],
+            commandArguments: [],
+            standardError: "",
+            startedAt: .now,
+            completedAt: .now
+        )
+
+        #expect(snapshotCanBeCompared(SnapshotSummary(snapshot(.full, current)), with: current))
+        #expect(!snapshotCanBeCompared(SnapshotSummary(snapshot(.redacted, current)), with: current))
+        #expect(!snapshotCanBeCompared(SnapshotSummary(snapshot(.full, otherSubject)), with: current))
+    }
+
+    @Test
     func snapshotRoundTripPreservesRedactionChoice() throws {
         let snapshot = SystemProfilerSnapshot(
             id: UUID(uuidString: "D97916FE-69A1-4AAB-9E42-E4D1A10AFB47")!,
@@ -129,7 +178,7 @@ struct ReviewWorkflowTests {
             report: workflowReport(),
             retention: .five
         )
-        #expect(try store.loadSnapshots().count == 2)
+        #expect(try store.loadSnapshotHistory().snapshots.count == 2)
     }
 }
 

@@ -5,15 +5,14 @@ struct SnapshotTimelineView: View {
 
     @Environment(\.dismiss) private var dismiss
     @AppStorage("snapshot-retention") private var storedRetention: String = SnapshotRetention.ten.rawValue
-    @State private var snapshots: [SystemProfilerSnapshot] = []
+    @State private var snapshots: [SnapshotSummary] = []
     @State private var unreadableSnapshotFileNames: [String] = []
     @State private var snapshotName: String = ""
     @State private var selectedPrivacy: SnapshotPrivacy = .full
     @State private var isLoading: Bool = true
     @State private var isSaving: Bool = false
     @State private var snapshotErrorMessage: String?
-    @State private var snapshotPendingDeletion: SystemProfilerSnapshot?
-    @State private var comparison: ReportComparison?
+    @State private var snapshotPendingDeletion: SnapshotSummary?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -25,7 +24,6 @@ struct SnapshotTimelineView: View {
                     SnapshotSaveCard(
                         snapshotName: $snapshotName,
                         selectedPrivacy: $selectedPrivacy,
-                        retention: retentionBinding,
                         isSaving: isSaving,
                         save: saveSnapshot
                     )
@@ -49,7 +47,6 @@ struct SnapshotTimelineView: View {
                     } else {
                         SnapshotHistoryList(
                             snapshots: snapshots,
-                            compare: compareSnapshot,
                             requestDeletion: requestDeletion
                         )
                     }
@@ -59,8 +56,17 @@ struct SnapshotTimelineView: View {
 
             Divider()
 
-            HStack {
-                Text("Snapshots stay on this Mac in Application Support.")
+            HStack(spacing: 12) {
+                Picker("History", selection: retentionBinding) {
+                    ForEach(SnapshotRetention.allCases) { value in
+                        Text(value.title).tag(value)
+                    }
+                }
+                .fixedSize()
+                .help("How many snapshots to keep; older ones are removed when you save a new one")
+                .accessibilityIdentifier("snapshot-retention")
+
+                Text("Snapshots stay on this Mac. To compare, open What Changed.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Spacer()
@@ -72,9 +78,6 @@ struct SnapshotTimelineView: View {
         .frame(minWidth: 700, minHeight: 640)
         .task {
             await reloadSnapshots()
-        }
-        .sheet(item: $comparison) { reportComparison in
-            ReportComparisonView(comparison: reportComparison)
         }
         .confirmationDialog(
             "Delete snapshot?",
@@ -183,25 +186,7 @@ struct SnapshotTimelineView: View {
         }
     }
 
-    private func compareSnapshot(_ snapshot: SystemProfilerSnapshot) {
-        let current: SystemProfilerReport = currentReport
-
-        Task {
-            do {
-                let preparedComparison: ReportComparison = try await Task.detached(priority: .userInitiated) {
-                    let baseline: SystemProfilerReport = try comparisonBaselineReport(from: snapshot.report)
-                    return try compareReports(baseline: baseline, current: current)
-                }.value
-                comparison = preparedComparison
-            } catch is CancellationError {
-                return
-            } catch {
-                snapshotErrorMessage = "The snapshot could not be compared. \(error.localizedDescription)"
-            }
-        }
-    }
-
-    private func requestDeletion(_ snapshot: SystemProfilerSnapshot) {
+    private func requestDeletion(_ snapshot: SnapshotSummary) {
         snapshotPendingDeletion = snapshot
     }
 
@@ -216,7 +201,7 @@ struct SnapshotTimelineView: View {
             do {
                 let history: SnapshotHistory = try await Task.detached(priority: .userInitiated) {
                     let store: SnapshotStore = try snapshotStore()
-                    try store.deleteSnapshot(snapshot)
+                    try store.deleteSnapshot(id: snapshot.id)
                     return try store.loadSnapshotHistory()
                 }.value
                 applySnapshotHistory(history)
@@ -265,7 +250,7 @@ private struct SnapshotTimelineHeader: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text("Snapshot History")
                     .font(.title2.weight(.semibold))
-                Text("Save private local baselines and compare a full snapshot with the report currently open.")
+                Text("Save this report as a private baseline. Compare it with later scans in What Changed.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
@@ -279,7 +264,6 @@ private struct SnapshotTimelineHeader: View {
 private struct SnapshotSaveCard: View {
     @Binding var snapshotName: String
     @Binding var selectedPrivacy: SnapshotPrivacy
-    @Binding var retention: SnapshotRetention
     let isSaving: Bool
     let save: () -> Void
 
@@ -304,13 +288,6 @@ private struct SnapshotSaveCard: View {
                 .foregroundStyle(.secondary)
 
             HStack {
-                Picker("Retention", selection: $retention) {
-                    ForEach(SnapshotRetention.allCases) { value in
-                        Text(value.title).tag(value)
-                    }
-                }
-                .frame(width: 180)
-
                 Spacer()
 
                 Button(action: save) {
@@ -359,9 +336,8 @@ private struct SnapshotEmptyState: View {
 }
 
 private struct SnapshotHistoryList: View {
-    let snapshots: [SystemProfilerSnapshot]
-    let compare: (SystemProfilerSnapshot) -> Void
-    let requestDeletion: (SystemProfilerSnapshot) -> Void
+    let snapshots: [SnapshotSummary]
+    let requestDeletion: (SnapshotSummary) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -389,12 +365,6 @@ private struct SnapshotHistoryList: View {
                         .padding(.horizontal, 7)
                         .padding(.vertical, 4)
                         .background(.quaternary, in: Capsule())
-
-                    Button("Compare") {
-                        compare(snapshot)
-                    }
-                    .disabled(snapshot.privacy != .full)
-                    .accessibilityIdentifier("compare-snapshot-\(snapshot.id.uuidString)")
 
                     Button(role: .destructive) {
                         requestDeletion(snapshot)

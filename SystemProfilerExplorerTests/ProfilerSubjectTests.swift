@@ -40,12 +40,15 @@ struct ProfilerSubjectTests {
 
     @Test
     func subjectConfigurationsContainExpectedCoreDataTypes() throws {
+        let overview = try #require(scanConfiguration(for: .overview))
         let hardware = try #require(scanConfiguration(for: .hardware))
         let network = try #require(scanConfiguration(for: .network))
         let software = try #require(scanConfiguration(for: .software))
         let security = try #require(scanConfiguration(for: .security))
         let power = try #require(scanConfiguration(for: .power))
 
+        #expect(overview.request.dataTypes.contains(.wifi))
+        #expect(overview.request.dataTypes.contains(.bluetooth))
         #expect(hardware.request.dataTypes.contains(.usb))
         #expect(hardware.request.dataTypes.contains(.thunderbolt))
         #expect(network.request.dataTypes.contains(.wifi))

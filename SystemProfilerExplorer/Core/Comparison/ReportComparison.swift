@@ -198,7 +198,7 @@ private func comparableFindings(
         var nameOccurrences: [String: Int] = [:]
 
         for (recordIndex, item) in section.items.enumerated() {
-            let recordLabel: String = item.preferredName ?? "Record \(recordIndex + 1)"
+            let recordLabel: String = recordDisplayLabel(item, fallback: "Record \(recordIndex + 1)")
             let recordIdentifier: String
 
             if let preferredName = item.preferredName {
@@ -378,6 +378,13 @@ private func reportChangePrecedes(_ lhs: ReportChange, _ rhs: ReportChange) -> B
         rhs.sourcePath
     ].joined(separator: "|")
     return lhsKey.localizedStandardCompare(rhsKey) == .orderedAscending
+}
+
+/// Whether a saved snapshot can be compared with a report: both must cover the same data
+/// types, and the snapshot must keep full values.
+func snapshotCanBeCompared(_ snapshot: SnapshotSummary, with report: SystemProfilerReport) -> Bool {
+    snapshot.privacy == .full
+        && snapshot.dataTypes.sorted { $0.rawValue < $1.rawValue } == reportCoverage(report)
 }
 
 private func reportCoverage(_ report: SystemProfilerReport) -> [SystemProfilerDataType] {

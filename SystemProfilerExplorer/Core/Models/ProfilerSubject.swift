@@ -41,7 +41,7 @@ enum ProfilerSubject: String, CaseIterable, Identifiable, Sendable {
     var summary: String {
         switch self {
         case .overview:
-            "A concise picture of this Mac and the most useful findings from every subject."
+            "A quick check of this Mac: hardware, macOS, storage, network, Wi-Fi, Bluetooth, battery, and firewall."
         case .hardware:
             "Processors, memory, displays, controllers, connected devices, and other physical components."
         case .storage:

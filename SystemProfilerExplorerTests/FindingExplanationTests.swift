@@ -94,8 +94,25 @@ struct FindingExplanationTests {
             scalar: .string("Backup_Disk")
         )
 
-        #expect(token.displayedValue == "Spairport Status Connected")
+        #expect(token.displayedValue == "Connected")
+        #expect(token.rawValue == "spairport_status_connected")
         #expect(mountPoint.displayedValue == "/Library/Developer/CoreSimulator/Volumes/iOS_23D8133")
         #expect(volumeName.displayedValue == "Backup_Disk")
+    }
+
+    @Test
+    func tokensShowTheirMeaningfulPart() {
+        func shown(_ value: String, field: String) -> String {
+            fieldPresentation(dataType: .hardware, path: [field], scalar: .string(value)).displayedValue
+        }
+
+        #expect(shown("integrity_enabled", field: "system_integrity") == "Enabled")
+        #expect(shown("attrib_on", field: "controller_state") == "On")
+        #expect(shown("spfirewall_globalstate_limit_connections", field: "spfirewall_globalstate") == "Limit Connections")
+        #expect(shown("pairport_security_mode_wpa3_transition", field: "spairport_security_mode") == "WPA3 Transition")
+        #expect(shown("spfirewall_allow_all", field: "com.example.app") == "Allow All")
+        #expect(shown("spairport_caps_not_supported", field: "spairport_caps_airdrop") == "Not Supported")
+        #expect(shown("normal_boot", field: "boot_mode") == "Normal Boot")
+        #expect(shown("unknown_partition_map_type", field: "partition_map_type") == "Unknown Partition Map Type")
     }
 }

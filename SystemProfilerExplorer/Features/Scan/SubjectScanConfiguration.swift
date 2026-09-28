@@ -10,7 +10,7 @@ func scanConfiguration(for subject: ProfilerSubject) -> SubjectScanConfiguration
 
     switch subject {
     case .overview:
-        dataTypes = [.hardware, .software, .storage, .network, .power, .firewall]
+        dataTypes = [.hardware, .software, .storage, .network, .wifi, .bluetooth, .power, .firewall]
         timeoutSeconds = 90
     case .hardware:
         dataTypes = [

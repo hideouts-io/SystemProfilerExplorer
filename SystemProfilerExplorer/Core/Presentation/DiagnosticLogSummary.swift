@@ -8,12 +8,6 @@ struct DiagnosticLogSummary: Sendable, Equatable {
     let processLabels: [String]
 }
 
-func friendlyReportGroupName(_ name: String) -> String {
-    switch name {
-    case "log_tree_name", "summary_tree_name": displayName(for: name)
-    default: name
-    }
-}
 
 func summarizeDiagnosticLog(_ rawText: String) throws -> DiagnosticLogSummary {
     // Bound analysis, not evidence retention. A partial final line is not counted.
