@@ -8,6 +8,7 @@ struct AppShellView: View {
     @State private var selectedWorkspace: AppWorkspace = .subject(.overview)
     @State private var reports: [ProfilerSubject: SystemProfilerReport] = [:]
     @State private var findingCounts: [ProfilerSubject: Int] = [:]
+    @State private var worthReviewingCounts: [ProfilerSubject: Int] = [:]
     @State private var collectionHealth: [ProfilerSubject: CollectionAttemptHealth] = [:]
     @State private var scanState: ScanState = .idle
     @State private var scanTask: Task<Void, Never>?
@@ -35,6 +36,7 @@ struct AppShellView: View {
             WorkspaceTabBar(
                 selectedWorkspace: $selectedWorkspace,
                 findingCounts: findingCounts,
+                worthReviewingCounts: worthReviewingCounts,
                 collectionHealth: collectionHealth
             )
             Divider()
@@ -75,6 +77,7 @@ struct AppShellView: View {
                 let report: SystemProfilerReport = prepared.report
                 reports[subject] = report
                 findingCounts[subject] = prepared.findingCount
+                worthReviewingCounts[subject] = prepared.worthReviewingCount
                 scanState = .completed(subject: subject, date: report.completedAt)
                 collectionHealth[subject] = .completed
             } catch is CancellationError {
@@ -170,6 +173,7 @@ struct AppShellView: View {
                 let report: SystemProfilerReport = prepared.report
                 reports[.reports] = report
                 findingCounts[.reports] = prepared.findingCount
+                worthReviewingCounts[.reports] = prepared.worthReviewingCount
                 scanState = .completed(subject: .reports, date: report.completedAt)
                 collectionHealth[.reports] = .imported
             } catch is CancellationError {
@@ -228,15 +232,17 @@ struct AppShellView: View {
     }
 }
 
-/// A parsed report plus the finding count shown in its tab, computed off the main actor
+/// A parsed report plus the counts shown in its tab, computed off the main actor
 /// so the tab bar never walks the whole report while rendering.
 private struct PreparedReport: Sendable {
     let report: SystemProfilerReport
     let findingCount: Int
+    let worthReviewingCount: Int
 
     init(report: SystemProfilerReport) {
         self.report = report
         findingCount = reportSummary(report).findingCount
+        worthReviewingCount = worthReviewingFindingCount(report)
     }
 }
 
@@ -336,6 +342,7 @@ private struct AppHeader: View {
 private struct WorkspaceTabBar: View {
     @Binding var selectedWorkspace: AppWorkspace
     let findingCounts: [ProfilerSubject: Int]
+    let worthReviewingCounts: [ProfilerSubject: Int]
     let collectionHealth: [ProfilerSubject: CollectionAttemptHealth]
 
     var body: some View {
@@ -346,6 +353,7 @@ private struct WorkspaceTabBar: View {
                         subject: subject,
                         isSelected: selectedWorkspace == .subject(subject),
                         findingCount: findingCounts[subject],
+                        worthReviewingCount: worthReviewingCounts[subject] ?? 0,
                         collectionHealth: collectionHealth[subject] ?? .notCollected,
                         select: { selectedWorkspace = .subject(subject) }
                     )
@@ -376,6 +384,7 @@ private struct SubjectTab: View {
     let subject: ProfilerSubject
     let isSelected: Bool
     let findingCount: Int?
+    let worthReviewingCount: Int
     let collectionHealth: CollectionAttemptHealth
     let select: () -> Void
 
@@ -392,6 +401,14 @@ private struct SubjectTab: View {
                         .padding(.vertical, 2)
                         .background(.quaternary, in: Capsule())
                         .accessibilityLabel("\(findingCount) findings")
+
+                    if worthReviewingCount > 0 {
+                        Label(worthReviewingCount.formatted(), systemImage: ValueStatus.worthReviewing.symbolName)
+                            .font(.caption2.weight(.semibold).monospacedDigit())
+                            .foregroundStyle(ValueStatus.worthReviewing.tint)
+                            .help("\(worthReviewingCount) worth a look")
+                            .accessibilityLabel("\(worthReviewingCount) worth a look")
+                    }
 
                     Image(systemName: "checkmark.circle.fill")
                         .font(.caption2)

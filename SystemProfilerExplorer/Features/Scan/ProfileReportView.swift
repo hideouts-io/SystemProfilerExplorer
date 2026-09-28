@@ -116,7 +116,11 @@ struct ProfileReportView: View {
                 showSkippedCollection: { isShowingSkippedCollection = true }
             )
 
-            ReportSummaryStrip(summary: summary)
+            ReportSummaryStrip(
+                summary: summary,
+                worthReviewingCount: presentationIndex.worthReviewingFindingCount,
+                showWorthReviewing: { selectedFilter = .worthALook }
+            )
 
             if summary.findingCount >= largeReportFindingThreshold {
                 LargeReportNotice()
@@ -678,9 +682,24 @@ private struct ReportIndexingFailureView: View {
 
 private struct ReportSummaryStrip: View {
     let summary: ReportSummary
+    let worthReviewingCount: Int
+    let showWorthReviewing: () -> Void
 
     var body: some View {
         HStack(spacing: 10) {
+            Button(action: showWorthReviewing) {
+                SummaryCard(
+                    title: "Worth a look",
+                    value: worthReviewingCount,
+                    symbolName: ValueStatus.worthReviewing.symbolName,
+                    tint: worthReviewingCount > 0 ? ValueStatus.worthReviewing.tint : .secondary
+                )
+            }
+            .buttonStyle(.plain)
+            .disabled(worthReviewingCount == 0)
+            .help(worthReviewingCount > 0 ? "Show only findings worth a look" : "No findings need a look")
+            .accessibilityIdentifier("summary-worth-a-look")
+
             SummaryCard(
                 title: "Records",
                 value: summary.recordCount,
@@ -703,7 +722,7 @@ private struct ReportSummaryStrip: View {
                 title: "Privacy",
                 value: summary.privacyFindingCount,
                 symbolName: "eye.slash",
-                tint: .orange
+                tint: .purple
             )
         }
         .accessibilityIdentifier("report-summary")
@@ -809,7 +828,7 @@ private struct FindingControls: View {
                 }
             }
             .pickerStyle(.segmented)
-            .frame(width: 330)
+            .frame(width: 470)
             .accessibilityIdentifier("finding-filter")
         }
     }
@@ -1129,7 +1148,9 @@ private struct ProfileValueDisclosure: View {
                 label: displayName(for: field.key),
                 dataType: dataType,
                 path: path + [field.key],
-                query: descendantQuery
+                query: descendantQuery,
+                siblings: object,
+                report: valueReportContext
             )
         }
     }
@@ -1149,7 +1170,8 @@ private struct ProfileValueDisclosure: View {
                 label: itemLabel,
                 dataType: dataType,
                 path: path + ["[]"],
-                query: descendantQuery
+                query: descendantQuery,
+                report: valueReportContext
             ) else {
                 return nil
             }
