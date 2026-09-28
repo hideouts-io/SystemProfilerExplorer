@@ -16,6 +16,7 @@
 		0CE09875E892DFDB5A850C89 /* FindingMarkdown.swift in Sources */ = {isa = PBXBuildFile; fileRef = 351CD3DCC5F6745E733FFC28 /* FindingMarkdown.swift */; };
 		0CEFC5713DBE14DAD2C7E2A0 /* ContextualFieldExplanations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78AF3F713C4A791BA1C636FA /* ContextualFieldExplanations.swift */; };
 		1225F9FD5B4A1D5480726182 /* AdditionalDataTypeExplanations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 895BF724C185EB42ECC0960C /* AdditionalDataTypeExplanations.swift */; };
+		1402AD16FE4A9A723E7F5827 /* AppCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5EE00169A563F8BDC200BC9 /* AppCommands.swift */; };
 		2573DC0E0A287DD94F7A5BE5 /* CollectionCoverage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 813E23B10C1353CEB0EDBEA5 /* CollectionCoverage.swift */; };
 		307D089D7ADDB89EA9FC66F8 /* ExplanationDetailMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65695D313576B7EF9C89BA1D /* ExplanationDetailMode.swift */; };
 		30C5636DB2A587496A498570 /* WiFiExplanations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 603A8412B182978C743C4A1F /* WiFiExplanations.swift */; };
@@ -187,6 +188,7 @@
 		E2856D3BC6853702F365B33C /* SecurityExplanationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecurityExplanationTests.swift; sourceTree = "<group>"; };
 		E7F55B0C200350A7BDF3138C /* FieldPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FieldPresentation.swift; sourceTree = "<group>"; };
 		F17193C368BBC5FA4C2B5BE3 /* Glossary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Glossary.swift; sourceTree = "<group>"; };
+		F5EE00169A563F8BDC200BC9 /* AppCommands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppCommands.swift; sourceTree = "<group>"; };
 		FB55F1B2791C2A64C4652248 /* SystemProfilerIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemProfilerIntegrationTests.swift; sourceTree = "<group>"; };
 		FBF3F5386846F5A5904ED3D4 /* ReportGlance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportGlance.swift; sourceTree = "<group>"; };
 		FCB5B24DFE76BB7DE34B6878 /* DiagnosticLogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticLogView.swift; sourceTree = "<group>"; };
@@ -261,6 +263,7 @@
 		33AC4DC6D1EF2D97E948BAB2 /* Shell */ = {
 			isa = PBXGroup;
 			children = (
+				F5EE00169A563F8BDC200BC9 /* AppCommands.swift */,
 				A3008441F4CF445712380CF6 /* AppShellView.swift */,
 				65695D313576B7EF9C89BA1D /* ExplanationDetailMode.swift */,
 			);
@@ -609,6 +612,7 @@
 			files = (
 				329EAAA4FAD74DC9148A730D /* AccessibilityExplanations.swift in Sources */,
 				1225F9FD5B4A1D5480726182 /* AdditionalDataTypeExplanations.swift in Sources */,
+				1402AD16FE4A9A723E7F5827 /* AppCommands.swift in Sources */,
 				3BB6F3037F308543FDC4591D /* AppShellView.swift in Sources */,
 				F21607FAA0C885AB07B8C553 /* AppWorkspace.swift in Sources */,
 				364FAB0DDE4BC9C5435E3204 /* CollectionAttemptHealth.swift in Sources */,

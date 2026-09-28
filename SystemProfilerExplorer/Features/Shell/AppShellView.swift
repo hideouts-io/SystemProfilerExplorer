@@ -26,6 +26,7 @@ struct AppShellView: View {
             AppHeader(
                 scanState: scanState,
                 selectedSubject: selectedSubject,
+                selectedCollectionHealth: selectedSubject.flatMap { collectionHealth[$0] } ?? .notCollected,
                 canScan: selectedSubject.flatMap(scanConfiguration(for:)) != nil,
                 canImport: selectedSubject == .reports,
                 startScan: startScan,
@@ -49,6 +50,18 @@ struct AppShellView: View {
         .sheet(isPresented: $isShowingGlossary) {
             GlossarySheet()
         }
+        .focusedSceneValue(
+            \.appCommandActions,
+            AppCommandActions(
+                scanTitle: selectedSubject.map { "Scan \($0.title)" } ?? "Scan",
+                canScan: !scanState.isRunning && selectedSubject.flatMap(scanConfiguration(for:)) != nil,
+                isScanning: scanState.isRunning,
+                scan: startScan,
+                cancel: cancelScan,
+                importReport: showRawReportImporter,
+                showGlossary: { isShowingGlossary = true }
+            )
+        )
         .fileImporter(
             isPresented: $isShowingRawReportImporter,
             allowedContentTypes: [.json],
@@ -265,6 +278,7 @@ private func readSecurityScopedData(_ url: URL) throws -> Data {
 private struct AppHeader: View {
     let scanState: ScanState
     let selectedSubject: ProfilerSubject?
+    let selectedCollectionHealth: CollectionAttemptHealth
     let canScan: Bool
     let canImport: Bool
     let startScan: () -> Void
@@ -311,7 +325,7 @@ private struct AppHeader: View {
             .accessibilityLabel("Explanation detail")
             .accessibilityIdentifier("explanation-detail-mode")
 
-            Label(scanState.statusTitle, systemImage: scanState.statusSymbolName)
+            Label(statusTitle, systemImage: statusSymbolName)
                 .font(.caption.weight(.medium))
                 .foregroundStyle(statusColor)
                 .padding(.horizontal, 10)
@@ -344,11 +358,36 @@ private struct AppHeader: View {
         .padding(.vertical, 12)
     }
 
+    /// The pill follows the running scan, or the last scan when it was for this tab.
+    /// Otherwise it describes the selected tab rather than another tab's scan.
+    private var describesScanState: Bool {
+        scanState.isRunning
+            || selectedSubject == nil
+            || scanState.subject == nil
+            || scanState.subject == selectedSubject
+    }
+
+    private var statusTitle: String {
+        describesScanState ? scanState.statusTitle : selectedCollectionHealth.title
+    }
+
+    private var statusSymbolName: String {
+        describesScanState ? scanState.statusSymbolName : selectedCollectionHealth.symbolName
+    }
+
     private var statusColor: Color {
-        switch scanState {
-        case .failed: .red
-        case .completed: .green
-        case .idle, .running, .importing, .cancelled: .secondary
+        if describesScanState {
+            return switch scanState {
+            case .failed: .red
+            case .completed: .green
+            case .idle, .running, .importing, .cancelled: .secondary
+            }
+        }
+
+        return switch selectedCollectionHealth {
+        case .completed, .imported: .green
+        case .timedOut, .permissionLimited, .unavailable, .failed: .orange
+        case .notCollected, .running: .secondary
         }
     }
 }
@@ -630,7 +669,7 @@ private struct ReadinessCard: View {
 
             return "Run a read-only scan to organize \(subject.title.lowercased()) data into structured, collapsible findings."
         } else {
-            return "Collection support for \(subject.title.lowercased()) will be added after the Hardware and Storage foundation is verified."
+            return "\(subject.title) can't be scanned yet."
         }
     }
 }

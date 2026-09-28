@@ -17,6 +17,16 @@ enum ScanState: Equatable {
         }
     }
 
+    var subject: ProfilerSubject? {
+        switch self {
+        case .idle:
+            nil
+        case let .running(subject), let .importing(subject), let .completed(subject, _),
+             let .cancelled(subject), let .failed(subject, _):
+            subject
+        }
+    }
+
     var statusTitle: String {
         switch self {
         case .idle: "Not scanned"
