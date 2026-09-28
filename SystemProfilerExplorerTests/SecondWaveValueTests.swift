@@ -104,3 +104,36 @@ struct SecondWaveValueTests {
         }
     }
 }
+
+struct VendorIdentifierTests {
+    @Test
+    func hexIdentifiersParseInCommonForms() {
+        #expect(hexIdentifier("0x05ac") == 0x05AC)
+        #expect(hexIdentifier("0x004C (Apple)") == 0x004C)
+        #expect(hexIdentifier("1915") == 0x1915)
+        #expect(hexIdentifier("Apple") == nil)
+    }
+
+    @Test
+    func knownVendorsAreNamedAndUnknownOnesAreLeftAlone() {
+        #expect(vendorName("0x1915", kind: .usb) == "Nordic Semiconductor")
+        #expect(vendorName("0x106b", kind: .pci) == "Apple")
+        #expect(vendorName("0x004C", kind: .bluetooth) == "Apple")
+        #expect(vendorName("0xFFFF", kind: .usb) == nil)
+        #expect(vendorExplanation("0xFFFF", kind: .usb) == nil)
+    }
+
+    @Test
+    func reportedVendorNamesTakePriority() {
+        let explanation = valueExplanation(
+            dataType: .ethernet,
+            path: ["spethernet_vendor-id"],
+            scalar: .string("0x05ac"),
+            siblings: ["spethernet_vendor_name": .string("Apple Inc."), "spethernet_bus": .string("spethernet_usb_device")]
+        )
+
+        #expect(explanation?.summary == "Made by Apple Inc. (USB vendor ID 0x05AC).")
+        #expect(valueExplanation(dataType: .bluetooth, path: ["device_vendorID"], scalar: .string("0x0059"))?.summary
+            == "Made by Nordic Semiconductor (Bluetooth company ID 0x0059).")
+    }
+}

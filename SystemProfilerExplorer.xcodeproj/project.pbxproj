@@ -49,6 +49,7 @@
 		6FF43E5578E19BB433BED0F7 /* DiagnosticLogTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17B31F197B7E471FE93BB60C /* DiagnosticLogTests.swift */; };
 		708157BE3BDD104C787EDABA /* DeveloperAndExtensionExplanations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 667B768E0640B0A7CED3565C /* DeveloperAndExtensionExplanations.swift */; };
 		76B0ED1DED78F8754BB96A53 /* FindingQuery.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1B26F129A3201DCF9011C3C /* FindingQuery.swift */; };
+		78B00CBD45B984CF4EA8D461 /* VendorIdentifierRules.swift in Sources */ = {isa = PBXBuildFile; fileRef = 893020624B06B379B0A270E6 /* VendorIdentifierRules.swift */; };
 		8009FECBA1511AE14C4EEF1A /* SystemProfilerIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB55F1B2791C2A64C4652248 /* SystemProfilerIntegrationTests.swift */; };
 		804E2CCD93725631B11BEF29 /* SecondWaveValueTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4928C4683330CA3011EF28FC /* SecondWaveValueTests.swift */; };
 		85B49F4087AE29C92D16AE3B /* SoftwareExplanationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE97DBED35D8D7601108A901 /* SoftwareExplanationTests.swift */; };
@@ -162,6 +163,7 @@
 		8505130DACF0A97EEDC12B7C /* SecurityExplanations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecurityExplanations.swift; sourceTree = "<group>"; };
 		85DA6EDB8AC82F8BF886BEC8 /* SystemProfilerRequest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemProfilerRequest.swift; sourceTree = "<group>"; };
 		877FADD86D2B10A398B80C7D /* PowerExplanations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PowerExplanations.swift; sourceTree = "<group>"; };
+		893020624B06B379B0A270E6 /* VendorIdentifierRules.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VendorIdentifierRules.swift; sourceTree = "<group>"; };
 		895BF724C185EB42ECC0960C /* AdditionalDataTypeExplanations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdditionalDataTypeExplanations.swift; sourceTree = "<group>"; };
 		899804108CD311079A137AB0 /* FindingQueryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FindingQueryTests.swift; sourceTree = "<group>"; };
 		8AF48C92BB49A1D7C2BF3D06 /* PowerExplanationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PowerExplanationTests.swift; sourceTree = "<group>"; };
@@ -239,6 +241,7 @@
 				09F7A752A69C4BB0D8300E37 /* SoftwareArtifactValueRules.swift */,
 				350E4068BE34201E57D6E7F1 /* SystemValueRules.swift */,
 				9DF9A3587A8237B1792AEF77 /* ValueExplanation.swift */,
+				893020624B06B379B0A270E6 /* VendorIdentifierRules.swift */,
 			);
 			path = Values;
 			sourceTree = "<group>";
@@ -691,6 +694,7 @@
 				8F73A3F1DEF503AC82BB01E0 /* SystemValueRules.swift in Sources */,
 				DE3A7F2B691B7402B6796571 /* ValueExplanation.swift in Sources */,
 				0BEAF64AB9449051BF7B76CE /* ValueExplanationViews.swift in Sources */,
+				78B00CBD45B984CF4EA8D461 /* VendorIdentifierRules.swift in Sources */,
 				5149FE62263CED26417BA757 /* WhatChangedDashboardView.swift in Sources */,
 				30C5636DB2A587496A498570 /* WiFiExplanations.swift in Sources */,
 			);

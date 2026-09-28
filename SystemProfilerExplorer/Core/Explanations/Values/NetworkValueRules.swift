@@ -581,14 +581,12 @@ let bluetoothValueRules: [ValueRule] = [
 ]
 
 private func bluetoothVendorExplanation(_ value: String) -> ValueExplanation? {
-    if value.lowercased().hasPrefix("0x004c") {
-        return .info("Made by Apple (Bluetooth company ID 0x004C).", confidence: .documented)
+    // Values look like "0x004C" or "0x004C (Apple)".
+    var reportedName: String?
+
+    if let open = value.firstIndex(of: "("), value.hasSuffix(")") {
+        reportedName = String(value[value.index(after: open)..<value.index(before: value.endIndex)])
     }
 
-    guard let open = value.firstIndex(of: "("), value.hasSuffix(")") else {
-        return nil
-    }
-
-    let vendor: String = String(value[value.index(after: open)..<value.index(before: value.endIndex)])
-    return .info("Made by \(vendor).")
+    return vendorExplanation(value, kind: .bluetooth, reportedName: reportedName)
 }
