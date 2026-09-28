@@ -49,18 +49,21 @@ The app can scan this Mac directly or import an existing raw JSON report. Proces
 
 The features below describe the current source on `main`. The downloadable v0.1.1 release predates the collection-health, comparison dashboard, snapshot, review-summary, and diagnostic-log improvements; build from source to use them until a newer release is published.
 
-- All 50 `system_profiler` data types represented by the app’s current macOS toolchain
+- All 51 `system_profiler` data types represented by the app’s current macOS toolchain
 - Eight readable subject tabs: Overview, Hardware, Storage, Network, Software, Security, Power, and Reports
 - Complete Reports scan plus focused, faster subject scans
 - Collapsible records and explanations with source provenance
 - Search across names, values, fields, and explanations
 - Precomputed report indexing and debounced, cancellable search for large inventories
-- Explained-only and privacy-sensitive filters
-- Section and subject finding badges, recent-search history, source-location links, and persistent bookmarks
-- First-class **What Changed?** workspace for saved-report comparison, with added/removed/changed cards, evidence-ranked review groups, and plain-language difference explanations
-- **Highlights** workspace for bounded cross-section context: startup disk/encryption, interfaces/network configuration, management profiles, and battery/power settings
-- Local named snapshot history with timestamps, full/redacted storage choices, retention controls, and one-click baseline comparison
-- A focused Markdown or PDF System Review Summary built from bookmarked findings; raw JSON remains a separate export
+- Plain-language explanations of each reported **value**, not only its field, with a status (Normal, Info, Worth a look, Not yet explained) and a confidence level; heuristic readings are labeled “Likely” with their reasons
+- **At a glance** summary at the top of each report, listing any values worth a look
+- **Beginner** and **Developer** modes; Developer adds raw values, source paths, counts, and explanation sources
+- Worth a look, explained-only, and privacy-sensitive filters
+- Glossary of terms used in explanations, and copy actions for values, source paths, and findings as Markdown
+- Recent-search history, source-location links, and persistent bookmarks
+- **What Changed?** workspace that compares a report with a saved snapshot or report file, with added/removed/changed cards, evidence-ranked review groups, and plain-language difference explanations
+- Local named snapshot history with timestamps, full/redacted storage choices, and retention controls
+- **Share** menu: a Markdown or PDF summary, or the full report file (redacted or complete)
 - Visible explanation-coverage labels: curated explanation, general data-type context, or unrecognized field
 - Compact diagnostic-log rows, background AVE/HEVC pattern summaries, and paged original text with explicit interpretation limits
 - Local JSON import, redacted or full export, and saved-report comparison
@@ -89,7 +92,7 @@ Each recognized finding separates meaning, significance, interpretation limits, 
 
 ## Coverage
 
-The focused tabs organize commonly reviewed findings by subject. Reports is the exhaustive view: it requests every supported data type, preserves sections even when the Mac returns no records, and displays collection coverage rather than silently treating missing data as absence. The separate **Highlights** and **What Changed?** workspaces analyze an already collected report; neither launches a hidden scan nor merges data from different collection times.
+The focused tabs organize commonly reviewed findings by subject. Reports is the exhaustive view: it requests every supported data type, preserves sections even when the Mac returns no records, and displays collection coverage rather than silently treating missing data as absence. The **What Changed?** workspace analyzes already collected reports; it never launches a hidden scan or merges data from different collection times.
 
 For every live scan, each requested data type is marked as **Collected**, **No records**, **Skipped**, **Unavailable**, **Timed out**, or **Permission-limited**. **No records** means `system_profiler` returned an empty section. **Unavailable**, **Timed out**, and **Permission-limited** are shown only when matching diagnostic text supports that scan-level label; otherwise the app records a missing JSON section as **Skipped** instead of guessing a cause. Use **View Incomplete Collection** in the Collection coverage card to inspect every incomplete data type and the diagnostic output from `system_profiler`. Imported JSON does not preserve its original command scope, so it reports only the data types present in that source file.
 
@@ -181,13 +184,19 @@ Create a complete report outside the app when needed:
 
 Open System Profiler Explorer, choose **Import JSON…**, and select the file. The import is validated and read locally without modifying the source file or retaining its path in the displayed report.
 
+### Read the results
+
+Each report opens with **At a glance**: a few plain sentences built from the collected values, followed by any values worth a look, each with a **Show** button. Each finding shows its value, a status, and a one-line meaning; expand it for details, the reasons behind a “Likely” reading, a suggested next step when there is one, and the field’s general explanation. Terms such as SIP, SMART, or dBm link to short definitions, and the **Glossary** lists them all.
+
+Use the **Beginner / Developer** switch in the header to choose how much technical detail to show. Right-click a finding to copy its value, its source path, or the whole finding as Markdown.
+
 ### Search and filter
 
-Search matches displayed values, source fields, record names, and explanation text. Use **Explained** to focus on interpreted fields or **Privacy** to review values that deserve care before sharing. The recent-search menu keeps the last eight searched terms. Section headings and subject tabs show finding counts, making large reports easier to triage.
+Search matches displayed values, source fields, record names, and explanation text, including the plain-language meaning of values. Use **Worth a Look** to see only values that may need attention, **Explained** to focus on interpreted fields, or **Privacy** to review values that deserve care before sharing. The recent-search menu keeps recent searched terms. Records that contain values worth a look are marked, and Developer mode adds finding counts to sections and tabs.
 
 ### Bookmark and trace a finding
 
-Use the bookmark button beside a finding to include it in a focused review. **Open Bookmark** takes you directly back to a saved source field, while **Show Raw Source Location** filters to and highlights the underlying `system_profiler` field. Array-shaped paths use `[]` to identify the raw field schema; record context remains visible in the surrounding disclosure.
+Use the bookmark button beside a finding to add its full explanation to a shared summary. **Open Bookmark** takes you directly back to a saved source field, while **Show Raw Source Location** filters to and highlights the underlying `system_profiler` field. Array-shaped paths use `[]` to identify the raw field schema; record context remains visible in the surrounding disclosure.
 
 Every finding also labels the scope of its explanation:
 
@@ -203,26 +212,22 @@ Analysis is limited to the first two million characters and explicitly labels pa
 
 ### Save a local snapshot
 
-Choose **Snapshots** in any collected report to save a named baseline. A **Full values** snapshot stays local and enables one-click comparison with the currently open report. A **Redacted values** snapshot replaces scalar values before storage and is intentionally not comparable. Choose a retention policy of 5, 10, 25, or all snapshots; the app removes the oldest local snapshots beyond that limit.
+Choose **Snapshots** in any collected report to save a named baseline. A **Full values** snapshot stays local and can be compared with later scans in **What Changed?**. A **Redacted values** snapshot replaces scalar values before storage and is intentionally not comparable. Choose a retention policy of 5, 10, 25, or all snapshots; the app removes the oldest local snapshots beyond that limit.
 
 Snapshots are stored under this Mac’s Application Support directory, never in the repository or a cloud account. Treat full snapshots as sensitive system inventory.
 
-### Review Highlights
+### Share and compare
 
-Choose **Highlights** to inspect relationships inside one collected report. The app can connect startup-disk fields with FileVault/encryption fields, interfaces with VPN/proxy/DNS configuration, profiles with management indicators, and battery-health fields with power settings. Every card exposes its raw source fields and an interpretation limit. A configured VPN, profile, or encryption field is configuration evidence; it does not prove traffic, control, user activity, or compromise.
-
-### Export and compare
-
-The export review offers two explicit choices:
+Choose **Share › Report File** to save the scan data. The export review offers two explicit choices:
 
 - **Redacted report** replaces every reported scalar and record name, omits exact collection times, and removes standard-error text.
 - **Full private report** preserves exact values and metadata for private analysis and future comparison.
 
 A current scan can be compared with a compatible full report created from the same subject or full-report scope. Named records are matched independently of order; unnamed records and array elements are matched by position. Added, removed, and changed values identify structured differences, not their cause or security impact.
 
-The **What Changed?** tab makes this comparison a primary workspace. It accepts a full private saved report, then presents clear added, removed, and changed totals. Differences are grouped as **Review First**, **Worth Reviewing**, or **Informational** to guide triage—not to assign a threat level. Expand a difference for its baseline/current values, raw source location, and a plain-language explanation grounded in the app’s explanation catalog.
+Compare in the **What Changed?** tab. Pick a saved snapshot of the same report (or compare with the latest in one click), or choose a file: a full export from this app or raw `system_profiler -json` output. It then presents clear added, removed, and changed totals. Differences are grouped as **Review First**, **Worth Reviewing**, or **Informational** to guide triage—not to assign a threat level. Expand a difference for its baseline/current values, raw source location, and a plain-language explanation grounded in the app’s explanation catalog.
 
-For a polished, focused document, bookmark the findings to include and choose **Review Summary**. The app exports Markdown or PDF containing only those selected findings, their source locations and explanation-coverage labels, collection limits (including skipped sections), and an explicit privacy warning. It never folds raw JSON into this summary; use **Export Report** separately when raw evidence is required.
+For a readable document, choose **Share › Summary**. The app exports Markdown or PDF with At a glance, the values worth a look, the full explanations of any bookmarked findings, collection limits (including skipped sections), and an explicit privacy warning. It never folds raw JSON into this summary; use **Share › Report File** when raw evidence is required.
 
 ## Build from source
 
