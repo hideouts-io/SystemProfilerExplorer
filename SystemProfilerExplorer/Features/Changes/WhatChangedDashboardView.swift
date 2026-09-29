@@ -58,6 +58,10 @@ struct WhatChangedDashboardView: View {
         .onChange(of: selectedSubject) { _ in
             comparison = nil
         }
+        // A rescan replaces the report, so a comparison with the old one no longer applies.
+        .onChange(of: selectedReportDate) { _ in
+            comparison = nil
+        }
         .task {
             await loadSnapshots()
         }
@@ -73,6 +77,10 @@ struct WhatChangedDashboardView: View {
             Text(errorMessage ?? "The reports could not be compared.")
         }
         .accessibilityIdentifier("what-changed-workspace")
+    }
+
+    private var selectedReportDate: Date? {
+        selectedSubject.flatMap { reports[$0]?.completedAt }
     }
 
     private var errorBinding: Binding<Bool> {
@@ -145,6 +153,9 @@ struct WhatChangedDashboardView: View {
             return
         }
 
+        let comparedSubject: ProfilerSubject = selectedSubject
+        let comparedDate: Date = currentReport.completedAt
+
         isPreparingComparison = true
 
         Task {
@@ -152,7 +163,11 @@ struct WhatChangedDashboardView: View {
                 let preparedComparison: ReportComparison = try await Task.detached(priority: .userInitiated) {
                     try compareReports(baseline: loadBaseline(), current: currentReport)
                 }.value
-                comparison = preparedComparison
+
+                // The user may have chosen another report, or rescanned, while this ran.
+                if self.selectedSubject == comparedSubject, selectedReportDate == comparedDate {
+                    comparison = preparedComparison
+                }
             } catch is CancellationError {
                 isPreparingComparison = false
                 return
