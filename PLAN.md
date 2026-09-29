@@ -26,7 +26,7 @@ because anonymized samples keep the values of fields that have a rule.
 4. [x] Power: Low Power Mode, High Power Mode, network reachability during
    sleep, reduced brightness on battery, power adapter connected, UPS, and
    scheduled power event types.
-5. [ ] Storage: internal or external disk, connection protocol, ignored
+5. [x] Storage: internal or external disk, connection protocol, ignored
    ownership, and NVMe removable and detachable media.
 6. [ ] Software and Secure Element: font format and flags, private
    frameworks, extension loadability and architectures, Secure Element

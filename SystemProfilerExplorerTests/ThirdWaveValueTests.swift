@@ -106,6 +106,28 @@ struct ThirdWaveValueTests {
         #expect(valueExplanation(dataType: .power, path: path, scalar: .string("future"))?.status == .unknown)
     }
 
+    // MARK: - Storage
+
+    @Test
+    func externalDrivesAndDiskImagesAreToldApart() {
+        let path: [String] = ["physical_drive", "is_internal_disk"]
+        let diskImage = valueExplanation(dataType: .storage, path: path, scalar: .string("no"), siblings: ["protocol": .string("Disk Image")])
+        let external = valueExplanation(dataType: .storage, path: path, scalar: .string("no"), siblings: ["protocol": .string("USB")])
+
+        #expect(diskImage?.summary.contains("disk image") == true)
+        #expect(external?.summary.contains("external") == true)
+        #expect(valueExplanation(dataType: .storage, path: path, scalar: .string("yes"))?.summary.contains("built into") == true)
+    }
+
+    @Test
+    func storageProtocolsAndOwnershipAreExplained() {
+        #expect(storageProtocolExplanation("Apple Fabric")?.confidence?.reasons.isEmpty == false)
+        #expect(storageProtocolExplanation("USB")?.summary == "Connected over USB.")
+        #expect(valueExplanation(dataType: .storage, path: ["physical_drive", "protocol"], scalar: .string("Future Bus"))?.status == .unknown)
+        #expect(valueExplanation(dataType: .storage, path: ["ignore_ownership"], scalar: .string("yes"))?.status == .informational)
+        #expect(valueExplanation(dataType: .storage, path: ["ignore_ownership"], scalar: .string("no"))?.status == .normal)
+    }
+
     // MARK: - Coverage
 
     /// Values observed in the full scan behind docs/value-inventory.md for fields this
@@ -143,7 +165,14 @@ struct ThirdWaveValueTests {
             (.power, ["Battery Power", "ReduceBrightness"], "1"),
             (.power, ["sppower_battery_charger_connected"], "FALSE"),
             (.power, ["sppower_ups_installed"], "FALSE"),
-            (.power, ["_items", "[]", "_items", "[]", "eventtype"], "wake")
+            (.power, ["_items", "[]", "_items", "[]", "eventtype"], "wake"),
+            (.storage, ["physical_drive", "is_internal_disk"], "yes"),
+            (.storage, ["physical_drive", "is_internal_disk"], "no"),
+            (.storage, ["physical_drive", "protocol"], "Apple Fabric"),
+            (.storage, ["physical_drive", "protocol"], "Disk Image"),
+            (.storage, ["ignore_ownership"], "no"),
+            (.nvme, ["_items", "[]", "detachable_drive"], "no"),
+            (.nvme, ["_items", "[]", "removable_media"], "no")
         ]
 
         for (dataType, path, value) in observed {

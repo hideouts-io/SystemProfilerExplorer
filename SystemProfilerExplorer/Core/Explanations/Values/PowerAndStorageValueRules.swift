@@ -414,6 +414,85 @@ let storageValueRules: [ValueRule] = [
     }
 ]
 
+let storageConnectionValueRules: [ValueRule] = [
+    ValueRule(.storage, field: "is_internal_disk") { context in
+        switch decodeBooleanLike(context.reportedValue) {
+        case true?:
+            return .info("A drive built into this Mac.")
+        case false? where context.sibling("protocol") == "Disk Image":
+            return .info("Not a physical drive: a disk image file opened as a volume.")
+        case false?:
+            return .info("An external drive connected to this Mac.")
+        case nil:
+            return nil
+        }
+    },
+
+    ValueRule(.storage, field: "protocol") { context in
+        storageProtocolExplanation(context.reportedValue)
+    },
+
+    ValueRule(.storage, field: "ignore_ownership") { context in
+        switch decodeBooleanLike(context.reportedValue) {
+        case true?:
+            .info(
+                "Ownership is ignored on this volume, so anyone using this Mac can open and change its files.",
+                detail: "This is the Ignore ownership on this volume option in the Finder's Get Info window. It's common for external drives shared between Macs.",
+                confidence: .documented
+            )
+        case false?:
+            .normal("File ownership and permissions are enforced on this volume.", confidence: .documented)
+        case nil:
+            nil
+        }
+    },
+
+    ValueRule(.nvme, field: "removable_media") { context in
+        switch decodeBooleanLike(context.reportedValue) {
+        case true?: .info("The storage medium can be taken out of the drive, like a memory card.")
+        case false?: .info("The storage medium is fixed in the drive, as it is in an SSD.")
+        case nil: nil
+        }
+    },
+
+    ValueRule(.nvme, field: "detachable_drive") { context in
+        switch decodeBooleanLike(context.reportedValue) {
+        case true?: .info("macOS treats this drive as one that can be disconnected, like an external SSD.")
+        case false?: .info("macOS treats this drive as permanently connected, like a built-in SSD.")
+        case nil: nil
+        }
+    }
+]
+
+/// Explains the connection a storage device reports, such as `Apple Fabric` or `USB`.
+func storageProtocolExplanation(_ value: String) -> ValueExplanation? {
+    switch value.lowercased() {
+    case "apple fabric":
+        .info(
+            "Connected over Apple Fabric, the internal connection to the built-in SSD.",
+            confidence: .likely(reasons: [
+                "Apple doesn't document this name. system_profiler reports it for the built-in SSD on Apple silicon Macs."
+            ])
+        )
+    case "disk image":
+        .info("A disk image file opened as a volume, such as an installer or a downloaded app.")
+    case "usb":
+        .info("Connected over USB.")
+    case "thunderbolt":
+        .info("Connected over Thunderbolt.")
+    case "sata":
+        .info("Connected over SATA, the connection older internal drives use.")
+    case "pci-express", "pci express", "pci":
+        .info("Connected over PCI Express.")
+    case "nvme", "nvm express":
+        .info("An NVMe solid-state drive.")
+    case "secure digital", "sd":
+        .info("A memory card in an SD card reader.")
+    default:
+        nil
+    }
+}
+
 func smartStatusExplanation(_ value: String) -> ValueExplanation? {
     switch value.lowercased() {
     case "verified":
