@@ -20,6 +20,31 @@ struct DiagnosticLogTests {
     }
 
     @Test
+    func summarizesAnyLogsTimeRangeProcessesAndErrorMentions() throws {
+        let text: String = """
+        Sep 19 15:26:50 syncdefaultsd[88]: Starting sync
+        Sep 19 15:26:51 syncdefaultsd[88]: Sync FAILED for account
+        Sep 19 15:27:02 kernel[0]: Error reading block
+        --- last message repeated 1 time ---
+        Sep 19 15:28:10 syncdefaultsd[91]: Finished
+        """
+        let summary: DiagnosticLogSummary = try summarizeDiagnosticLog(text)
+
+        #expect(summary.firstTimestamp == "Sep 19 15:26:50")
+        #expect(summary.lastTimestamp == "Sep 19 15:28:10")
+        #expect(summary.busiestProcesses == [
+            LogProcessLineCount(name: "syncdefaultsd", lineCount: 3),
+            LogProcessLineCount(name: "kernel", lineCount: 1)
+        ])
+        #expect(summary.errorMentionCount == 2)
+        #expect(summary.aveLineCount == 0)
+
+        let unified: DiagnosticLogSummary = try summarizeDiagnosticLog("2026-09-19 15:26:50.123 Example[1]: hello")
+        #expect(unified.firstTimestamp == "2026-09-19 15:26:50")
+        #expect(try summarizeDiagnosticLog("no timestamps here").firstTimestamp == nil)
+    }
+
+    @Test
     func retainsLargeUnicodeEvidenceWhileExplicitlyLimitingAnalysis() throws {
         let text: String = String(repeating: "🙂 unrecognized log\n", count: 120_000)
         let summary: DiagnosticLogSummary = try summarizeDiagnosticLog(text)

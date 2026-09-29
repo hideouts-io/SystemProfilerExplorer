@@ -18,6 +18,9 @@ struct DiagnosticLogView: View {
             if let summary {
                 Text("Reviewed \(summary.inspectedLineCount.formatted()) nonempty lines\(summary.isPartial ? " (partial analysis: first 2 million characters only)" : " in this excerpt").")
                     .font(.caption)
+
+                LogOverview(summary: summary)
+
                 if summary.aveLineCount > 0 {
                     GroupBox("HEVC encoder activity") {
                         VStack(alignment: .leading, spacing: 10) {
@@ -33,8 +36,6 @@ struct DiagnosticLogView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(6)
                     }
-                } else {
-                    Text("No supported AVE pattern was recognized in the analyzed text. This does not mean the log is empty, error-free, or safe. Review its timestamps, process labels, and surrounding lines.")
                 }
 
                 DisclosureGroup("View original log text") {
@@ -101,5 +102,49 @@ struct DiagnosticLogView: View {
                 analysisError = error.localizedDescription
             }
         }
+    }
+}
+
+/// What any log shows at a glance: when it covers, who wrote most of it, and how
+/// many lines mention errors.
+private struct LogOverview: View {
+    let summary: DiagnosticLogSummary
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if let first = summary.firstTimestamp, let last = summary.lastTimestamp {
+                Label(
+                    first == last ? "Entries from \(first)." : "Entries from \(first) to \(last).",
+                    systemImage: "clock"
+                )
+            }
+
+            if !summary.busiestProcesses.isEmpty {
+                Label {
+                    Text("Most lines from: \(busiestDescription).")
+                } icon: {
+                    Image(systemName: "person.2")
+                }
+            }
+
+            if summary.errorMentionCount > 0 {
+                Label {
+                    Text("\(summary.errorMentionCount.formatted()) \(summary.errorMentionCount == 1 ? "line mentions" : "lines mention") “error” or “fail”. Apps log these words routinely, so a mention isn't a problem by itself; look for the same message repeating around the time something went wrong.")
+                } icon: {
+                    Image(systemName: "text.magnifyingglass")
+                }
+            } else if summary.inspectedLineCount > 0 {
+                Label("No lines mention “error” or “fail”.", systemImage: "text.magnifyingglass")
+            }
+        }
+        .font(.callout)
+        .fixedSize(horizontal: false, vertical: true)
+        .accessibilityIdentifier("log-overview")
+    }
+
+    private var busiestDescription: String {
+        summary.busiestProcesses
+            .map { "\($0.name) (\($0.lineCount.formatted()))" }
+            .joined(separator: ", ")
     }
 }
