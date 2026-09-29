@@ -1,53 +1,110 @@
-# Plan: value-aware explanations for common enumeration fields
+# Plan: lead with the value, and explain every value of limited-set fields
 
-`docs/value-inventory.md` was generated before value rules existed, so its
-"value-aware" column (2 of 526 fields) is out of date. Comparing its
-enumeration and on/off fields with the rules in
-`SystemProfilerExplorer/Core/Explanations/Values` shows about 100 fields that
-still get no value explanation. PR #8 covers field explanations only, so none
-of these overlap with it.
+This branch builds on `value-aware-explanations` (PR #9), which added value
+rules for about 60 fields. It changes what an expanded row shows, and then
+gives every value of every limited-set field a full explanation.
 
-This branch adds value rules for the ones that matter most, in small steps.
-Each step adds rules, tests for every value observed in the inventory, and
-tests for the values that change the status.
+## The problem
 
-Rules only go on fields whose values don't identify a person or a Mac,
-because anonymized samples keep the values of fields that have a rule.
+Expanding a row such as Applications › SystemIntents › Supported
+Architecture = `arch_arm` shows a large "About this field" block: What it
+means, Why it matters, Interpret carefully. That text describes the field
+`arch_kind`, not the value. It is identical on all 769 application rows, the
+field name is already on the left, and the value is already on the right. So
+the biggest thing in the panel says nothing about the result the user
+clicked, and the value's own explanation is at most one line above it.
+
+**Is "About this field" redundant?** At full size on every row, yes. The text
+itself is still useful: the first time someone meets a field, and as the only
+explanation for names, numbers and identifiers, where there is nothing
+value-specific to say. So it stays, but once, small, and collapsed.
+
+## New layout of an expanded row
+
+1. **Row (unchanged):** field name on the left, value on the right, then the
+   status badge and a one-line summary of what this value means.
+2. **Value panel** (tinted by the value's status), in this order:
+   - **What this result means**: what this specific value says about this Mac.
+   - **Why it matters**: what this value changes for the user.
+   - **Why the app thinks so**: only for inferred explanations, listing the clues.
+   - **What to check**: what to look at or do next ("Nothing to do" when normal).
+   - A small footer line: **Source:** Documented by Apple, Standard macOS
+     behavior, or Inferred by the app.
+3. **About this field**: a single caption-sized disclosure line with an info
+   icon, collapsed by default. It holds the field-level text (what the field
+   records, why it matters, interpret carefully, privacy), the explanation
+   coverage note that used to appear as "Curated explanation", and in
+   Developer mode the source path and "Show Raw Source Location". It starts
+   open only when the value has no explanation of its own (names, numbers,
+   identifiers, free text), because then it is the only explanation.
+4. **Terms used here** (unchanged).
+
+Removed: the Developer-mode "Curated explanation" badge under every field
+name, and the coverage box at the top of the panel. Both now live in the
+About this field area.
+
+A value the app doesn't recognize for a limited-set field shows the status
+"Not yet explained" and says so plainly. The app never guesses.
+
+## What each value explanation has
+
+- a short plain summary (the row line)
+- what it means on this Mac
+- why it matters
+- what to check or do
+- a status: Normal, Info, Worth a look (or Not yet explained)
+- its source: documented by Apple, standard macOS behavior, or inferred
+  (with the reasons shown)
+
+Sources and spelling status for every value are listed in
+`docs/value-explanations.md`. A spelling is **confirmed** when it appears in
+`docs/value-inventory.md`, in Apple's own System Information localization
+strings, or in system_profiler output published online; otherwise it is
+marked **unconfirmed**.
 
 ## Steps
 
-1. [x] Write this plan.
-2. [x] Startup security (Apple Bridge): Secure Boot level, System Integrity
-   Protection, Signed System Volume, kernel CTRR, boot-argument filtering,
-   third-party kernel extensions, and privileged MDM operations.
-3. [x] Proxy settings (Network and Network Locations): each proxy switch,
-   automatic proxy configuration and discovery, passive FTP, simple host
-   names, and VPN On Demand.
-4. [x] Power: Low Power Mode, High Power Mode, network reachability during
-   sleep, reduced brightness on battery, power adapter connected, UPS, and
-   scheduled power event types.
-5. [x] Storage: internal or external disk, connection protocol, ignored
-   ownership, and NVMe removable and detachable media.
-6. [x] Software and Secure Element: font format and flags, private
-   frameworks, extension loadability and architectures, Secure Element
-   restricted mode and production signing.
-7. [x] Network locations and connection settings: active location, Wi-Fi
-   join mode, VPN sign-in method, when PPP and VPN connections end, the
-   dial-up switches, Ethernet media subtype, and automounted network
-   volumes.
-8. [x] Hardware states: display online, Bluetooth controller transport,
-   Wi-Fi regulatory locale, USB hardware type, memory type, card reader
-   link, and managed preference state. Display contrast is left out: its
-   values were withheld from the inventory, so their format is unknown.
-9. [x] Note in `docs/value-inventory.md` that value rules now exist and
-   which enumeration fields are still unexplained.
+Each step is one commit with its tests, and runs the publication-boundary
+check. There is no Xcode here, so CI's `build-and-test` job is the build and
+test run.
 
-## Verification
+1. [ ] Write this plan.
+2. [ ] Layout: add "why it matters" to value explanations, build the
+   value-first panel and the collapsed About this field area, move the
+   coverage note into it, and include the new parts in Copy as Markdown.
+3. [ ] Applications and frameworks (most rows in a scan): architecture
+   (`arch_kind`), where it came from (`obtained_from`), and private
+   frameworks.
+4. [ ] Fonts (the most values in a scan): font kind, enabled, valid,
+   duplicate, copy protected, embeddable, outline.
+5. [ ] Extensions: loaded, loadable, dependencies, Intel code,
+   architectures.
+6. [ ] Network services and locations: hardware, service type, IPv4 and IPv6
+   configuration, proxies, VPN On Demand and its rules, PPP and VPN
+   switches, Wi-Fi join mode, VPN sign-in, Ethernet media, active location,
+   network volumes.
+7. [ ] Install history, legacy software, and firewall.
+8. [ ] Wi-Fi: status, security, network type, capabilities, regulatory
+   locale.
+9. [ ] Power and battery: battery condition and charge states, power
+   source, hibernate mode, Low and High Power Mode, network reachability,
+   reduced brightness, adapter, UPS, scheduled events.
+10. [ ] Storage and NVMe: SMART, file system, medium, partition map,
+    writable, internal, protocol, ownership, TRIM, removable, detachable,
+    volume content.
+11. [ ] Startup security, software overview and hardware: Secure Boot and
+    its protections, SIP, secure virtual memory, boot mode, Activation Lock.
+12. [ ] Displays, audio, Bluetooth, Thunderbolt, USB, memory, card readers.
+13. [ ] Settings and profiles: accessibility, language and region,
+    configuration profiles, managed preferences, printers, sync services,
+    Secure Element.
+14. [ ] Update `docs/value-inventory.md` to point at the new list, and
+    finish the scan list below.
 
-This environment has no Xcode, so each pushed commit is verified by the CI
-`build-and-test` job. Nothing here needs a live scan, but the owner's Mac is
-the only way to confirm the exact spellings macOS uses for values that did
-not appear in the inventory (for example `Reduced Security`).
+## Values that need a scan on a real Mac
+
+To be completed as the steps land. These are spellings that no public
+source confirms, or fields whose values the inventory withheld.
 
 ## Blocked or deferred
 
