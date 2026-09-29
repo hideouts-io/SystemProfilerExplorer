@@ -18,6 +18,27 @@ struct FindingLocationTests {
     }
 
     @Test
+    func groupsContainOnlyTheirOwnValues() {
+        let value: String = findingLocation(
+            dataType: .wifi,
+            recordIndex: 1,
+            path: ["spairport_airport_interfaces", "[]", "spairport_status_information"],
+            arrayIndices: [2]
+        )
+        let record: String = findingLocation(dataType: .wifi, recordIndex: 1, path: [], arrayIndices: [])
+        let interfaces: String = findingLocation(dataType: .wifi, recordIndex: 1, path: ["spairport_airport_interfaces"], arrayIndices: [])
+        let thirdInterface: String = findingLocation(dataType: .wifi, recordIndex: 1, path: ["spairport_airport_interfaces", "[]"], arrayIndices: [2])
+        let firstInterface: String = findingLocation(dataType: .wifi, recordIndex: 1, path: ["spairport_airport_interfaces", "[]"], arrayIndices: [0])
+
+        #expect(locationIsInsideGroup(value, groupLocation: record))
+        #expect(locationIsInsideGroup(value, groupLocation: interfaces))
+        #expect(locationIsInsideGroup(value, groupLocation: thirdInterface))
+        #expect(!locationIsInsideGroup(value, groupLocation: firstInterface))
+        #expect(!locationIsInsideGroup("SPAirPortDataType[10].field", groupLocation: "SPAirPortDataType[1]"))
+        #expect(!locationIsInsideGroup(value, groupLocation: value))
+    }
+
+    @Test
     func sourcePathsFromLocationsMatchFieldPresentation() {
         let path: [String] = ["physical_drive", "smart_status"]
         let presentation: FieldPresentation = fieldPresentation(dataType: .storage, path: path, scalar: .string("Verified"))

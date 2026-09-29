@@ -7,8 +7,9 @@ struct AppShellView: View {
 
     @State private var selectedWorkspace: AppWorkspace = .subject(.overview)
     @State private var reports: [ProfilerSubject: SystemProfilerReport] = [:]
-    @State private var findingCounts: [ProfilerSubject: Int] = [:]
-    @State private var worthReviewingCounts: [ProfilerSubject: Int] = [:]
+    /// Each report's search index, built once when the report arrives so switching
+    /// between sidebar items doesn't rebuild it.
+    @State private var presentationIndexes: [ProfilerSubject: ReportPresentationIndex] = [:]
     @State private var collectionHealth: [ProfilerSubject: CollectionAttemptHealth] = [:]
     @State private var scanState: ScanState = .idle
     @State private var scanTask: Task<Void, Never>?
@@ -26,8 +27,8 @@ struct AppShellView: View {
         NavigationSplitView {
             AppSidebar(
                 selection: sidebarSelection,
-                findingCounts: findingCounts,
-                worthReviewingCounts: worthReviewingCounts,
+                findingCounts: presentationIndexes.mapValues(\.summary.findingCount),
+                worthReviewingCounts: presentationIndexes.mapValues(\.worthReviewingFindingCount),
                 collectionHealth: collectionHealth
             )
             .navigationSplitViewColumnWidth(min: 190, ideal: 210, max: 280)
@@ -97,6 +98,8 @@ struct AppShellView: View {
         }
 
         let reportParser: SystemProfilerParser = parser
+        // A cancelled rescan leaves the previous report, so it keeps that report's status.
+        let previousHealth: CollectionAttemptHealth = collectionHealth[subject] ?? .notCollected
 
         activityStartedAt = .now
         scanState = .running(subject: subject)
@@ -112,13 +115,12 @@ struct AppShellView: View {
 
                 let report: SystemProfilerReport = prepared.report
                 reports[subject] = report
-                findingCounts[subject] = prepared.findingCount
-                worthReviewingCounts[subject] = prepared.worthReviewingCount
+                presentationIndexes[subject] = prepared.index
                 scanState = .completed(subject: subject, date: report.completedAt)
                 collectionHealth[subject] = .completed
             } catch is CancellationError {
                 scanState = .cancelled(subject: subject)
-                collectionHealth[subject] = .notCollected
+                collectionHealth[subject] = previousHealth
             } catch let error as SystemProfilerRequestError {
                 scanState = .failed(subject: subject, message: error.localizedDescription)
                 collectionHealth[subject] = .failed
@@ -191,6 +193,7 @@ struct AppShellView: View {
         }
 
         let reportParser: SystemProfilerParser = parser
+        let previousHealth: CollectionAttemptHealth = collectionHealth[.reports] ?? .notCollected
 
         selectedWorkspace = .subject(.reports)
         activityStartedAt = .now
@@ -209,13 +212,12 @@ struct AppShellView: View {
                 try Task.checkCancellation()
                 let report: SystemProfilerReport = prepared.report
                 reports[.reports] = report
-                findingCounts[.reports] = prepared.findingCount
-                worthReviewingCounts[.reports] = prepared.worthReviewingCount
+                presentationIndexes[.reports] = prepared.index
                 scanState = .completed(subject: .reports, date: report.completedAt)
                 collectionHealth[.reports] = .imported
             } catch is CancellationError {
                 scanState = .cancelled(subject: .reports)
-                collectionHealth[.reports] = .notCollected
+                collectionHealth[.reports] = previousHealth
             } catch let error as SystemProfilerParsingError {
                 scanState = .failed(subject: .reports, message: error.localizedDescription)
                 collectionHealth[.reports] = .failed
@@ -252,6 +254,7 @@ struct AppShellView: View {
             SubjectWorkspace(
                 subject: subject,
                 report: reports[subject],
+                presentationIndex: presentationIndexes[subject],
                 scanState: scanState,
                 activityStartedAt: activityStartedAt,
                 collectionHealth: collectionHealth[subject] ?? .notCollected,
@@ -266,17 +269,15 @@ struct AppShellView: View {
     }
 }
 
-/// A parsed report plus the counts shown in its tab, computed off the main actor
-/// so the tab bar never walks the whole report while rendering.
+/// A parsed report plus its search index, built off the main actor. The index also
+/// holds the counts shown in the sidebar, so the report is walked only once.
 private struct PreparedReport: Sendable {
     let report: SystemProfilerReport
-    let findingCount: Int
-    let worthReviewingCount: Int
+    let index: ReportPresentationIndex
 
-    init(report: SystemProfilerReport) {
+    init(report: SystemProfilerReport) throws {
         self.report = report
-        findingCount = reportSummary(report).findingCount
-        worthReviewingCount = worthReviewingFindingCount(report)
+        index = try makeReportPresentationIndex(report)
     }
 }
 
@@ -487,6 +488,7 @@ private struct SubjectSidebarRow: View {
 private struct SubjectWorkspace: View {
     let subject: ProfilerSubject
     let report: SystemProfilerReport?
+    let presentationIndex: ReportPresentationIndex?
     let scanState: ScanState
     let activityStartedAt: Date
     let collectionHealth: CollectionAttemptHealth
@@ -504,10 +506,16 @@ private struct SubjectWorkspace: View {
                     ScanFailureCard(
                         message: failureMessage,
                         collectionHealth: collectionHealth,
+                        showsPreviousReport: report != nil,
                         retryScan: startScan
                     )
+
+                    // A failed rescan doesn't hide the report from the last one that worked.
+                    if let report {
+                        ProfileReportView(report: report, preparedIndex: presentationIndex)
+                    }
                 } else if let report {
-                    ProfileReportView(report: report)
+                    ProfileReportView(report: report, preparedIndex: presentationIndex)
                 } else {
                     ReadinessCard(
                         subject: subject,
@@ -717,6 +725,8 @@ private struct ScanningCard: View {
 private struct ScanFailureCard: View {
     let message: String
     let collectionHealth: CollectionAttemptHealth
+    /// Whether the report from an earlier scan is shown below this card.
+    let showsPreviousReport: Bool
     let retryScan: () -> Void
 
     var body: some View {
@@ -741,6 +751,11 @@ private struct ScanFailureCard: View {
                 .font(.callout)
                 .foregroundStyle(.secondary)
 
+            if showsPreviousReport {
+                Text("The report below is from the previous scan, which completed.")
+                    .font(.callout.weight(.medium))
+            }
+
             Text(message)
                 .foregroundStyle(.secondary)
                 .textSelection(.enabled)
@@ -762,11 +777,11 @@ private struct ScanFailureCard: View {
         case .timedOut:
             "Collection reached its deadline and was terminated. No partial JSON report is presented as complete."
         case .permissionLimited:
-            "The command reported a permission-related failure. This tab has no complete collection result."
+            "The command reported a permission-related failure. This scan has no complete collection result."
         case .unavailable:
             "The requested collection did not return usable JSON. This does not prove the related hardware or service is absent."
         case .failed, .notCollected, .running, .completed, .imported:
-            "This tab has no complete collection result. Review the error details before interpreting absent findings."
+            "This scan has no complete collection result. Review the error details before interpreting absent findings."
         }
     }
 }

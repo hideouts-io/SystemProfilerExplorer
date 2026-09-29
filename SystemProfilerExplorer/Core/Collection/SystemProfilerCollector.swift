@@ -110,11 +110,10 @@ actor SystemProfilerCollector: SystemProfilerCollecting {
                 }
             }
         } catch {
-            if process.isRunning {
-                process.terminate()
-            }
-            try? standardOutputPipe.fileHandleForReading.close()
-            try? standardErrorPipe.fileHandleForReading.close()
+            // The output readers finish on their own once the process's end of each pipe
+            // closes. Closing the pipes here instead could fail a read in progress on
+            // another thread, or let it read a file descriptor that has been reused.
+            stopProcess(process)
             throw error
         }
 
@@ -153,6 +152,28 @@ actor SystemProfilerCollector: SystemProfilerCollecting {
         }
 
         runningProcess.terminate()
+    }
+}
+
+/// Terminates the process, and kills it if it's still running a few seconds later, so
+/// the output readers always reach the end of their pipes.
+private func stopProcess(_ process: Process) {
+    if process.isRunning {
+        process.terminate()
+    }
+
+    Task.detached(priority: .utility) {
+        for _ in 0..<30 {
+            guard process.isRunning else {
+                return
+            }
+
+            try? await Task.sleep(for: .milliseconds(100))
+        }
+
+        if process.isRunning {
+            kill(process.processIdentifier, SIGKILL)
+        }
     }
 }
 
