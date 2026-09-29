@@ -1,0 +1,41 @@
+name: Share a sample
+description: Share an anonymized sample from your Mac so the app can learn how other Macs report their values.
+title: "[Sample]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for helping. Only attach a file made with **Share › Anonymized Sample…** in Developer mode, never a full or redacted report export. Open the sample and read it before attaching it; if anything personal remains, describe the field below instead of attaching the file.
+
+  - type: input
+    id: mac
+    attributes:
+      label: Kind of Mac
+      description: The model and anything unusual about it, without a serial number.
+      placeholder: Mac mini (2023), external display and a Thunderbolt dock
+    validations:
+      required: true
+
+  - type: input
+    id: macos-version
+    attributes:
+      label: macOS version
+      placeholder: macOS 26.4 (25E246)
+    validations:
+      required: true
+
+  - type: textarea
+    id: sample
+    attributes:
+      label: Sample file
+      description: Attach the .sample.json file here, or describe the value you'd like explained.
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: review
+    attributes:
+      label: Review
+      options:
+        - label: I read the sample and it contains no names, serial numbers, addresses, or paths.
+          required: true

@@ -36,6 +36,8 @@ xcodebuild -project SystemProfilerExplorer.xcodeproj \
 
 Never commit or attach a raw/full profiler report, local snapshot, screenshot containing private values, or copied live output. Test fixtures must be synthetic and must not contain real serial numbers, UUIDs, UDIDs, addresses, user names, user paths, installed-software inventories, or precise host timestamps.
 
+The one exception is an anonymized sample from the app's **Share › Anonymized Sample…** (Developer mode). It removes names, serial numbers, addresses, paths, dates, and log text, and keeps only what the explanations depend on. Read the file before sharing it, and follow [SystemProfilerExplorerTests/Samples/README.md](SystemProfilerExplorerTests/Samples/README.md) to add it.
+
 The redacted export mode removes reported scalar values, but contributors must still review any exported file or screenshot before sharing it. Run the publication-boundary script before staging changes.
 
 ## Pull requests
