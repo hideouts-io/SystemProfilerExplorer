@@ -50,7 +50,7 @@ let intelReport: ValueReportContext = ValueReportContext(usbDeviceNames: nil, pr
 /// Every value the app explains for fields with a limited set of values.
 let explainedValueSamples: [ValueSample] = applicationValueSamples + fontValueSamples + extensionValueSamples
     + networkValueSamples + softwareHistoryAndFirewallValueSamples + wifiValueSamples
-    + powerValueSamples
+    + powerValueSamples + storageValueSamples
 
 /// Each value is checked with no Hardware section, on Apple silicon, and on an Intel Mac,
 /// because what an architecture means depends on the Mac.
@@ -299,6 +299,45 @@ private let powerValueSamples: [ValueSample] = {
     samples += ["wake", "poweron", "wakepoweron", "sleep", "shutdown", "restart"].map {
         ValueSample(.power, ["_items", "[]", "_items", "[]", "eventtype"], $0)
     }
+
+    return samples
+}()
+
+private let storageValueSamples: [ValueSample] = {
+    let drive: [String] = ["physical_drive"]
+    var samples: [ValueSample] = [
+        ValueSample(.storage, ["writable"], "yes"),
+        ValueSample(.storage, ["writable"], "no"),
+        ValueSample(.storage, ["writable"], "no", siblings: ["mount_point": .string("/")]),
+        ValueSample(.storage, ["writable"], "no", siblings: ["physical_drive": .object(["protocol": .string("Disk Image")])]),
+        ValueSample(.storage, ["free_space_in_bytes"], scalar: .integer(500), siblings: ["size_in_bytes": .string("1000")]),
+        ValueSample(.storage, ["free_space_in_bytes"], scalar: .integer(50), siblings: ["size_in_bytes": .string("1000")]),
+        ValueSample(.storage, drive + ["is_internal_disk"], "yes"),
+        ValueSample(.storage, drive + ["is_internal_disk"], "no"),
+        ValueSample(.storage, drive + ["is_internal_disk"], "no", siblings: ["protocol": .string("Disk Image")]),
+        ValueSample(.storage, ["ignore_ownership"], "yes"),
+        ValueSample(.storage, ["ignore_ownership"], "no")
+    ]
+
+    samples += ["Verified", "Failing", "Not Supported"].map { ValueSample(.storage, drive + ["smart_status"], $0) }
+    samples += ["ssd", "rotational"].map { ValueSample(.storage, drive + ["medium_type"], $0) }
+    samples += [
+        "APFS", "Journaled HFS+", "Case-sensitive Journaled HFS+", "ExFAT", "MS-DOS FAT32", "NTFS"
+    ].map { ValueSample(.storage, ["file_system"], $0) }
+    samples += [
+        "guid_partition_map_type", "master_boot_record_partition_map_type", "apple_partition_map_type", "unknown_partition_map_type"
+    ].map { ValueSample(.storage, drive + ["partition_map_type"], $0) }
+    samples += [
+        "Apple Fabric", "Disk Image", "USB", "Thunderbolt", "SATA", "PCI-Express", "NVMe", "Secure Digital"
+    ].map { ValueSample(.storage, drive + ["protocol"], $0) }
+
+    for field in ["removable_media", "detachable_drive", "spnvme_trim_support"] {
+        samples += ["yes", "no"].map { ValueSample(.nvme, ["_items", "[]", field], $0) }
+    }
+    samples += ["Yes", "No"].map { ValueSample(.serialATA, ["_items", "[]", "spsata_trim_support"], $0) }
+    samples += [
+        "Apple_APFS", "Apple_APFS_ISC", "Apple_APFS_Recovery", "EFI", "Apple_HFS", "Apple_Boot", "Apple_CoreStorage", "Microsoft Basic Data"
+    ].map { ValueSample(.nvme, ["_items", "[]", "volumes", "[]", "iocontent"], $0) }
 
     return samples
 }()

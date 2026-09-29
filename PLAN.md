@@ -89,7 +89,7 @@ test run.
 9. [x] Power and battery: battery condition and charge states, power
    source, hibernate mode, Low and High Power Mode, network reachability,
    reduced brightness, adapter, UPS, scheduled events.
-10. [ ] Storage and NVMe: SMART, file system, medium, partition map,
+10. [x] Storage and NVMe: SMART, file system, medium, partition map,
     writable, internal, protocol, ownership, TRIM, removable, detachable,
     volume content.
 11. [ ] Startup security, software overview and hardware: Secure Boot and

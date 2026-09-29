@@ -265,3 +265,37 @@ modes: the `pmset` man page.
 | `ReduceBrightness` | `0`/`1` | Info | Apple | seen (withheld) |
 | `eventtype` | `wake` | Info | Apple | seen |
 | `eventtype` | `poweron`, `wakepoweron`, `sleep`, `shutdown`, `restart` | Info | Apple | Apple key |
+
+## Storage and NVMe
+
+Sources: the values seen in `docs/value-inventory.md`, and the keys in Apple's
+`SPStorageReporter`, `SPNVMeReporter`, `SPSerialATAReporter` and `SPSupport`
+strings. File systems: "File system formats available in Disk Utility on Mac"
+(<https://support.apple.com/guide/disk-utility/dsku19ed921c>). The sealed system
+volume: "Signed system volume security"
+(<https://support.apple.com/guide/security/secd698747c9>).
+
+| field | value | status | source | spelling |
+|---|---|---|---|---|
+| `smart_status` | `Verified` | Normal | Apple | seen |
+| `smart_status` | `Failing` | Worth a look | Apple | Apple key |
+| `smart_status` | `Not Supported` | Info | Apple | Apple key |
+| `medium_type` | `ssd` | Info | Apple | seen |
+| `medium_type` | `rotational` | Info | Apple | Apple key |
+| `file_system` | `APFS` | Normal | Apple | seen |
+| `file_system` | `Journaled HFS+`, `Case-sensitive Journaled HFS+` | Info | Apple | Apple key |
+| `file_system` | `ExFAT`, `MS-DOS FAT32`, `NTFS` | Info | Apple | unconfirmed (matched by name) |
+| `partition_map_type` | `guid_partition_map_type` | Normal | Apple | seen |
+| `partition_map_type` | `master_boot_record_partition_map_type`, `apple_partition_map_type` | Info | Apple | Apple key |
+| `partition_map_type` | `unknown_partition_map_type` | Info | Inferred | seen |
+| `writable` | `yes`; `no` on the system volume, a disk image, or another volume | Normal, Info | Apple | seen |
+| `free_space_in_bytes` | a byte count (under 10% free is Worth a look) | Normal, Info, Worth a look | Standard | seen |
+| `is_internal_disk` | `yes`, `no` (external or disk image) | Info | Apple | seen |
+| `protocol` | `Apple Fabric` | Info | Inferred | seen |
+| `protocol` | `Disk Image` | Info | Apple | seen |
+| `protocol` | `USB`, `Thunderbolt`, `SATA`, `PCI-Express`, `NVMe`, `Secure Digital` | Info | Apple | unconfirmed |
+| `ignore_ownership` | `yes`, `no` | Info, Normal | Apple | seen (`no`) |
+| `removable_media`, `detachable_drive` | `yes`, `no` | Info | Apple | seen (`no`) |
+| `spnvme_trim_support`, `spsata_trim_support` | `Yes`, `No` | Normal, Info | Apple | seen (`Yes`), Apple key (field) |
+| `iocontent` | `Apple_APFS`, `Apple_APFS_ISC`, `Apple_APFS_Recovery` | Info | Apple | seen |
+| `iocontent` | `EFI`, `Apple_HFS`, `Apple_Boot`, `Apple_CoreStorage`, `Microsoft Basic Data` | Info | Standard | unconfirmed (names `diskutil list` shows) |

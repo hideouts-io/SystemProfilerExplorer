@@ -150,28 +150,120 @@ private func accessibilityFeatureRules(_ features: [(field: String, whenOn: Stri
 
 // MARK: - NVMe storage
 
+// Sources: spnvme_trim_support and spsata_trim_support are keys in Apple's SPNVMeReporter
+// and SPSerialATAReporter strings; Yes is seen in docs/value-inventory.md. The iocontent
+// values Apple_APFS, Apple_APFS_ISC, and Apple_APFS_Recovery are seen in the inventory;
+// the other partition types are the names `diskutil list` shows, and are unconfirmed in
+// system_profiler output. The Apple silicon containers are described in Apple Platform
+// Security ("Boot process for a Mac with Apple silicon").
+
 let nvmeValueRules: [ValueRule] = [
     ValueRule(.nvme, field: "spnvme_trim_support", unrecognizedValues: .ignore) { context in
-        switch decodeBooleanLike(context.reportedValue) {
-        case true?: .normal("TRIM is on, which helps the SSD stay fast over time.", confidence: .documented)
-        case false?: .info("TRIM is off, so the SSD can slow down as it fills and empties over time.", confidence: .documented)
-        case nil: nil
-        }
+        trimExplanation(context.reportedValue)
+    },
+
+    ValueRule(.serialATA, field: "spsata_trim_support", unrecognizedValues: .ignore) { context in
+        trimExplanation(context.reportedValue)
     },
 
     ValueRule(.nvme, field: "iocontent") { context in
-        switch context.reportedValue {
-        case "Apple_APFS":
-            .info("An APFS container that holds macOS and your data.", confidence: .documented)
-        case "Apple_APFS_ISC":
-            .info("The iBoot System Container, which Apple silicon Macs use while starting up.", confidence: .documented)
-        case "Apple_APFS_Recovery":
-            .info("The container that holds macOS Recovery.", confidence: .documented)
-        default:
-            nil
-        }
+        partitionContentExplanation(context.reportedValue)
     }
 ]
+
+private func trimExplanation(_ value: String) -> ValueExplanation? {
+    switch decodeBooleanLike(value) {
+    case true?:
+        .normal(
+            "TRIM is on, which helps the SSD stay fast over time.",
+            detail: "macOS tells the SSD which blocks are no longer in use, so it can clear them ahead of time.",
+            why: "Without TRIM, an SSD slows down as it fills and empties.",
+            action: "Nothing to do.",
+            confidence: .documented
+        )
+    case false?:
+        .info(
+            "TRIM is off, so the SSD can slow down as it fills and empties over time.",
+            detail: "macOS turns TRIM on for Apple SSDs automatically. Third-party SSDs need it turned on with the trimforce command.",
+            why: "Writing to the SSD can get slower as it fills up. It doesn't matter for hard drives.",
+            action: "If this is a third-party SSD, check its maker's advice about TRIM on a Mac.",
+            confidence: .documented
+        )
+    case nil:
+        nil
+    }
+}
+
+private func partitionContentExplanation(_ value: String) -> ValueExplanation? {
+    switch value {
+    case "Apple_APFS":
+        .info(
+            "An APFS container that holds macOS and your data.",
+            detail: "The container holds the system, data, and other APFS volumes, which share its space.",
+            why: "It's the main part of the startup disk.",
+            action: "Nothing to do.",
+            confidence: .documented
+        )
+    case "Apple_APFS_ISC":
+        .info(
+            "The iBoot System Container, which Apple silicon Macs use while starting up.",
+            detail: "It holds startup files and security policies used before macOS loads.",
+            why: "The Mac needs it to start up. macOS manages it; don't change or erase it.",
+            action: "Nothing to do.",
+            confidence: .documented
+        )
+    case "Apple_APFS_Recovery":
+        .info(
+            "The container that holds macOS Recovery.",
+            detail: "On Apple silicon Macs, this separate container holds the recovery system.",
+            why: "You need it to reinstall macOS or repair the disk when macOS won't start.",
+            action: "Nothing to do. Don't erase it.",
+            confidence: .documented
+        )
+    case "EFI":
+        .info(
+            "The EFI system partition, used by the Mac's firmware.",
+            detail: "It's a small partition on GUID-formatted disks that firmware uses while starting up.",
+            why: "macOS manages it, and it's usually hidden.",
+            action: "Nothing to do.",
+            confidence: .observed
+        )
+    case "Apple_HFS":
+        .info(
+            "A Mac OS Extended (HFS+) partition.",
+            detail: "The partition holds a volume in Mac OS Extended format.",
+            why: "It's common on older or backup drives. A Mac with Apple silicon can't start up from it.",
+            action: "Nothing to do.",
+            confidence: .observed
+        )
+    case "Apple_Boot":
+        .info(
+            "A small helper partition used to start up Intel Macs.",
+            detail: "Intel Macs use it for recovery or to start up from encrypted or Fusion drives.",
+            why: "macOS manages it, and it's usually hidden.",
+            action: "Nothing to do.",
+            confidence: .observed
+        )
+    case "Apple_CoreStorage":
+        .info(
+            "A Core Storage partition, used by older Fusion Drives and FileVault setups.",
+            detail: "Core Storage was the volume manager before APFS.",
+            why: "It usually means the disk was set up by an older version of macOS.",
+            action: "Nothing to do.",
+            confidence: .observed
+        )
+    case "Microsoft Basic Data":
+        .info(
+            "A partition formatted for Windows or for sharing, such as exFAT, FAT32, or NTFS.",
+            detail: "This partition type is used for Windows volumes and for exFAT and FAT32 drives.",
+            why: "It can be shared with Windows PCs. macOS can't write to NTFS volumes.",
+            action: "Nothing to do.",
+            confidence: .observed
+        )
+    default:
+        nil
+    }
+}
 
 // MARK: - Configuration profiles
 
