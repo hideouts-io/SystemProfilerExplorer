@@ -198,3 +198,153 @@ private func exportDateDescription(_ date: Date) -> String {
     formatter.dateFormat = "yyyy-MM-dd-HHmmss'Z'"
     return formatter.string(from: date)
 }
+
+// MARK: - Anonymized samples
+
+let anonymizedSampleRemovedValue: String = "<removed>"
+let anonymizedSampleRemovedLog: String = "<log text removed>"
+
+/// An anonymized copy of a report, for sharing as a test sample. It keeps what the
+/// app's explanations depend on: field names, numbers, on/off values, enumeration
+/// tokens, and the values of fields the app explains. Names, serial numbers,
+/// addresses, paths, log text, and other free text are removed. The result has the
+/// same shape as `system_profiler -json` output, so the app can open it.
+func makeAnonymizedSample(_ report: SystemProfilerReport) -> [String: [ProfileValue]] {
+    var sample: [String: [ProfileValue]] = [:]
+
+    for section in report.sections {
+        sample[section.dataType.rawValue] = section.items.map { item in
+            anonymizedValue(item, dataType: section.dataType, path: [], keysAreNames: false)
+        }
+    }
+
+    return sample
+}
+
+func encodeAnonymizedSample(_ sample: [String: [ProfileValue]]) throws -> Data {
+    let encoder: JSONEncoder = JSONEncoder()
+    encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+    return try encoder.encode(sample)
+}
+
+/// Names the sample after the Mac model and macOS version, such as
+/// `Sample-Mac15,3-macOS-26.0.sample.json`, when the report includes them.
+func anonymizedSampleFilename(_ report: SystemProfilerReport) -> String {
+    let model: String? = firstRecordText(report, .hardware, "machine_model")
+    let version: String? = firstRecordText(report, .software, "os_version").flatMap { text in
+        text.range(of: #"\d+(\.\d+)*"#, options: .regularExpression).map { String(text[$0]) }
+    }
+    let parts: [String] = ["Sample", model, version.map { "macOS-\($0)" }]
+        .compactMap { $0 }
+        .map { part in String(part.unicodeScalars.filter { CharacterSet.alphanumerics.contains($0) || ",.-".unicodeScalars.contains($0) }) }
+        .filter { !$0.isEmpty }
+
+    return parts.joined(separator: "-") + ".sample.json"
+}
+
+private func firstRecordText(_ report: SystemProfilerReport, _ dataType: SystemProfilerDataType, _ key: String) -> String? {
+    guard let section = report.sections.first(where: { $0.dataType == dataType }),
+          case let .object(record)? = section.items.first,
+          case let .string(text)? = record[key] else {
+        return nil
+    }
+
+    return text
+}
+
+private func anonymizedValue(
+    _ value: ProfileValue,
+    dataType: SystemProfilerDataType,
+    path: [String],
+    keysAreNames: Bool
+) -> ProfileValue {
+    switch value {
+    case let .object(object):
+        var anonymized: [String: ProfileValue] = [:]
+        anonymized.reserveCapacity(object.count)
+
+        for (position, key) in object.keys.sorted().enumerated() {
+            guard let fieldValue = object[key] else {
+                preconditionFailure("The anonymized profiler object changed during traversal.")
+            }
+
+            let sampleKey: String = keysAreNames || keyLooksLikeIdentifier(key) ? "<name \(position + 1)>" : key
+            anonymized[sampleKey] = anonymizedValue(
+                fieldValue,
+                dataType: dataType,
+                path: path + [key],
+                keysAreNames: nameKeyedContainers.contains(key)
+            )
+        }
+
+        return .object(anonymized)
+
+    case let .array(values):
+        return .array(values.map { item in
+            anonymizedValue(item, dataType: dataType, path: path + ["[]"], keysAreNames: isSingleNamedEntry(item))
+        })
+
+    case .integer, .decimal, .boolean, .null:
+        return value
+
+    case let .string(text):
+        return .string(anonymizedText(text, dataType: dataType, path: path))
+    }
+}
+
+/// Fields that describe the kind of Mac rather than the person who owns it.
+private let sampleIdentityFields: Set<String> = [
+    "machine_model", "machine_name", "chip_type", "cpu_type", "physical_memory",
+    "number_processors", "os_version", "kernel_version", "boot_rom_version", "os_loader_version"
+]
+
+private func anonymizedText(_ text: String, dataType: SystemProfilerDataType, path: [String]) -> String {
+    let field: String = path.last(where: { $0 != "[]" }) ?? ""
+
+    if (dataType == .logs || dataType == .syncServices) && field == "contents" {
+        return anonymizedSampleRemovedLog
+    }
+
+    // Record names are kept only when they're tokens the app gives a readable name,
+    // such as hardware_overview. Device, network, and volume names are removed.
+    if field == "_name" {
+        return friendlyReportGroupName(text) != text ? text : anonymizedSampleRemovedValue
+    }
+
+    if sampleIdentityFields.contains(field) {
+        return text
+    }
+
+    if fieldHoldsPersonalValues(field) || textLooksPersonal(text) {
+        return anonymizedSampleRemovedValue
+    }
+
+    if decodeBooleanLike(text) != nil || isEnumeratedToken(text) || hasValueRule(dataType: dataType, path: path) {
+        return text
+    }
+
+    return anonymizedSampleRemovedValue
+}
+
+private func fieldHoldsPersonalValues(_ field: String) -> Bool {
+    let lowercased: String = field.lowercased()
+
+    return ["user_name", "local_host_name", "computer_name", "host_name"].contains(lowercased)
+        || ["serial", "uuid", "udid", "mac_address", "ssid", "email"].contains { lowercased.contains($0) }
+}
+
+/// Paths, email addresses, and hardware, network, and unique identifiers.
+private func textLooksPersonal(_ text: String) -> Bool {
+    if text.hasPrefix("/") || text.hasPrefix("~") || text.contains("@") || text.contains("::") {
+        return true
+    }
+
+    let patterns: [String] = [
+        #"([0-9a-f]{2}[:-]){5}[0-9a-f]{2}"#,
+        #"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"#,
+        #"(^|[^\d.])\d{1,3}(\.\d{1,3}){3}($|[^\d.])"#,
+        #"([0-9a-f]{1,4}:){7}[0-9a-f]{1,4}"#
+    ]
+
+    return patterns.contains { text.range(of: $0, options: [.regularExpression, .caseInsensitive]) != nil }
+}
