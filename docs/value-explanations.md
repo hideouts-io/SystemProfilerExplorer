@@ -299,3 +299,35 @@ volume: "Signed system volume security"
 | `spnvme_trim_support`, `spsata_trim_support` | `Yes`, `No` | Normal, Info | Apple | seen (`Yes`), Apple key (field) |
 | `iocontent` | `Apple_APFS`, `Apple_APFS_ISC`, `Apple_APFS_Recovery` | Info | Apple | seen |
 | `iocontent` | `EFI`, `Apple_HFS`, `Apple_Boot`, `Apple_CoreStorage`, `Microsoft Basic Data` | Info | Standard | unconfirmed (names `diskutil list` shows) |
+
+## Startup security, software overview, and hardware
+
+Sources: the values seen in `docs/value-inventory.md`, and the keys in Apple's
+`SPiBridgeReporter`, `SPOSReporter` and `SPHardwareReporter` strings. Security
+levels: "Startup Disk security policy control for a Mac with Apple silicon"
+(<https://support.apple.com/guide/security/sec7d92dc49f>) and "Change security
+settings on the startup disk of a Mac with Apple silicon"
+(<https://support.apple.com/guide/mac-help/mchl768f7291>). Safe Mode:
+<https://support.apple.com/guide/mac-help/mh21245>. Activation Lock:
+<https://support.apple.com/en-us/102541>.
+
+| field | value | status | source | spelling |
+|---|---|---|---|---|
+| `ibridge_secure_boot` | `Full Security` | Normal | Apple | seen |
+| `ibridge_secure_boot` | `Medium Security` | Info | Apple | Apple key (T2 Macs) |
+| `ibridge_secure_boot` | `No Security` | Worth a look | Apple | Apple key (T2 Macs) |
+| `ibridge_secure_boot` | `Reduced Security` | Info | Apple | unconfirmed |
+| `ibridge_secure_boot` | `Permissive Security` | Worth a look | Apple | unconfirmed |
+| `ibridge_sb_sip` | `Enabled`, `Disabled`, `Custom Configuration` | Normal, Worth a look | Apple | seen (`Enabled`); others unconfirmed |
+| `ibridge_sb_ssv`, `ibridge_sb_ctrr` | `Enabled`, `Disabled` | Normal, Worth a look | Apple | seen (`Enabled`); `Disabled` unconfirmed |
+| `ibridge_sb_boot_args` | `Enabled` (filtered), `Disabled` | Normal, Info | Apple | seen (`Enabled`); `Disabled` unconfirmed |
+| `ibridge_sb_other_kext` | `No`, `Yes` | Normal, Info | Apple | seen (`No`); `Yes` unconfirmed |
+| `ibridge_sb_manual_mdm`, `ibridge_sb_device_mdm` | `No`, `Yes` | Normal, Info | Inferred | seen (`No`); `Yes` unconfirmed |
+| `system_integrity` | `integrity_enabled`, `integrity_disabled` | Normal, Worth a look | Apple | seen, Apple key |
+| `secure_vm` | `secure_vm_enabled`, `secure_vm_disabled` | Normal, Worth a look | Apple | seen, Apple key |
+| `boot_mode` | `normal_boot` | Normal | Apple | seen |
+| `boot_mode` | `safe_boot`, `installer_boot` | Info | Apple | Apple key |
+| `uptime` | `up d:h:m:s` (30 days or more is Info) | Normal, Info | Standard | seen |
+| `activation_lock_status` | `activation_lock_enabled`, `activation_lock_disabled` | Normal, Info | Apple | seen, Apple key |
+| `number_processors` | `proc total:…:performance:efficiency` | Info | Inferred | seen |
+| `physical_memory` | a size on Apple silicon | Info | Apple | seen (withheld) |

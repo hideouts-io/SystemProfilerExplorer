@@ -92,7 +92,7 @@ test run.
 10. [x] Storage and NVMe: SMART, file system, medium, partition map,
     writable, internal, protocol, ownership, TRIM, removable, detachable,
     volume content.
-11. [ ] Startup security, software overview and hardware: Secure Boot and
+11. [x] Startup security, software overview and hardware: Secure Boot and
     its protections, SIP, secure virtual memory, boot mode, Activation Lock.
 12. [ ] Displays, audio, Bluetooth, Thunderbolt, USB, memory, card readers.
 13. [ ] Settings and profiles: accessibility, language and region,

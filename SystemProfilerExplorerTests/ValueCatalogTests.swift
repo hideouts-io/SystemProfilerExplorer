@@ -50,7 +50,7 @@ let intelReport: ValueReportContext = ValueReportContext(usbDeviceNames: nil, pr
 /// Every value the app explains for fields with a limited set of values.
 let explainedValueSamples: [ValueSample] = applicationValueSamples + fontValueSamples + extensionValueSamples
     + networkValueSamples + softwareHistoryAndFirewallValueSamples + wifiValueSamples
-    + powerValueSamples + storageValueSamples
+    + powerValueSamples + storageValueSamples + startupAndOverviewValueSamples
 
 /// Each value is checked with no Hardware section, on Apple silicon, and on an Intel Mac,
 /// because what an architecture means depends on the Mac.
@@ -342,6 +342,32 @@ private let storageValueSamples: [ValueSample] = {
     return samples
 }()
 
+private let startupAndOverviewValueSamples: [ValueSample] = {
+    var samples: [ValueSample] = [
+        "Full Security", "Reduced Security", "Permissive Security", "Medium Security", "No Security"
+    ].map { ValueSample(.iBridge, ["ibridge_secure_boot"], $0) }
+
+    samples += ["Enabled", "Disabled", "Custom Configuration"].map { ValueSample(.iBridge, ["ibridge_sb_sip"], $0) }
+    for field in ["ibridge_sb_ssv", "ibridge_sb_ctrr", "ibridge_sb_boot_args"] {
+        samples += ["Enabled", "Disabled"].map { ValueSample(.iBridge, [field], $0) }
+    }
+    for field in ["ibridge_sb_other_kext", "ibridge_sb_manual_mdm", "ibridge_sb_device_mdm"] {
+        samples += ["Yes", "No"].map { ValueSample(.iBridge, [field], $0) }
+    }
+
+    samples += ["integrity_enabled", "integrity_disabled"].map { ValueSample(.software, ["system_integrity"], $0) }
+    samples += ["secure_vm_enabled", "secure_vm_disabled"].map { ValueSample(.software, ["secure_vm"], $0) }
+    samples += ["normal_boot", "safe_boot", "installer_boot"].map { ValueSample(.software, ["boot_mode"], $0) }
+    samples += ["up 0:1:17:52", "up 45:3:0:0"].map { ValueSample(.software, ["uptime"], $0) }
+    samples += ["activation_lock_enabled", "activation_lock_disabled"].map {
+        ValueSample(.hardware, ["activation_lock_status"], $0)
+    }
+    samples.append(ValueSample(.hardware, ["number_processors"], "proc 14:0:10:4"))
+    samples.append(ValueSample(.hardware, ["physical_memory"], "32 GB", siblings: ["chip_type": .string("Apple M4 Pro")]))
+
+    return samples
+}()
+
 struct ValueCatalogTests {
     @Test(arguments: explainedValueSamples)
     func everyKnownValueHasEveryPart(_ sample: ValueSample) throws {
@@ -515,6 +541,17 @@ struct ValueCatalogTests {
         #expect(explain("Fair")?.detail?.contains("Replace Soon") == true)
         #expect(explain("Check Battery")?.detail?.contains("Service Battery") == true)
         #expect(explain("Excellent")?.status == .unknown)
+    }
+
+    // MARK: - Startup and software overview
+
+    @Test
+    func installerStartupIsExplained() throws {
+        let installer = try #require(valueExplanation(dataType: .software, path: ["boot_mode"], scalar: .string("installer_boot")))
+
+        #expect(installer.status == .informational)
+        #expect(installer.detail?.contains("installation CD/DVD") == true)
+        #expect(valueExplanation(dataType: .software, path: ["boot_mode"], scalar: .string("network_boot"))?.status == .unknown)
     }
 
     @Test

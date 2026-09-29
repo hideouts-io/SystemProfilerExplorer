@@ -2,6 +2,10 @@ import Foundation
 
 // MARK: - Hardware
 
+// Sources: activation_lock_enabled is seen in docs/value-inventory.md, and
+// activation_lock_enabled and _disabled are keys in Apple's SPHardwareReporter strings.
+// Activation Lock is described in https://support.apple.com/en-us/102541.
+
 let hardwareValueRules: [ValueRule] = [
     ValueRule(.hardware, field: "number_processors") { context in
         processorCountExplanation(context.reportedValue)
@@ -12,11 +16,16 @@ let hardwareValueRules: [ValueRule] = [
         case true?:
             .normal(
                 "Activation Lock is on, so erasing and reactivating this Mac requires the owner's Apple Account.",
+                detail: "Find My is on, and the Mac is linked to an Apple Account.",
+                why: "If the Mac is lost or stolen, no one else can erase and use it without that account's password.",
+                action: "Nothing to do. Before you sell or give away this Mac, sign out of your Apple Account so the next owner can activate it.",
                 confidence: .documented
             )
         case false?:
             .info(
                 "Activation Lock is off. It turns on with Find My, and is often off on managed, repaired, or resold Macs.",
+                detail: "The Mac isn't linked to an Apple Account for Activation Lock.",
+                why: "If the Mac is lost or stolen, someone else could erase it and use it.",
                 action: "To protect this Mac if it's lost, turn on Find My in System Settings.",
                 confidence: .documented
             )
@@ -33,6 +42,8 @@ let hardwareValueRules: [ValueRule] = [
         return .info(
             "\(context.reportedValue) of unified memory, shared by the CPU and GPU.",
             detail: "On Apple silicon, memory is part of the chip package and can't be upgraded later.",
+            why: "Memory limits how many apps, browser tabs, and large files the Mac can keep open smoothly.",
+            action: "Nothing to do. If the Mac often slows down with many apps open, check Memory Pressure in Activity Monitor.",
             confidence: .documented
         )
     }
@@ -88,11 +99,18 @@ func processorCountExplanation(_ value: String) -> ValueExplanation? {
     return .info(
         "\(cores.total) CPU cores: \(cores.performance) performance and \(cores.efficiency) efficiency.",
         detail: "Performance cores run demanding work; efficiency cores handle background tasks using less power.",
+        why: "More performance cores speed up heavy work such as video exports and code builds.",
+        action: "Nothing to do.",
         confidence: .likely(reasons: reasons)
     )
 }
 
 // MARK: - Software
+
+// Sources: integrity_enabled, secure_vm_enabled, and normal_boot are seen in
+// docs/value-inventory.md. integrity_disabled, secure_vm_disabled ("Not Enabled"),
+// safe_boot, and installer_boot are keys in Apple's SPOSReporter strings. Safe Mode:
+// https://support.apple.com/guide/mac-help/mh21245.
 
 let softwareValueRules: [ValueRule] = [
     ValueRule(.software, field: "system_integrity") { context in
@@ -121,9 +139,21 @@ let softwareValueRules: [ValueRule] = [
     ValueRule(.software, field: "secure_vm") { context in
         switch decodeBooleanLike(context.reportedValue) {
         case true?:
-            .normal("Secure virtual memory is on: data macOS moves from memory to disk is encrypted.")
+            .normal(
+                "Secure virtual memory is on: data macOS moves from memory to disk is encrypted.",
+                detail: "When memory runs short, macOS writes some of it to a swap file, and encrypts it first.",
+                why: "Passwords and other secrets in memory can't be read from the disk later.",
+                action: "Nothing to do. Current macOS always encrypts virtual memory.",
+                confidence: .documented
+            )
         case false?:
-            .review("Secure virtual memory is off, so data macOS moves from memory to disk isn't encrypted.")
+            .review(
+                "Secure virtual memory is off, so data macOS moves from memory to disk isn't encrypted.",
+                detail: "Only older macOS versions allowed turning this off; current versions always encrypt virtual memory.",
+                why: "Passwords and other secrets written to the swap file could be read from the disk.",
+                action: "Update macOS, or turn on Use secure virtual memory in Security preferences on older versions.",
+                confidence: .documented
+            )
         case nil:
             nil
         }
@@ -133,13 +163,31 @@ let softwareValueRules: [ValueRule] = [
         let value: String = context.reportedValue.lowercased()
 
         if value == "normal_boot" {
-            return .normal("This Mac started up normally.")
+            return .normal(
+                "This Mac started up normally.",
+                detail: "macOS loaded all its usual software, including login items and extensions.",
+                why: "Everything runs as usual.",
+                action: "Nothing to do.",
+                confidence: .documented
+            )
         }
 
         if value.contains("safe") {
             return .info(
                 "This Mac started up in Safe Mode, which loads only essential software.",
+                detail: "Safe Mode checks the startup disk, skips login items and third-party extensions, and clears some caches.",
+                why: "Some features and apps may not work until the Mac restarts normally.",
                 action: "Restart normally when you've finished troubleshooting.",
+                confidence: .documented
+            )
+        }
+
+        if value == "installer_boot" {
+            return .info(
+                "This Mac started up from an installer.",
+                detail: "Apple's System Information shows this as “Booted from installation CD/DVD”: the running system is a macOS installer, not the Mac's usual startup disk.",
+                why: "The report describes the installer environment, and some sections may be missing.",
+                action: "Nothing to do if you're installing macOS. Otherwise, choose your usual startup disk and restart.",
                 confidence: .documented
             )
         }
@@ -190,14 +238,25 @@ func uptimeExplanation(_ value: String) -> ValueExplanation? {
 
     let summary: String = "Running for \(uptime.duration) since the last restart."
 
+    let detail: String = "This is how long macOS had been running without a restart when the scan ran. Sleep doesn't reset it."
+
     if uptime.days >= 30 {
         return .info(
             summary,
-            action: "Restarting now and then installs pending updates and clears temporary problems."
+            detail: detail,
+            why: "Some updates only take effect after a restart, and a long-running Mac can collect small problems.",
+            action: "Restarting now and then installs pending updates and clears temporary problems.",
+            confidence: .observed
         )
     }
 
-    return .normal(summary)
+    return .normal(
+        summary,
+        detail: detail,
+        why: "The Mac has restarted recently enough that pending updates and temporary problems are unlikely to build up.",
+        action: "Nothing to do.",
+        confidence: .observed
+    )
 }
 
 // MARK: - Firewall
