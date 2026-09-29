@@ -499,14 +499,21 @@ func usbLinkExplanation(_ value: String, adapterMegabits: Int?) -> ValueExplanat
 
 // MARK: - Wi-Fi
 
+// Sources: the values seen in docs/value-inventory.md (spairport_status_connected,
+// the four security modes, spairport_network_type_station, spairport_caps_supported,
+// FCC, US) and the keys in Apple's SPAirPortReporter strings: spairport_status_
+// connected, _off, _disassociated and _inactive; spairport_security_mode_none, _wep,
+// _wep40, _wep128, _8021x, _wps, _wpa_personal, _wpa_enterprise, _wpa2_personal,
+// _wpa2_personal_mixed, _wpa2_enterprise, _wpa2_enterprise_mixed and _wpa3_personal;
+// spairport_network_type_station, _ibss and _sharing; spairport_caps_supported and
+// _unsupported. Published output shows the locales ETSI and RoW. Unconfirmed
+// spellings, kept because older versions of this app matched them: status
+// disconnected and not_associated; security modes wpa_personal_mixed, wpa3_enterprise,
+// wpa2_wpa3_enterprise and owe; locale MKK. Signal bands are common Wi-Fi guidance.
+
 let wifiValueRules: [ValueRule] = [
     ValueRule(.wifi, field: "spairport_status_information") { context in
-        switch tokenSuffix(context.reportedValue, after: "status_") {
-        case "connected": .normal("Connected to a Wi-Fi network.")
-        case "off": .info("Wi-Fi is turned off.")
-        case "disconnected", "inactive", "not_associated": .info("Wi-Fi is on but not connected to a network.")
-        default: nil
-        }
+        wifiStatusExplanation(context.reportedValue)
     },
 
     ValueRule(.wifi, field: "spairport_security_mode") { context in
@@ -530,30 +537,47 @@ let wifiValueRules: [ValueRule] = [
     ValueRule(.wifi, field: "spairport_network_phymode", unrecognizedValues: .ignore) { context in
         wifiGeneration(context.reportedValue).map { generation in
             context.pathContains("spairport_current_network_information")
-                ? .normal("Connected using \(generation).", confidence: .documented)
-                : .info("This network supports up to \(generation).", confidence: .documented)
+                ? .normal(
+                    "Connected using \(generation).",
+                    detail: "This is the Wi-Fi standard this Mac and the router agreed on for the current connection.",
+                    why: "Newer standards are faster and cope better with busy networks. The connection uses the newest standard both sides support.",
+                    action: "Nothing to do. If it's older than your router supports, check the router's settings or move closer to it.",
+                    confidence: .documented
+                )
+                : .info(
+                    "This network supports up to \(generation).",
+                    detail: "This is the newest Wi-Fi standard the nearby network advertised when the scan ran.",
+                    why: "It's a network this Mac could see, not necessarily one it uses.",
+                    action: "Nothing to do.",
+                    confidence: .documented
+                )
         }
     },
 
     ValueRule(.wifi, field: "spairport_supported_phymodes", unrecognizedValues: .ignore) { context in
         wifiGeneration(context.reportedValue).map {
-            .info("This Mac's Wi-Fi supports up to \($0).", confidence: .documented)
+            .info(
+                "This Mac's Wi-Fi supports up to \($0).",
+                detail: "This is the list of Wi-Fi standards the Mac's Wi-Fi hardware can use. The newest one is named here.",
+                why: "A connection can't be faster than the older of this and the router's newest standard.",
+                action: "Nothing to do.",
+                confidence: .documented
+            )
         }
     },
 
     ValueRule(.wifi, field: "spairport_network_type") { context in
-        switch tokenSuffix(context.reportedValue, after: "network_type_") {
-        case "station": .info("A regular network hosted by a router or access point.")
-        case "ibss": .info("A direct computer-to-computer (ad hoc) network.")
-        default: nil
-        }
+        wifiNetworkTypeExplanation(context.reportedValue)
     },
 
     ValueRule(.wifi, field: "spairport_network_rate", unrecognizedValues: .ignore) { context in
         leadingInteger(context.reportedValue).map { rate in
             .info(
                 "The link between this Mac and the router runs at up to \(rate.formatted()) Mbps.",
-                detail: "Internet speed is usually lower, because it depends on the internet connection itself."
+                detail: "Internet speed is usually lower, because it depends on the internet connection itself.",
+                why: "This rate changes all the time with signal strength and interference. It's the ceiling for traffic inside your network, such as backups and file sharing.",
+                action: "Nothing to do. If it's much lower than usual, check the signal and move closer to the router.",
+                confidence: .documented
             )
         }
     },
@@ -566,67 +590,222 @@ let wifiValueRules: [ValueRule] = [
         wifiRegionExplanation(context.reportedValue)
     },
 
+    ValueRule(.wifi, field: "spairport_wireless_locale") { context in
+        wifiLocaleExplanation(context.reportedValue)
+    },
+
     ValueRule(.wifi, field: "spairport_caps_airdrop") { context in
-        wifiCapabilityExplanation(context.reportedValue, feature: "AirDrop")
+        wifiCapabilityExplanation(
+            context.reportedValue,
+            feature: "AirDrop",
+            why: "AirDrop sends files directly to nearby Apple devices over Wi-Fi."
+        )
     },
 
     ValueRule(.wifi, field: "spairport_caps_autounlock") { context in
-        wifiCapabilityExplanation(context.reportedValue, feature: "unlocking with Apple Watch")
+        wifiCapabilityExplanation(
+            context.reportedValue,
+            feature: "unlocking with Apple Watch",
+            why: "Auto Unlock uses Wi-Fi to measure how close your Apple Watch is before it unlocks the Mac."
+        )
     },
 
     ValueRule(.wifi, field: "spairport_caps_wow") { context in
-        wifiCapabilityExplanation(context.reportedValue, feature: "waking over Wi-Fi (Wake on Wireless)")
+        wifiCapabilityExplanation(
+            context.reportedValue,
+            feature: "waking over Wi-Fi (Wake on Wireless)",
+            why: "It lets other devices wake the Mac over Wi-Fi to reach shared files, printers, or screen sharing."
+        )
+    },
+
+    ValueRule(.wifi, field: "spairport_caps_awdl") { context in
+        wifiCapabilityExplanation(
+            context.reportedValue,
+            feature: "Apple Wireless Direct Link (used by AirPlay screen mirroring, AirDrop, and Sidecar)",
+            why: "These features connect directly to nearby Apple devices, without going through a router."
+        )
     }
 ]
+
+private func wifiStatusExplanation(_ value: String) -> ValueExplanation? {
+    switch tokenSuffix(value, after: "status_") {
+    case "connected":
+        .normal(
+            "Connected to a Wi-Fi network.",
+            detail: "Wi-Fi was on and joined to a network when the scan ran.",
+            why: "The Mac can reach the network and, through it, the internet.",
+            action: "Nothing to do.",
+            confidence: .documented
+        )
+    case "off":
+        .info(
+            "Wi-Fi is turned off.",
+            detail: "The Wi-Fi radio was off when the scan ran, so it can't see or join networks.",
+            why: "The Mac needs another connection, such as Ethernet, to reach the network. AirDrop and some Continuity features also need Wi-Fi.",
+            action: "If you expected Wi-Fi to be on, turn it on in Control Center or System Settings › Wi-Fi.",
+            confidence: .documented
+        )
+    case "disassociated", "disconnected", "not_associated":
+        .info(
+            "Wi-Fi is on but not connected to a network.",
+            detail: "The Wi-Fi radio was on, but it wasn't joined to any network when the scan ran.",
+            why: "Without a network, the Mac can't use Wi-Fi to reach the internet.",
+            action: "If you expected a connection, choose a network in System Settings › Wi-Fi. If it keeps dropping, check the password and the router.",
+            confidence: .documented
+        )
+    case "inactive":
+        .info(
+            "The Wi-Fi network service is inactive.",
+            detail: "Wi-Fi hardware is present, but its service is turned off or deactivated in Network settings.",
+            why: "macOS won't use Wi-Fi for network traffic while its service is inactive.",
+            action: "If you want to use Wi-Fi, check that the Wi-Fi service is active in System Settings › Network.",
+            confidence: .documented
+        )
+    default:
+        nil
+    }
+}
 
 func wifiSecurityExplanation(_ value: String, isCurrentNetwork: Bool) -> ValueExplanation? {
     guard let mode = tokenSuffix(value, after: "security_mode_") else {
         return nil
     }
 
-    let insecure: (String, String?) -> ValueExplanation = { summary, action in
+    let networkName: String = isCurrentNetwork ? "the network this Mac is connected to" : "this nearby network"
+    let subject: String = isCurrentNetwork ? "The network this Mac is connected to" : "This nearby network"
+    let weak: (String, String, String) -> ValueExplanation = { summary, detail, why in
         isCurrentNetwork
-            ? .review(summary, action: action, confidence: .documented)
-            : .info(summary, confidence: .documented)
+            ? .review(
+                summary,
+                detail: detail,
+                why: why,
+                action: "If this is your router, switch it to WPA2/WPA3 Personal (or WPA3 Personal). Otherwise, prefer another network or use a VPN.",
+                confidence: .documented
+            )
+            : .info(
+                summary,
+                detail: detail,
+                why: "\(why) It's only a nearby network, so it doesn't affect this Mac unless it joins.",
+                action: "Nothing to do unless you plan to join it.",
+                confidence: .documented
+            )
+    }
+    let strong: (String, String, String) -> ValueExplanation = { summary, detail, why in
+        .normal(
+            summary,
+            detail: detail,
+            why: why,
+            action: "Nothing to do.",
+            confidence: .documented
+        )
     }
 
     switch mode {
     case "wpa3_personal":
-        return .normal("WPA3 Personal, the newest and strongest security for home networks.", confidence: .documented)
+        return strong(
+            "WPA3 Personal, the newest and strongest security for home networks.",
+            "Traffic on \(networkName) is encrypted with WPA3, which resists password-guessing attacks better than WPA2.",
+            "It's the security type Apple recommends for Wi-Fi routers."
+        )
     case "wpa3_transition":
-        return .normal(
+        return strong(
             "WPA2/WPA3 Personal: WPA3 for devices that support it, and WPA2 for older ones.",
-            confidence: .documented
+            "\(subject) accepts both WPA3 and WPA2, so each device uses the best one it supports.",
+            "It's the mode Apple recommends for routers that still have older devices on them."
         )
     case "wpa2_personal":
-        return .normal(
+        return strong(
             "WPA2 Personal: secure and widely used. WPA3 is newer, if the router supports it.",
-            confidence: .documented
+            "Traffic on \(networkName) is encrypted with WPA2 and a shared password.",
+            "WPA2 is secure with a strong password. WPA3 adds protection against password guessing."
+        )
+    case "wpa2_personal_mixed":
+        return weak(
+            "WPA/WPA2 Personal: the router still accepts the outdated original WPA.",
+            "\(subject) allows both WPA2 and the original WPA, which is no longer considered secure.",
+            "Allowing the original WPA weakens the network and can slow it down."
         )
     case "wpa2_enterprise", "wpa3_enterprise", "wpa2_wpa3_enterprise":
-        return .normal(
+        return strong(
             "Enterprise security: each person signs in with their own account, as is common at work or school.",
-            confidence: .documented
+            "\(subject) checks each person's own user name and password or certificate instead of a shared password.",
+            "Each person's traffic is encrypted separately, and the organization can remove one person's access without changing a shared password."
+        )
+    case "wpa2_enterprise_mixed":
+        return weak(
+            "WPA/WPA2 Enterprise: the network still accepts the outdated original WPA.",
+            "Each person signs in with their own account, but the network also allows the original WPA.",
+            "Allowing the original WPA weakens the network's encryption."
         )
     case "wpa_personal", "wpa_personal_mixed", "wpa_enterprise":
-        return insecure(
+        return weak(
             "The original WPA, an outdated security type.",
-            "If this is your router, switch it to WPA2/WPA3 Personal."
+            "\(subject) uses the first version of WPA, from 2003.",
+            "Its encryption has known weaknesses, and Apple recommends against it."
         )
-    case "wep":
-        return insecure(
+    case "wep", "wep40", "wep128", "8021x":
+        let wepDetail: String = switch mode {
+        case "wep40": "\(subject) uses WEP encryption with a 40-bit key."
+        case "wep128": "\(subject) uses WEP encryption with a 128-bit key."
+        case "8021x": "\(subject) uses 802.1X sign-in with WEP encryption."
+        default: "\(subject) uses WEP encryption."
+        }
+        return weak(
             "WEP, an obsolete security type that can be broken quickly.",
-            "If this is your router, switch it to WPA2/WPA3 Personal."
+            wepDetail,
+            "WEP can be cracked in minutes, so it offers almost no protection."
+        )
+    case "wps":
+        return weak(
+            "Wi-Fi Protected Setup (WPS), a push-button or PIN way of joining.",
+            "\(subject) was advertising WPS when the scan ran. macOS doesn't use WPS to join networks.",
+            "The WPS PIN method can be guessed, which can reveal the network's password."
         )
     case "none":
-        return insecure(
+        return weak(
             "An open network with no Wi-Fi encryption, so others nearby can see traffic that isn't otherwise protected.",
-            "Prefer secured networks. Websites using HTTPS and VPNs still protect their own traffic."
+            "\(subject) has no password and no Wi-Fi encryption.",
+            "Anyone nearby can see traffic that isn't protected in another way. Websites using HTTPS and VPNs still protect their own traffic."
         )
     case "owe":
-        return .normal("Enhanced Open: no password, but traffic is still encrypted.", confidence: .documented)
+        return strong(
+            "Enhanced Open: no password, but traffic is still encrypted.",
+            "\(subject) is open to anyone, but each device's traffic is encrypted separately.",
+            "It protects against others nearby reading your traffic, though it can't prove the network is the one you expect."
+        )
     default:
         return nil
+    }
+}
+
+private func wifiNetworkTypeExplanation(_ value: String) -> ValueExplanation? {
+    switch tokenSuffix(value, after: "network_type_") {
+    case "station":
+        .info(
+            "A regular network hosted by a router or access point.",
+            detail: "Apple calls this an infrastructure network: devices connect through a central router or access point.",
+            why: "It's the usual kind of Wi-Fi network at home, at work, and in public places.",
+            action: "Nothing to do.",
+            confidence: .documented
+        )
+    case "ibss":
+        .info(
+            "A direct computer-to-computer (ad hoc) network.",
+            detail: "Devices connect directly to each other without a router. Current macOS can no longer create these networks.",
+            why: "Ad hoc networks usually have weak or no security and don't provide internet access on their own.",
+            action: "If you don't recognize it, don't join it.",
+            confidence: .documented
+        )
+    case "sharing":
+        .info(
+            "A network created by Internet Sharing on a Mac.",
+            detail: "A Mac is sharing its internet connection over Wi-Fi, acting as a small router.",
+            why: "Other devices get internet access through that Mac, which must stay awake and connected.",
+            action: "If it's this Mac and you didn't mean to share, turn off Internet Sharing in System Settings › General › Sharing.",
+            confidence: .documented
+        )
+    default:
+        nil
     }
 }
 
@@ -647,14 +826,30 @@ func wifiSignalExplanation(_ value: String, isCurrentNetwork: Bool) -> ValueExpl
     let summary: String = "\(quality) signal (\(signal) dBm\(noiseNote))."
 
     guard isCurrentNetwork else {
-        return .info(summary, detail: detail)
+        return .info(
+            summary,
+            detail: detail,
+            why: "This is how strongly a nearby network reached this Mac. It only matters if you plan to join that network.",
+            action: "Nothing to do.",
+            confidence: .observed
+        )
     }
 
-    let action: String? = status == .normal
-        ? nil
+    let why: String = status == .normal
+        ? "A strong signal gives the fastest, steadiest connection this network can offer."
+        : "A weak signal lowers speed and can make the connection drop, especially for video calls."
+    let action: String = status == .normal
+        ? "Nothing to do."
         : "Move closer to the router or access point, or reduce obstacles between them, for faster and steadier Wi-Fi."
 
-    return ValueExplanation(summary: summary, detail: detail, status: status, confidence: .observed, suggestedAction: action)
+    return ValueExplanation(
+        summary: summary,
+        detail: detail,
+        significance: why,
+        status: status,
+        confidence: .observed,
+        suggestedAction: action
+    )
 }
 
 /// Common Wi-Fi guidance for received signal strength in dBm.
@@ -690,13 +885,17 @@ func wifiChannelExplanation(_ value: String) -> ValueExplanation? {
         .first { $0.lowercased().hasSuffix("mhz") }
         .map { "\($0.dropLast(3)) MHz" }
     let bandNote: String
+    let why: String
 
     if lowercased.contains("6ghz") {
         bandNote = "The 6 GHz band (Wi-Fi 6E and later) is the fastest and least crowded, with the shortest range."
+        why = "It gives the most speed close to the router, but walls weaken it quickly."
     } else if lowercased.contains("5ghz") {
         bandNote = "The 5 GHz band is faster than 2.4 GHz, with a shorter range."
+        why = "It's the usual choice for speed in the same room or nearby rooms."
     } else if lowercased.contains("2ghz") {
         bandNote = "The 2.4 GHz band reaches farther but is slower and more crowded."
+        why = "It's shared with many other networks and devices, such as Bluetooth and microwave ovens, so it's often slower."
     } else {
         return nil
     }
@@ -706,6 +905,8 @@ func wifiChannelExplanation(_ value: String) -> ValueExplanation? {
     return .info(
         "Channel \(channel) on the \(band) band\(width.map { ", \($0) wide" } ?? "").",
         detail: "\(bandNote) Wider channels carry more data but are more sensitive to interference.",
+        why: why,
+        action: "Nothing to do. The router chooses the channel; if Wi-Fi is slow, letting it choose automatically usually works best.",
         confidence: .documented
     )
 }
@@ -739,15 +940,63 @@ private func wifiRegionExplanation(_ code: String) -> ValueExplanation? {
 
     return .info(
         "Wi-Fi region: \(region). It sets which channels and transmit power are allowed.",
+        detail: "macOS works out the country from nearby routers and, when allowed, Location Services.",
+        why: "Each country allows different Wi-Fi channels and power levels, so the region decides which networks and bands the Mac can use.",
+        action: "Nothing to do. If it names the wrong country, some networks may be hidden; turning Wi-Fi off and on usually makes macOS check again.",
         confidence: .documented
     )
 }
 
-private func wifiCapabilityExplanation(_ value: String, feature: String) -> ValueExplanation? {
+private func wifiLocaleExplanation(_ value: String) -> ValueExplanation? {
+    let summary: String
+    let confidence: ValueConfidence
+
+    switch value.uppercased() {
+    case "FCC":
+        summary = "Wi-Fi follows the United States (FCC) rules for channels and transmit power."
+        confidence = .documented
+    case "ETSI":
+        summary = "Wi-Fi follows the European (ETSI) rules for channels and transmit power."
+        confidence = .documented
+    case "MKK", "JAPAN":
+        summary = "Wi-Fi follows the Japanese (MKK) rules for channels and transmit power."
+        confidence = .documented
+    case "ROW":
+        summary = "Wi-Fi follows a general set of rules for channels and transmit power used outside specific regions."
+        confidence = .observed
+    default:
+        return nil
+    }
+
+    return .info(
+        summary,
+        detail: "The locale is the group of radio rules the Wi-Fi hardware applies. It's set from the Wi-Fi country code.",
+        why: "It decides which channels and power levels the Mac may use, so a network on a channel outside these rules won't appear.",
+        action: "Nothing to do.",
+        confidence: confidence
+    )
+}
+
+private func wifiCapabilityExplanation(_ value: String, feature: String, why: String) -> ValueExplanation? {
     switch decodeBooleanLike(value) {
-    case true?: .info("This Mac's Wi-Fi supports \(feature).")
-    case false?: .info("This Mac's Wi-Fi doesn't support \(feature).")
-    case nil: nil
+    case true?:
+        .info(
+            "This Mac's Wi-Fi supports \(feature).",
+            detail: "The Wi-Fi hardware reports that it can do this.",
+            why: why,
+            action: "Nothing to do.",
+            confidence: .documented
+        )
+    case false?:
+        .info(
+            "This Mac's Wi-Fi doesn't support \(feature).",
+            detail: "The Wi-Fi hardware reports that it can't do this, usually because it's older or not made by Apple.",
+            why: why,
+            action: "Nothing to do, unless you need this feature on this Mac.",
+            confidence: .documented
+        )
+    case nil:
+        nil
     }
 }
 

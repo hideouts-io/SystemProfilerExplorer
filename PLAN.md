@@ -84,7 +84,7 @@ test run.
    switches, Wi-Fi join mode, VPN sign-in, Ethernet media, active location,
    network volumes.
 7. [x] Install history, legacy software, and firewall.
-8. [ ] Wi-Fi: status, security, network type, capabilities, regulatory
+8. [x] Wi-Fi: status, security, network type, capabilities, regulatory
    locale.
 9. [ ] Power and battery: battery condition and charge states, power
    source, hibernate mode, Low and High Power Mode, network reachability,

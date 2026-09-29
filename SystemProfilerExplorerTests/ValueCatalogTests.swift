@@ -49,7 +49,7 @@ let intelReport: ValueReportContext = ValueReportContext(usbDeviceNames: nil, pr
 
 /// Every value the app explains for fields with a limited set of values.
 let explainedValueSamples: [ValueSample] = applicationValueSamples + fontValueSamples + extensionValueSamples
-    + networkValueSamples + softwareHistoryAndFirewallValueSamples
+    + networkValueSamples + softwareHistoryAndFirewallValueSamples + wifiValueSamples
 
 /// Each value is checked with no Hardware section, on Apple silicon, and on an Intel Mac,
 /// because what an architecture means depends on the Mac.
@@ -217,6 +217,47 @@ private let softwareHistoryAndFirewallValueSamples: [ValueSample] = {
     return samples
 }()
 
+private let wifiValueSamples: [ValueSample] = {
+    let interface: [String] = ["spairport_airport_interfaces", "[]"]
+    let current: [String] = interface + ["spairport_current_network_information"]
+    let nearby: [String] = interface + ["spairport_airport_other_local_wireless_networks", "[]"]
+
+    var samples: [ValueSample] = [
+        "spairport_status_connected", "spairport_status_off", "spairport_status_disassociated",
+        "spairport_status_inactive", "spairport_status_disconnected", "spairport_status_not_associated"
+    ].map { ValueSample(.wifi, interface + ["spairport_status_information"], $0) }
+
+    let securityModes: [String] = [
+        "none", "wep", "wep40", "wep128", "8021x", "wps", "wpa_personal", "wpa_personal_mixed", "wpa_enterprise",
+        "wpa2_personal", "wpa2_personal_mixed", "wpa2_enterprise", "wpa2_enterprise_mixed", "wpa3_personal",
+        "wpa3_transition", "wpa3_enterprise", "wpa2_wpa3_enterprise", "owe"
+    ]
+    for network in [current, nearby] {
+        samples += securityModes.map { ValueSample(.wifi, network + ["spairport_security_mode"], "spairport_security_mode_\($0)") }
+        samples += ["-45 dBm / -91 dBm", "-80 dBm / -91 dBm"].map { ValueSample(.wifi, network + ["spairport_signal_noise"], $0) }
+        samples += ["36 (5GHz, 160MHz)", "6 (2GHz, 20MHz)", "37 (6GHz, 320MHz)"].map {
+            ValueSample(.wifi, network + ["spairport_network_channel"], $0)
+        }
+        samples.append(ValueSample(.wifi, network + ["spairport_network_phymode"], "802.11ax"))
+    }
+    samples += ["station", "ibss", "sharing"].map {
+        ValueSample(.wifi, nearby + ["spairport_network_type"], "spairport_network_type_\($0)")
+    }
+    samples.append(ValueSample(.wifi, current + ["spairport_network_rate"], scalar: .integer(1201)))
+    samples.append(ValueSample(.wifi, current + ["spairport_network_country_code"], "US"))
+    samples.append(ValueSample(.wifi, interface + ["spairport_wireless_country_code"], "DE"))
+    samples.append(ValueSample(.wifi, interface + ["spairport_supported_phymodes"], "802.11 a/b/g/n/ac/ax"))
+    samples += ["FCC", "ETSI", "MKK", "RoW"].map { ValueSample(.wifi, interface + ["spairport_wireless_locale"], $0) }
+
+    for field in ["spairport_caps_airdrop", "spairport_caps_autounlock", "spairport_caps_wow", "spairport_caps_awdl"] {
+        samples += ["spairport_caps_supported", "spairport_caps_unsupported"].map {
+            ValueSample(.wifi, interface + [field], $0)
+        }
+    }
+
+    return samples
+}()
+
 struct ValueCatalogTests {
     @Test(arguments: explainedValueSamples)
     func everyKnownValueHasEveryPart(_ sample: ValueSample) throws {
@@ -343,6 +384,36 @@ struct ValueCatalogTests {
 
         #expect(allowAll.status == .worthReviewing)
         #expect(allowAll.summary.contains("off"))
+    }
+
+    // MARK: - Wi-Fi
+
+    @Test
+    func weakWiFiSecurityMattersOnlyForTheCurrentNetwork() throws {
+        func explain(_ mode: String, current: Bool) -> ValueExplanation? {
+            wifiSecurityExplanation("spairport_security_mode_\(mode)", isCurrentNetwork: current)
+        }
+
+        for mode in ["wep40", "wep128", "8021x", "wps", "wpa2_personal_mixed", "wpa2_enterprise_mixed"] {
+            #expect(explain(mode, current: true)?.status == .worthReviewing, "\(mode)")
+            #expect(explain(mode, current: false)?.status == .informational, "\(mode)")
+        }
+
+        let nearby = try #require(explain("none", current: false))
+        #expect(nearby.suggestedAction == "Nothing to do unless you plan to join it.")
+        #expect(explain("wpa3_personal", current: false)?.status == .normal)
+    }
+
+    @Test
+    func wiFiStatusSpellingsFromAppleAreRecognized() throws {
+        let disassociated = try #require(valueExplanation(
+            dataType: .wifi,
+            path: ["spairport_status_information"],
+            scalar: .string("spairport_status_disassociated")
+        ))
+
+        #expect(disassociated.summary == "Wi-Fi is on but not connected to a network.")
+        #expect(valueExplanation(dataType: .wifi, path: ["spairport_status_information"], scalar: .string("spairport_status_future"))?.status == .unknown)
     }
 
     @Test

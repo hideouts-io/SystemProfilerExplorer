@@ -241,16 +241,6 @@ let hardwareStateValueRules: [ValueRule] = [
         }
     },
 
-    ValueRule(.wifi, field: "spairport_wireless_locale") { context in
-        switch context.reportedValue.uppercased() {
-        case "FCC": .info("Wi-Fi follows the United States (FCC) rules for channels and transmit power.", confidence: .documented)
-        case "ETSI": .info("Wi-Fi follows the European (ETSI) rules for channels and transmit power.", confidence: .documented)
-        case "MKK", "JAPAN": .info("Wi-Fi follows the Japanese (MKK) rules for channels and transmit power.", confidence: .documented)
-        case "ROW": .info("Wi-Fi follows a general set of rules for channels and transmit power used outside specific regions.")
-        default: nil
-        }
-    },
-
     ValueRule(.usb, field: "USBKeyHardwareType") { context in
         switch context.reportedValue {
         case "Built-in": .info("A USB controller built into this Mac.")

@@ -188,3 +188,47 @@ Mac User Guide (<https://support.apple.com/guide/mac-help/mh34041>).
 | `spfirewall_applications` | `spfirewall_allow_local` | Info | Apple | Apple key |
 | `spfirewall_stealthenabled` | `Yes`, `No` | Normal, Info | Apple | seen (`Yes`) |
 | `spfirewall_loggingenabled` | `Yes`, `No` | Info | Standard | seen (`No`) |
+
+## Wi-Fi
+
+Sources: the values seen in `docs/value-inventory.md`, and the keys in Apple's
+`SPAirPortReporter` strings. Security types follow Apple's "Recommended settings
+for Wi-Fi routers and access points" (<https://support.apple.com/en-us/102766>).
+Published `system_profiler SPAirPortDataType` output shows the locales `ETSI`
+and `RoW` (for example <https://github.com/bettercap/bettercap/issues/361> and
+<https://noname.com.ua/mediawiki/index.php/Macos_WiFi>). Signal-strength bands
+are common Wi-Fi guidance, not an Apple specification.
+
+Security modes are Worth a look only on the network this Mac is connected to;
+on a nearby network the same value is Info.
+
+| field | value | status | source | spelling |
+|---|---|---|---|---|
+| `spairport_status_information` | `spairport_status_connected` | Normal | Apple | seen |
+| `spairport_status_information` | `spairport_status_off` | Info | Apple | Apple key |
+| `spairport_status_information` | `spairport_status_disassociated` ("Not Associated") | Info | Apple | Apple key |
+| `spairport_status_information` | `spairport_status_inactive` ("Network Service Inactive") | Info | Apple | Apple key |
+| `spairport_status_information` | `spairport_status_disconnected`, `spairport_status_not_associated` | Info | Apple | unconfirmed |
+| `spairport_security_mode` | `wpa3_personal` | Normal | Apple | seen |
+| `spairport_security_mode` | `wpa3_transition` (reported as `pairport_security_mode_wpa3_transition`) | Normal | Apple | seen |
+| `spairport_security_mode` | `wpa2_personal`, `wpa2_enterprise` | Normal | Apple | seen |
+| `spairport_security_mode` | `wpa3_enterprise`, `wpa2_wpa3_enterprise`, `owe` | Normal | Apple | unconfirmed |
+| `spairport_security_mode` | `wpa2_personal_mixed`, `wpa2_enterprise_mixed` | Worth a look / Info | Apple | Apple key |
+| `spairport_security_mode` | `wpa_personal`, `wpa_enterprise` | Worth a look / Info | Apple | Apple key |
+| `spairport_security_mode` | `wpa_personal_mixed` | Worth a look / Info | Apple | unconfirmed |
+| `spairport_security_mode` | `wep`, `wep40`, `wep128`, `8021x` (802.1X with WEP) | Worth a look / Info | Apple | Apple key |
+| `spairport_security_mode` | `wps` | Worth a look / Info | Apple | Apple key |
+| `spairport_security_mode` | `none` | Worth a look / Info | Apple | Apple key |
+| `spairport_network_type` | `spairport_network_type_station` (Infrastructure) | Info | Apple | seen |
+| `spairport_network_type` | `spairport_network_type_ibss` (Computer-to-Computer) | Info | Apple | Apple key |
+| `spairport_network_type` | `spairport_network_type_sharing` (Wi-Fi Internet Sharing) | Info | Apple | Apple key |
+| `spairport_caps_airdrop`, `_autounlock`, `_wow`, `_awdl` | `spairport_caps_supported` | Info | Apple | seen (not `_awdl`) |
+| `spairport_caps_airdrop`, `_autounlock`, `_wow`, `_awdl` | `spairport_caps_unsupported` | Info | Apple | Apple key |
+| `spairport_wireless_locale` | `FCC` | Info | Apple | seen |
+| `spairport_wireless_locale` | `ETSI`, `RoW` | Info | Apple (`ETSI`), Standard (`RoW`) | published |
+| `spairport_wireless_locale` | `MKK` | Info | Apple | unconfirmed |
+| `spairport_signal_noise` | any `-NN dBm / -NN dBm` (Excellent to Poor) | Normal to Worth a look (current), Info (nearby) | Standard | seen (values withheld) |
+| `spairport_network_channel` | any `N (2GHz/5GHz/6GHz, NNMHz)` | Info | Apple | seen (values withheld) |
+| `spairport_network_phymode`, `spairport_supported_phymodes` | `802.11` lists up to `be` | Normal (current), Info | Apple | seen (values withheld) |
+| `spairport_network_rate` | a number of Mbps | Info | Apple | seen |
+| `spairport_network_country_code`, `spairport_wireless_country_code` | two-letter country codes | Info | Apple | seen (`US`) |
