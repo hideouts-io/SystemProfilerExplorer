@@ -14,6 +14,9 @@ private func shouldAutomaticallyExpandResults(
 
 struct ProfileReportView: View {
     let report: SystemProfilerReport
+    /// The report's index when it was already built, so showing the report again
+    /// doesn't rebuild it. The view builds its own when this is nil.
+    var preparedIndex: ReportPresentationIndex?
 
     @State private var searchText: String = ""
     @State private var selectedFilter: FindingFilter = .all
@@ -222,11 +225,22 @@ struct ProfileReportView: View {
     private func preparePresentationIndex() async {
         let currentReport: SystemProfilerReport = report
         let currentQuery: FindingQuery = query
+        let existingIndex: ReportPresentationIndex? = preparedIndex
 
         queryTask?.cancel()
-        isPreparingIndex = true
         isSearching = false
         indexingErrorMessage = nil
+
+        // With no search or filter, a prepared index shows the report immediately.
+        if let existingIndex, !currentQuery.isActive,
+           let result = try? existingIndex.queryResult(for: currentQuery) {
+            presentationIndex = existingIndex
+            displayedQueryResult = result
+            isPreparingIndex = false
+            return
+        }
+
+        isPreparingIndex = true
         presentationIndex = nil
         displayedQueryResult = nil
 
@@ -234,7 +248,7 @@ struct ProfileReportView: View {
             let indexTask: Task<(ReportPresentationIndex, ReportQueryResult), any Error> = Task.detached(
                 priority: .userInitiated
             ) {
-                let index: ReportPresentationIndex = try makeReportPresentationIndex(currentReport)
+                let index: ReportPresentationIndex = try existingIndex ?? makeReportPresentationIndex(currentReport)
                 let result: ReportQueryResult = try index.queryResult(for: currentQuery)
                 return (index, result)
             }
