@@ -128,6 +128,40 @@ struct ThirdWaveValueTests {
         #expect(valueExplanation(dataType: .storage, path: ["ignore_ownership"], scalar: .string("no"))?.status == .normal)
     }
 
+    // MARK: - Software and Secure Element
+
+    @Test
+    func fontFlagsChangeTheExplanation() {
+        func explanation(_ path: [String], _ value: String) -> ValueExplanation? {
+            valueExplanation(dataType: .fonts, path: path, scalar: .string(value))
+        }
+
+        #expect(explanation(["typefaces", "[]", "outline"], "yes")?.summary != explanation(["typefaces", "[]", "outline"], "no")?.summary)
+        #expect(explanation(["typefaces", "[]", "valid"], "no")?.suggestedAction?.contains("Validate Font") == true)
+        #expect(explanation(["typefaces", "[]", "duplicate"], "yes")?.status == .informational)
+        #expect(explanation(["enabled"], "no")?.summary.contains("Font Book") == true)
+        #expect(explanation(["type"], "opentype")?.summary.contains("OpenType") == true)
+        #expect(explanation(["type"], "future_format")?.status == .unknown)
+    }
+
+    @Test
+    func undocumentedSecureElementStatesAreMarkedAsInferences() {
+        let restricted = valueExplanation(dataType: .secureElement, path: ["se_in_restricted_mode"], scalar: .string("Yes"))
+        let development = valueExplanation(dataType: .secureElement, path: ["se_prod_signed"], scalar: .string("No"))
+
+        #expect(restricted?.confidence?.reasons.isEmpty == false)
+        #expect(development?.confidence?.reasons.isEmpty == false)
+        #expect(development?.status == .informational)
+        #expect(valueExplanation(dataType: .secureElement, path: ["se_prod_signed"], scalar: .string("Yes"))?.status == .normal)
+    }
+
+    @Test
+    func extensionArchitecturesAndFrameworkScopeAreExplained() {
+        #expect(valueExplanation(dataType: .extensions, path: ["spext_architectures", "[]"], scalar: .string("x86_64"))?.summary.contains("Intel") == true)
+        #expect(valueExplanation(dataType: .extensions, path: ["spext_loadable"], scalar: .string("no"))?.detail != nil)
+        #expect(valueExplanation(dataType: .frameworks, path: ["private_framework"], scalar: .string("yes"))?.summary.contains("private") == true)
+    }
+
     // MARK: - Coverage
 
     /// Values observed in the full scan behind docs/value-inventory.md for fields this
@@ -172,7 +206,26 @@ struct ThirdWaveValueTests {
             (.storage, ["physical_drive", "protocol"], "Disk Image"),
             (.storage, ["ignore_ownership"], "no"),
             (.nvme, ["_items", "[]", "detachable_drive"], "no"),
-            (.nvme, ["_items", "[]", "removable_media"], "no")
+            (.nvme, ["_items", "[]", "removable_media"], "no"),
+            (.fonts, ["type"], "truetype"),
+            (.fonts, ["type"], "opentype"),
+            (.fonts, ["type"], "postscript"),
+            (.fonts, ["type"], "bitmap"),
+            (.fonts, ["enabled"], "yes"),
+            (.fonts, ["valid"], "yes"),
+            (.fonts, ["typefaces", "[]", "copy_protected"], "no"),
+            (.fonts, ["typefaces", "[]", "duplicate"], "no"),
+            (.fonts, ["typefaces", "[]", "embeddable"], "yes"),
+            (.fonts, ["typefaces", "[]", "enabled"], "yes"),
+            (.fonts, ["typefaces", "[]", "outline"], "yes"),
+            (.fonts, ["typefaces", "[]", "outline"], "no"),
+            (.fonts, ["typefaces", "[]", "valid"], "yes"),
+            (.frameworks, ["private_framework"], "yes"),
+            (.frameworks, ["private_framework"], "no"),
+            (.extensions, ["spext_loadable"], "yes"),
+            (.extensions, ["spext_architectures", "[]"], "arm64e"),
+            (.secureElement, ["se_in_restricted_mode"], "No"),
+            (.secureElement, ["se_prod_signed"], "Yes")
         ]
 
         for (dataType, path, value) in observed {

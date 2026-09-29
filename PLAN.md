@@ -28,7 +28,7 @@ because anonymized samples keep the values of fields that have a rule.
    scheduled power event types.
 5. [x] Storage: internal or external disk, connection protocol, ignored
    ownership, and NVMe removable and detachable media.
-6. [ ] Software and Secure Element: font format and flags, private
+6. [x] Software and Secure Element: font format and flags, private
    frameworks, extension loadability and architectures, Secure Element
    restricted mode and production signing.
 7. [ ] Note in `docs/value-inventory.md` that value rules now exist and
