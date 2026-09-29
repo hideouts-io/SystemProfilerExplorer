@@ -767,14 +767,36 @@ let hardwareStateValueRules: [ValueRule] = [
         cardReaderLinkExplanation(context.reportedValue)
     },
 
+    // Managed preference states: always is seen in docs/value-inventory.md; often and
+    // once are the other management frequencies Apple's managed preferences use.
     ValueRule(.managedClient, field: "data_state") { context in
-        switch context.reportedValue.lowercased() {
+        let why: String = "It decides whether you can change this setting yourself."
+
+        return switch context.reportedValue.lowercased() {
         case "always":
-            .info("Enforced: the setting is always applied, and users can't change it.", confidence: .documented)
+            .info(
+                "Enforced: the setting is always applied, and users can't change it.",
+                detail: "An organization or administrator manages this setting.",
+                why: why,
+                action: "Nothing to do on a managed Mac. To change it, contact whoever manages this Mac.",
+                confidence: .documented
+            )
         case "often":
-            .info("Applied again each time someone logs in, but users can change it in between.", confidence: .documented)
+            .info(
+                "Applied again each time someone logs in, but users can change it in between.",
+                detail: "The managed value is restored at every login.",
+                why: why,
+                action: "Nothing to do. Changes you make last only until you log out.",
+                confidence: .documented
+            )
         case "once":
-            .info("Applied once as a starting point; users can change it afterward.", confidence: .documented)
+            .info(
+                "Applied once as a starting point; users can change it afterward.",
+                detail: "The managed value was set once, and later changes are kept.",
+                why: why,
+                action: "Nothing to do.",
+                confidence: .documented
+            )
         default:
             nil
         }

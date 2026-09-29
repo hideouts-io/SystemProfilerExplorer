@@ -69,9 +69,10 @@ struct SecondWaveValueTests {
     }
 
     @Test
-    func accessibilityFeaturesAreExplainedOnlyWhenOn() {
+    func accessibilityFeaturesAreInfoWhenOnAndNormalWhenOff() {
         #expect(valueExplanation(dataType: .universalAccess, path: ["voiceover"], scalar: .string("on"))?.summary.contains("VoiceOver") == true)
-        #expect(valueExplanation(dataType: .universalAccess, path: ["voiceover"], scalar: .string("off")) == nil)
+        #expect(valueExplanation(dataType: .universalAccess, path: ["voiceover"], scalar: .string("on"))?.status == .informational)
+        #expect(valueExplanation(dataType: .universalAccess, path: ["voiceover"], scalar: .string("off"))?.status == .normal)
     }
 
     @Test

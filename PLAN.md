@@ -96,7 +96,7 @@ test run.
     its protections, SIP, secure virtual memory, boot mode, Activation Lock.
 12. [x] Displays, audio, Bluetooth, Thunderbolt, USB, memory, card readers,
     and Ethernet.
-13. [ ] Settings and profiles: accessibility, language and region,
+13. [x] Settings and profiles: accessibility, language and region,
     configuration profiles, managed preferences, printers, sync services,
     Secure Element.
 14. [ ] Update `docs/value-inventory.md` to point at the new list, and

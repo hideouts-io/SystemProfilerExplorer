@@ -443,10 +443,20 @@ let softwareFlagValueRules: [ValueRule] = [
     ValueRule(.secureElement, field: "se_in_restricted_mode") { context in
         switch decodeBooleanLike(context.reportedValue) {
         case false?:
-            .normal("The Secure Element isn't in restricted mode.")
+            .normal(
+                "The Secure Element isn't in restricted mode.",
+                detail: "The chip that stores Apple Pay cards reports that it works without restrictions.",
+                why: "Apple Pay and other features that use it can work normally.",
+                action: "Nothing to do.",
+                confidence: .likely(reasons: [
+                    "Apple doesn't document this field. The Secure Element holds Apple Pay credentials, so limits on it would affect those features."
+                ])
+            )
         case true?:
             .info(
                 "The Secure Element is in restricted mode, so some of its features, such as Apple Pay, may be unavailable.",
+                detail: "The chip that stores Apple Pay cards reports that it's restricted.",
+                why: "Apple Pay on this Mac may not work.",
                 action: "If Apple Pay or other secure features don't work, contact Apple Support.",
                 confidence: .likely(reasons: [
                     "Apple doesn't document this field. The Secure Element holds Apple Pay credentials, so limits on it would affect those features."
@@ -460,10 +470,20 @@ let softwareFlagValueRules: [ValueRule] = [
     ValueRule(.secureElement, field: "se_prod_signed") { context in
         switch decodeBooleanLike(context.reportedValue) {
         case true?:
-            .normal("The Secure Element runs production-signed software, as Macs sold to customers do.")
+            .normal(
+                "The Secure Element runs production-signed software, as Macs sold to customers do.",
+                detail: "Its software is signed for retail devices.",
+                why: "Apple Pay can trust it.",
+                action: "Nothing to do.",
+                confidence: .likely(reasons: [
+                    "Apple doesn't document this field. Its name and the other Secure Element fields suggest it reports production versus development signing."
+                ])
+            )
         case false?:
             .info(
                 "The Secure Element's software isn't production-signed, which is expected only on development or prototype hardware.",
+                detail: "Its software is signed for development use.",
+                why: "Apple Pay may not work on development hardware.",
                 action: "If this is an ordinary retail Mac, contact Apple Support.",
                 confidence: .likely(reasons: [
                     "Apple doesn't document this field. Its name and the other Secure Element fields suggest it reports production versus development signing."

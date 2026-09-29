@@ -379,3 +379,43 @@ Bluetooth visibility: <https://support.apple.com/guide/mac-help/blth1004>.
 | `spethernet_bus` | `spethernet_usb_device`, `spethernet_pcie`, `spethernet_builtin` | Info | Apple | seen (`usb_device`); others unconfirmed |
 | `spethernet_max_link_speed` | `ethernet_speed_N` | Info | Apple | seen |
 | `spethernet_usb_device_speed` | `low_speed` … `super_speed_plus_by_2` | Info | Apple | seen (`high_speed`); others unconfirmed |
+
+## Settings and profiles
+
+Sources: the values seen in `docs/value-inventory.md`, and the keys in Apple's
+`SPUniversalAccessReporter`, `SPInternationalReporter`, and
+`SPSecureElementReporter` strings. The glossaries have no strings for
+configuration profiles, managed preferences, printers, or sync services.
+Profiles: "Use configuration profiles to standardize settings on Mac computers"
+(<https://support.apple.com/guide/mac-help/mh35561>). Printer states follow the
+CUPS printer states.
+
+| field | value | status | source | spelling |
+|---|---|---|---|---|
+| `display` (accessibility) | `black_on_white` | Info | Apple | seen |
+| `display` (accessibility) | `white_on_black` | Info | Apple | Apple key |
+| `zoomMode` | `zoom_full_screen` | Info | Apple | seen |
+| `zoomMode` | `zoom_split_screen`, `zoom_in_window` | Info | Apple | Apple key |
+| `zoomMode` | `zoom_picture_in_picture`, `zoom_pip` | Info | Apple | unconfirmed |
+| `voiceover`, `sticky_keys`, `slow_keys`, `mouse_keys`, `cursor_mag`, `flash_screen`, `keyboardZoom`, `scrollZoom` | `on` | Info | Apple | Apple key |
+| same fields | `off` | Normal | Apple | seen |
+| `system_text_direction`, `user_text_direction` | `text_direction_ltr`, `text_direction_rtl` | Info | Apple | seen (`ltr`), Apple key |
+| `system_uses_metric_system`, `user_uses_metric_system` | `value_yes`, `value_no` | Info | Apple | seen (`value_no`), Apple key |
+| `system_country` | two-letter country codes | Info | Apple | seen (`US`) |
+| `user_assistant_voice_gender` | `voice_gender_female`, `voice_gender_male` | Info | Apple | Apple key (withheld in the inventory) |
+| `user_temperature_unit` | `Celsius`, `Fahrenheit` | Info | Apple | Apple key |
+| `user_calendar` | `gregorian`, `buddhist`, `chinese`, `coptic`, `ethiopic`, `ethiopic-amete-alem`, `hebrew`, `indian`, `islamic`, `islamic-civil`, `islamic-tbla`, `islamic-umalqura`, `iso8601`, `japanese`, `persian`, `roc` | Info | Apple | Apple key (withheld in the inventory) |
+| `spconfigprofile_verification_state` | `unsigned` | Info | Apple | seen |
+| `spconfigprofile_verification_state` | `verified` | Normal | Apple | unconfirmed |
+| `spconfigprofile_verification_state` | `invalid`, `unverified` | Worth a look | Apple | unconfirmed |
+| `spconfigprofile_install_source` | `Manual` | Info | Apple | seen |
+| `spconfigprofile_install_source` | values containing `MDM` or `management` | Info | Apple | unconfirmed |
+| `spconfigprofile_RemovalDisallowed` | `yes`, `no` | Info | Apple | seen (`no`) |
+| `data_state` (managed preferences) | `always` | Info | Apple | seen |
+| `data_state` (managed preferences) | `often`, `once` | Info | Apple | unconfirmed |
+| `status` (printers) | `idle`, `processing`/`printing`, `stopped` | Info | Standard | unconfirmed (withheld in the inventory) |
+| `shared`, `default`, `printersharing`, `scanner` (printers) | yes, no | Normal, Info | Apple, Standard | unconfirmed (withheld in the inventory) |
+| `description` (sync services) | `system_log_description` | Info | Inferred | seen |
+| `description` (sync services) | other `…_log_description` names | Info | Inferred | unconfirmed |
+| `se_in_restricted_mode` | `No`, `Yes` | Normal, Info | Inferred | seen (`No`), Apple key |
+| `se_prod_signed` | `Yes`, `No` | Normal, Info | Inferred | Apple key (withheld in the inventory) |

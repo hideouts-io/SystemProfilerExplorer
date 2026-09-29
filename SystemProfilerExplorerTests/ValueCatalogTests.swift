@@ -51,7 +51,7 @@ let intelReport: ValueReportContext = ValueReportContext(usbDeviceNames: nil, pr
 let explainedValueSamples: [ValueSample] = applicationValueSamples + fontValueSamples + extensionValueSamples
     + networkValueSamples + softwareHistoryAndFirewallValueSamples + wifiValueSamples
     + powerValueSamples + storageValueSamples + startupAndOverviewValueSamples
-    + hardwareValueSamples
+    + hardwareValueSamples + settingsValueSamples
 
 /// Each value is checked with no Hardware section, on Apple silicon, and on an Intel Mac,
 /// because what an architecture means depends on the Mac.
@@ -432,6 +432,54 @@ private let hardwareValueSamples: [ValueSample] = {
     samples.append(ValueSample(.ethernet, ["spethernet_max_link_speed"], "ethernet_speed_1000", siblings: adapter))
     samples += ["high_speed", "super_speed", "super_speed_plus"].map {
         ValueSample(.ethernet, ["spethernet_usb_device_speed"], $0, siblings: adapter)
+    }
+
+    return samples
+}()
+
+private let settingsValueSamples: [ValueSample] = {
+    var samples: [ValueSample] = ["black_on_white", "white_on_black"].map {
+        ValueSample(.universalAccess, ["display"], $0)
+    }
+
+    samples += ["zoom_full_screen", "zoom_split_screen", "zoom_in_window", "zoom_picture_in_picture"].map {
+        ValueSample(.universalAccess, ["zoomMode"], $0)
+    }
+    for field in ["voiceover", "sticky_keys", "slow_keys", "mouse_keys", "cursor_mag", "flash_screen", "keyboardZoom", "scrollZoom"] {
+        samples += ["on", "off"].map { ValueSample(.universalAccess, [field], $0) }
+    }
+
+    for field in ["system_text_direction", "user_text_direction"] {
+        samples += ["text_direction_ltr", "text_direction_rtl"].map { ValueSample(.international, [field], $0) }
+    }
+    for field in ["system_uses_metric_system", "user_uses_metric_system"] {
+        samples += ["value_yes", "value_no"].map { ValueSample(.international, [field], $0) }
+    }
+    samples.append(ValueSample(.international, ["system_country"], "US"))
+    samples += ["voice_gender_female", "voice_gender_male"].map { ValueSample(.international, ["user_assistant_voice_gender"], $0) }
+    samples += ["Celsius", "Fahrenheit"].map { ValueSample(.international, ["user_temperature_unit"], $0) }
+    samples += [
+        "gregorian", "buddhist", "chinese", "coptic", "ethiopic", "ethiopic-amete-alem", "hebrew", "indian", "islamic",
+        "islamic-civil", "islamic-tbla", "islamic-umalqura", "iso8601", "japanese", "persian", "roc"
+    ].map { ValueSample(.international, ["user_calendar"], $0) }
+
+    samples += ["verified", "unsigned", "invalid"].map {
+        ValueSample(.configurationProfiles, ["_items", "[]", "spconfigprofile_verification_state"], $0)
+    }
+    samples += ["Manual", "MDM"].map { ValueSample(.configurationProfiles, ["_items", "[]", "spconfigprofile_install_source"], $0) }
+    samples += ["yes", "no"].map { ValueSample(.configurationProfiles, ["_items", "[]", "spconfigprofile_RemovalDisallowed"], $0) }
+    samples += ["always", "often", "once"].map { ValueSample(.managedClient, ["_items", "[]", "data_state"], $0) }
+
+    samples += ["idle", "processing", "stopped"].map { ValueSample(.printers, ["_items", "[]", "status"], $0) }
+    for field in ["shared", "default", "printersharing", "scanner"] {
+        samples += ["yes", "no"].map { ValueSample(.printers, ["_items", "[]", field], $0) }
+    }
+
+    samples += ["system_log_description", "sync_diagnostics_log_description"].map {
+        ValueSample(.syncServices, ["_items", "[]", "description"], $0)
+    }
+    for field in ["se_in_restricted_mode", "se_prod_signed"] {
+        samples += ["Yes", "No"].map { ValueSample(.secureElement, [field], $0) }
     }
 
     return samples
