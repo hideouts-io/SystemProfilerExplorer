@@ -2,7 +2,7 @@ import Foundation
 
 func legacySoftwareExplanation(path: [String], reportedValue: String) -> FieldExplanation? {
     let field: String = softwareField(path)
-    let responsible: Bool = path.contains("responsible_info")
+    let responsible: Bool = path.contains("responsible_info") || path.contains("responsible_identity")
 
     switch field {
     case "has_native_version":
@@ -54,13 +54,13 @@ func legacySoftwareExplanation(path: [String], reportedValue: String) -> FieldEx
             interpretation: "The source label does not by itself establish a complete execution history or explain every compatibility condition.",
             privacy: nil
         )
-    case "process_bundle_id", "responsible_bundle_id":
+    case "process_bundle_id", "responsible_bundle_id", "identity_bundle_id":
         return legacyIdentityExplanation(
             title: responsible ? "Responsible Bundle Identifier" : "Process Bundle Identifier",
             kind: "bundle identifier",
             responsible: responsible
         )
-    case "process_bundle_version", "responsible_bundle_version":
+    case "process_bundle_version", "responsible_bundle_version", "identity_version":
         return legacyIdentityExplanation(
             title: responsible ? "Responsible Bundle Version" : "Process Bundle Version",
             kind: "bundle version",
@@ -78,7 +78,7 @@ func legacySoftwareExplanation(path: [String], reportedValue: String) -> FieldEx
             kind: "software name",
             responsible: responsible
         )
-    case "process_path", "responsible_path":
+    case "process_path", "responsible_path", "identity_path":
         return FieldExplanation(
             title: responsible ? "Responsible Software Path" : "Process Path",
             meaning: responsible
@@ -88,13 +88,21 @@ func legacySoftwareExplanation(path: [String], reportedValue: String) -> FieldEx
             interpretation: "A recorded path does not prove the file still exists, remains unchanged, or was directly launched by a person. Responsible-process attribution can reflect launch or hosting relationships.",
             privacy: "Paths can expose account names, projects, mounted volumes, internal applications, and organization structure. Redact them from public reports."
         )
-    case "process_team_id", "responsible_team_id":
+    case "process_team_id", "responsible_team_id", "identity_team_id":
         return FieldExplanation(
             title: responsible ? "Responsible Team Identifier" : "Process Team Identifier",
             meaning: "This is the Apple code-signing team identifier associated with the \(responsible ? "responsible software" : "recorded process").",
             significance: "It can correlate separately named binaries to the same Developer ID team and supports provenance analysis.",
             interpretation: "A team identifier is not proof that the binary is benign, currently signed correctly, notarized, or unchanged. Verify the actual signature and requirement.",
             privacy: "Team identifiers are commonly public for distributed software, but internal development teams can reveal an organization. Review before sharing."
+        )
+    case "process_uid":
+        return FieldExplanation(
+            title: "Process User ID",
+            meaning: "This is the numeric macOS user ID of the account the recorded process ran as.",
+            significance: "It shows which account used the legacy software. On most Macs, 501 is the first account created, and IDs below 500 belong to system services.",
+            interpretation: "A user ID identifies an account on this Mac only. It doesn't show that a person launched the software directly, and IDs can be reused after an account is deleted.",
+            privacy: "User IDs can be matched to local account names. Review them before sharing."
         )
     default:
         return nil
