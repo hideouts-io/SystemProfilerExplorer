@@ -590,3 +590,133 @@ private func bluetoothVendorExplanation(_ value: String) -> ValueExplanation? {
 
     return vendorExplanation(value, kind: .bluetooth, reportedName: reportedName)
 }
+
+// MARK: - Proxies and VPN On Demand
+
+/// Reads on/off settings that network configuration stores as `yes`/`no`, `true`/`false`,
+/// or the numbers 1 and 0.
+func decodeSettingFlag(_ value: String) -> Bool? {
+    if let decoded = decodeBooleanLike(value) {
+        return decoded
+    }
+
+    switch value.trimmingCharacters(in: .whitespaces) {
+    case "1": return true
+    case "0": return false
+    default: return nil
+    }
+}
+
+private let proxyProtocols: [(field: String, traffic: String)] = [
+    ("HTTPEnable", "web traffic (HTTP)"),
+    ("HTTPSEnable", "secure web traffic (HTTPS)"),
+    ("SOCKSEnable", "traffic from apps that use a SOCKS proxy"),
+    ("FTPEnable", "FTP file transfers"),
+    ("GopherEnable", "Gopher, an old protocol that's rarely used today"),
+    ("RTSPEnable", "streaming media (RTSP)")
+]
+
+private let proxySettingsAction: String =
+    "If you didn't set up a proxy and your organization doesn't use one, check the Proxies settings for this service in System Settings › Network."
+
+let proxyValueRules: [ValueRule] = proxyProtocols.map { proxy -> ValueRule in
+    ValueRule(.network, .networkLocation, field: proxy.field) { context in
+        switch decodeSettingFlag(context.reportedValue) {
+        case true?:
+            .info(
+                "A proxy server is set for \(proxy.traffic) on this service.",
+                detail: "Matching connections go through the proxy instead of straight to the destination. Organizations, schools, and some security or filtering apps set proxies.",
+                action: proxySettingsAction,
+                confidence: .documented
+            )
+        case false?:
+            .normal("No proxy is set for \(proxy.traffic); connections go directly.", confidence: .documented)
+        case nil:
+            nil
+        }
+    }
+} + [
+    ValueRule(.network, .networkLocation, field: "ProxyAutoConfigEnable") { context in
+        switch decodeSettingFlag(context.reportedValue) {
+        case true?:
+            .info(
+                "Proxy settings come from an automatic configuration (PAC) file.",
+                detail: "The file decides, for each address, whether to use a proxy. Organizations often set this up.",
+                action: proxySettingsAction,
+                confidence: .documented
+            )
+        case false?:
+            .normal("No automatic proxy configuration file is used.", confidence: .documented)
+        case nil:
+            nil
+        }
+    },
+
+    ValueRule(.network, .networkLocation, field: "ProxyAutoDiscoveryEnable") { context in
+        switch decodeSettingFlag(context.reportedValue) {
+        case true?:
+            .info(
+                "macOS looks for proxy settings published on the network (WPAD).",
+                detail: "This is useful on managed networks. On other networks, it lets the network suggest a proxy.",
+                confidence: .documented
+            )
+        case false?:
+            .normal("macOS doesn't look for proxy settings on the network.", confidence: .documented)
+        case nil:
+            nil
+        }
+    },
+
+    ValueRule(.network, .networkLocation, field: "FTPPassive") { context in
+        switch decodeSettingFlag(context.reportedValue) {
+        case true?: .normal("FTP uses passive mode, the default, which works better through firewalls and routers.")
+        case false?: .info("FTP uses active mode, which firewalls and routers often block.")
+        case nil: nil
+        }
+    },
+
+    ValueRule(.network, .networkLocation, field: "ExcludeSimpleHostnames") { context in
+        switch decodeSettingFlag(context.reportedValue) {
+        case true?: .info("Simple host names without a domain, such as intranet names, bypass any proxy.", confidence: .documented)
+        case false?: .info("Simple host names without a domain are treated like other addresses when a proxy is set.", confidence: .documented)
+        case nil: nil
+        }
+    },
+
+    ValueRule(.networkLocation, field: "OnDemandEnabled") { context in
+        switch decodeSettingFlag(context.reportedValue) {
+        case true?:
+            .info(
+                "VPN On Demand is on: the VPN can connect by itself when its rules match, for example on certain networks.",
+                confidence: .documented
+            )
+        case false?:
+            .info("VPN On Demand is off: the VPN connects only when someone or an app starts it.", confidence: .documented)
+        case nil:
+            nil
+        }
+    },
+
+    ValueRule(.networkLocation, field: "Action", unrecognizedValues: .ignore) { context in
+        guard context.pathContains("OnDemandRules") else {
+            return nil
+        }
+
+        return switch context.reportedValue {
+        case "Connect": .info("When this rule matches, the VPN connects automatically.", confidence: .documented)
+        case "Disconnect": .info("When this rule matches, the VPN disconnects.", confidence: .documented)
+        case "EvaluateConnection": .info("When this rule matches, the VPN connects only for the domains the rule lists.", confidence: .documented)
+        case "Ignore": .info("When this rule matches, the VPN is left as it is: running if connected, off if not.", confidence: .documented)
+        default: .unexplained(context.reportedValue)
+        }
+    },
+
+    ValueRule(.networkLocation, field: "InterfaceTypeMatch", unrecognizedValues: .ignore) { context in
+        switch context.reportedValue {
+        case "WiFi": .info("This rule applies when the Mac is on Wi-Fi.", confidence: .documented)
+        case "Ethernet": .info("This rule applies when the Mac is on a wired network.", confidence: .documented)
+        case "Cellular": .info("This rule applies on a cellular connection.", confidence: .documented)
+        default: nil
+        }
+    }
+]

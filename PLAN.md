@@ -20,7 +20,7 @@ because anonymized samples keep the values of fields that have a rule.
 2. [x] Startup security (Apple Bridge): Secure Boot level, System Integrity
    Protection, Signed System Volume, kernel CTRR, boot-argument filtering,
    third-party kernel extensions, and privileged MDM operations.
-3. [ ] Proxy settings (Network and Network Locations): each proxy switch,
+3. [x] Proxy settings (Network and Network Locations): each proxy switch,
    automatic proxy configuration and discovery, passive FTP, simple host
    names, and VPN On Demand.
 4. [ ] Power: Low Power Mode, High Power Mode, network reachability during
