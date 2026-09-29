@@ -77,7 +77,7 @@ test run.
    frameworks.
 4. [x] Fonts (the most values in a scan): font kind, enabled, valid,
    duplicate, copy protected, embeddable, outline.
-5. [ ] Extensions: loaded, loadable, dependencies, Intel code,
+5. [x] Extensions: loaded, loadable, dependencies, Intel code,
    architectures.
 6. [ ] Network services and locations: hardware, service type, IPv4 and IPv6
    configuration, proxies, VPN On Demand and its rules, PPP and VPN

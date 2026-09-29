@@ -48,7 +48,7 @@ let appleSiliconReport: ValueReportContext = ValueReportContext(usbDeviceNames: 
 let intelReport: ValueReportContext = ValueReportContext(usbDeviceNames: nil, processor: .intel)
 
 /// Every value the app explains for fields with a limited set of values.
-let explainedValueSamples: [ValueSample] = applicationValueSamples + fontValueSamples
+let explainedValueSamples: [ValueSample] = applicationValueSamples + fontValueSamples + extensionValueSamples
 
 /// Each value is checked with no Hardware section, on Apple silicon, and on an Intel Mac,
 /// because what an architecture means depends on the Mac.
@@ -94,6 +94,30 @@ private let fontValueSamples: [ValueSample] = {
         }
     }
 
+    return samples
+}()
+
+private let extensionValueSamples: [ValueSample] = {
+    var samples: [ValueSample] = []
+
+    for value in ["spext_yes", "spext_no"] {
+        samples.append(ValueSample(.extensions, ["spext_loaded"], value))
+        samples.append(ValueSample(.extensions, ["spext_notarized"], value))
+
+        for report in [ValueReportContext.empty, appleSiliconReport, intelReport] {
+            samples.append(ValueSample(.extensions, ["spext_has64BitIntelCode"], value, report: report))
+        }
+    }
+
+    samples += ["spext_satisfied", "spext_incomplete"].map { ValueSample(.extensions, ["spext_hasAllDependencies"], $0) }
+    samples += ["yes", "no"].map { ValueSample(.extensions, ["spext_loadable"], $0) }
+    samples += ["arm64e", "arm64", "x86_64", "i386"].map { ValueSample(.extensions, ["spext_architectures", "[]"], $0) }
+    samples += ["spext_arch_arm", "spext_arch_x86", "spext_universal", "spext_arch_ppc"].map {
+        ValueSample(.extensions, ["spext_runtime_environment"], $0)
+    }
+    samples += ["spext_apple", "spext_identified_developer", "spext_unknown", "spext_not_signed"].map {
+        ValueSample(.extensions, ["spext_obtained_from"], $0)
+    }
     return samples
 }()
 
@@ -153,6 +177,38 @@ struct ValueCatalogTests {
         #expect(unknown.status == .informational)
         #expect(unknown.significance?.contains("doesn't mean it's harmful") == true)
         #expect(valueExplanation(dataType: .applications, path: ["obtained_from"], scalar: .string("somewhere_else"))?.status == .unknown)
+    }
+
+    // MARK: - Extensions
+
+    @Test
+    func missingDependenciesAreWorthALook() {
+        func status(_ value: String) -> ValueStatus? {
+            valueExplanation(dataType: .extensions, path: ["spext_hasAllDependencies"], scalar: .string(value))?.status
+        }
+
+        #expect(status("spext_satisfied") == .normal)
+        #expect(status("spext_incomplete") == .worthReviewing)
+        #expect(status("spext_partly") == .unknown)
+    }
+
+    @Test
+    func intelOnlyGapMattersOnlyOnAnIntelMac() throws {
+        let onIntel = try #require(valueExplanation(
+            dataType: .extensions,
+            path: ["spext_has64BitIntelCode"],
+            scalar: .string("spext_no"),
+            report: intelReport
+        ))
+        let onAppleSilicon = try #require(valueExplanation(
+            dataType: .extensions,
+            path: ["spext_has64BitIntelCode"],
+            scalar: .string("spext_no"),
+            report: appleSiliconReport
+        ))
+
+        #expect(onIntel.detail?.contains("can't load on this Mac") == true)
+        #expect(onAppleSilicon.detail?.contains("only for Macs with Apple silicon") == true)
     }
 
     @Test

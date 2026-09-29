@@ -24,30 +24,6 @@ let softwareArtifactValueRules: [ValueRule] = [
         default:
             nil
         }
-    },
-
-    ValueRule(.extensions, field: "spext_loaded") { context in
-        switch decodeBooleanLike(context.reportedValue) {
-        case true?: .info("This extension was loaded and running when the scan ran.")
-        case false?: .info("Installed, but not loaded when the scan ran.")
-        case nil: nil
-        }
-    },
-
-    ValueRule(.extensions, field: "spext_hasAllDependencies") { context in
-        switch decodeBooleanLike(context.reportedValue) {
-        case true?: .normal("Everything this extension depends on is installed.")
-        case false?: .review("Something this extension depends on is missing, so it may not load.")
-        case nil: nil
-        }
-    },
-
-    ValueRule(.extensions, field: "spext_has64BitIntelCode") { context in
-        switch decodeBooleanLike(context.reportedValue) {
-        case true?: .info("Includes code for Intel Macs.")
-        case false?: .info("Doesn't include code for Intel Macs.")
-        case nil: nil
-        }
     }
 ]
 
@@ -450,30 +426,6 @@ let softwareFlagValueRules: [ValueRule] = [
             )
         case nil:
             nil
-        }
-    },
-
-    ValueRule(.extensions, field: "spext_loadable") { context in
-        switch decodeBooleanLike(context.reportedValue) {
-        case true?:
-            .normal("macOS can load this extension.")
-        case false?:
-            .info(
-                "macOS reports that this extension can't be loaded here.",
-                detail: "Common reasons are that it wasn't built for this Mac, it hasn't been approved, or the startup security policy doesn't allow it."
-            )
-        case nil:
-            nil
-        }
-    },
-
-    ValueRule(.extensions, field: "spext_architectures") { context in
-        switch context.reportedValue.lowercased() {
-        case "arm64e": .info("Contains code for Apple silicon (arm64e), which kernel extensions need on those Macs.", confidence: .documented)
-        case "arm64": .info("Contains code for Apple silicon (arm64).", confidence: .documented)
-        case "x86_64": .info("Contains code for Intel Macs (x86_64).", confidence: .documented)
-        case "i386": .info("Contains 32-bit Intel code, which current macOS can't run.", confidence: .documented)
-        default: nil
         }
     },
 

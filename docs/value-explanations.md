@@ -94,3 +94,26 @@ Adobe ended support for PostScript Type 1 fonts in January 2023
 | `outline` | `yes`, `no` | outline or bitmap characters | Info | Apple | seen |
 
 `enabled` and `valid` are explained both for the font file and for each typeface.
+
+## Extensions
+
+Sources: the values seen in `docs/value-inventory.md` and the keys in Apple's
+`SPExtensionsReporter` strings. Apple documents that kernel extensions on
+Apple silicon must be built for arm64e and that Rosetta 2 can't translate
+kernel extensions (<https://developer.apple.com/documentation/apple-silicon/installing-a-custom-kernel-extension>),
+and describes notarization in
+<https://developer.apple.com/documentation/security/notarizing-macos-software-before-distribution>.
+`spext_runtime_environment`, `spext_obtained_from`, and `spext_notarized` are
+Apple keys that current macOS may no longer report.
+
+| field | value | meaning | status | source | spelling |
+|---|---|---|---|---|---|
+| `spext_loaded` | `spext_yes`, `spext_no` | loaded or not when scanned | Info | Apple | seen (`spext_yes`), Apple key |
+| `spext_hasAllDependencies` | `spext_satisfied` | dependencies present | Normal | Apple | seen |
+| `spext_hasAllDependencies` | `spext_incomplete` | a dependency is missing | Worth a look | Apple | Apple key |
+| `spext_has64BitIntelCode` | `spext_yes`, `spext_no` | has Intel code | Info (says it can't load when an Intel Mac lacks it) | Apple | seen (`spext_no`), Apple key |
+| `spext_loadable` | `yes`, `no` | can or can't load | Normal, Info | Apple | seen (`yes`) |
+| `spext_architectures` | `arm64e`, `arm64`, `x86_64`, `i386` | code it contains | Info | Apple | seen (`arm64e`), standard names |
+| `spext_runtime_environment` | `spext_arch_arm`, `spext_arch_x86`, `spext_universal`, `spext_arch_ppc` | kind | Info, Normal (Universal) | Apple | Apple key |
+| `spext_obtained_from` | `spext_apple`, `spext_identified_developer`, `spext_unknown`, `spext_not_signed` | where it came from | as for apps; Info for not signed | Apple | Apple key |
+| `spext_notarized` | `spext_yes`, `spext_no` | notarized or not | Normal, Info | Apple | Apple key |

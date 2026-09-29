@@ -325,7 +325,7 @@ private let valueRuleIndex: [ValueRuleKey: [ValueRule]] = {
         + networkValueRules + ethernetValueRules + wifiValueRules + bluetoothValueRules
         + displayValueRules + audioValueRules + thunderboltValueRules
         + legacySoftwareValueRules + syncServicesValueRules + internationalValueRules + accessibilityValueRules
-        + nvmeValueRules + configurationProfileValueRules + printerValueRules
+        + nvmeValueRules + configurationProfileValueRules + printerValueRules + extensionValueRules
         + vendorIdentifierValueRules + thirdWaveValueRules
     var index: [ValueRuleKey: [ValueRule]] = [:]
 

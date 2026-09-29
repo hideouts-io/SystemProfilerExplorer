@@ -105,6 +105,7 @@
 		D0EB1B42212523FE20AEC875 /* ValuePanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 782B45221FBF672C566ABAC4 /* ValuePanel.swift */; };
 		B2C53C0C964281379BF8AEB3 /* ValuePanelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C16CF4E58F995FDE34AE3D09 /* ValuePanelTests.swift */; };
 		B89D0EC021ABEEDFA1DE36B0 /* ValueCatalogTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A841B78A28F111C12390310A /* ValueCatalogTests.swift */; };
+		CD175DDDEB38931B4B1ECC72 /* ExtensionValueRules.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9DE5CBC6A8A8C3941E11BF2 /* ExtensionValueRules.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -218,6 +219,7 @@
 		782B45221FBF672C566ABAC4 /* ValuePanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ValuePanel.swift; sourceTree = "<group>"; };
 		C16CF4E58F995FDE34AE3D09 /* ValuePanelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ValuePanelTests.swift; sourceTree = "<group>"; };
 		A841B78A28F111C12390310A /* ValueCatalogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ValueCatalogTests.swift; sourceTree = "<group>"; };
+		D9DE5CBC6A8A8C3941E11BF2 /* ExtensionValueRules.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtensionValueRules.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -232,6 +234,7 @@
 		1E0A2857944678A12537BEB0 /* Values */ = {
 			isa = PBXGroup;
 			children = (
+				D9DE5CBC6A8A8C3941E11BF2 /* ExtensionValueRules.swift */,
 				B506E008FC2152F9DE79F941 /* DisplayAndMediaValueRules.swift */,
 				CB0F841CB408C6BFDC2D9920 /* NetworkValueRules.swift */,
 				7E1F7A4C602522D7D94BEB84 /* PowerAndStorageValueRules.swift */,
@@ -640,6 +643,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				CD175DDDEB38931B4B1ECC72 /* ExtensionValueRules.swift in Sources */,
 				D0EB1B42212523FE20AEC875 /* ValuePanel.swift in Sources */,
 				329EAAA4FAD74DC9148A730D /* AccessibilityExplanations.swift in Sources */,
 				1225F9FD5B4A1D5480726182 /* AdditionalDataTypeExplanations.swift in Sources */,
