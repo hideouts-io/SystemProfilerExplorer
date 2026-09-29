@@ -35,9 +35,10 @@ because anonymized samples keep the values of fields that have a rule.
    join mode, VPN sign-in method, when PPP and VPN connections end, the
    dial-up switches, Ethernet media subtype, and automounted network
    volumes.
-8. [ ] Hardware states: display online, Bluetooth controller transport,
+8. [x] Hardware states: display online, Bluetooth controller transport,
    Wi-Fi regulatory locale, USB hardware type, memory type, card reader
-   link, and display contrast.
+   link, and managed preference state. Display contrast is left out: its
+   values were withheld from the inventory, so their format is unknown.
 9. [ ] Note in `docs/value-inventory.md` that value rules now exist and
    which enumeration fields are still unexplained.
 

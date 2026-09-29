@@ -186,6 +186,28 @@ struct ThirdWaveValueTests {
         #expect(mediaSubtypeExplanation("future") == nil)
     }
 
+    // MARK: - Hardware states and managed settings
+
+    @Test
+    func hardwareStatesAreExplained() {
+        #expect(valueExplanation(dataType: .displays, path: ["spdisplays_ndrvs", "[]", "spdisplays_online"], scalar: .string("spdisplays_no"))?.status == .informational)
+        #expect(memoryTypeExplanation("LPDDR5")?.summary.contains("can't be upgraded") == true)
+        #expect(memoryTypeExplanation("DDR4")?.summary.contains("DDR4") == true)
+        #expect(memoryTypeExplanation("HBM") == nil)
+        #expect(valueExplanation(dataType: .cardReader, path: ["spcardreader_link-speed"], scalar: .string("Off"))?.confidence?.reasons.isEmpty == false)
+        #expect(valueExplanation(dataType: .cardReader, path: ["spcardreader_link-speed"], scalar: .string("2.5 GT/s")) == nil)
+        #expect(valueExplanation(dataType: .wifi, path: ["spairport_wireless_locale"], scalar: .string("ETSI"))?.summary.contains("European") == true)
+    }
+
+    @Test
+    func managedPreferenceStatesSayWhetherUsersCanChangeThem() {
+        let path: [String] = ["_items", "[]", "data_state"]
+
+        #expect(valueExplanation(dataType: .managedClient, path: path, scalar: .string("always"))?.summary.contains("can't change") == true)
+        #expect(valueExplanation(dataType: .managedClient, path: path, scalar: .string("once"))?.summary.contains("can change") == true)
+        #expect(valueExplanation(dataType: .managedClient, path: path, scalar: .string("sometimes"))?.status == .unknown)
+    }
+
     // MARK: - Coverage
 
     /// Values observed in the full scan behind docs/value-inventory.md for fields this
@@ -271,7 +293,15 @@ struct ThirdWaveValueTests {
             (.networkLocation, ["spnetworklocation_services", "[]", "VPN", "DisconnectOnLogout"], "no"),
             (.networkLocation, ["spnetworklocation_services", "[]", "VPN", "DisconnectOnSleep"], "no"),
             (.networkLocation, ["spnetworklocation_services", "[]", "VPN", "DisconnectOnWake"], "0"),
-            (.networkVolumes, ["spnetworkvolume_automounted"], "yes")
+            (.networkVolumes, ["spnetworkvolume_automounted"], "yes"),
+            (.displays, ["spdisplays_ndrvs", "[]", "spdisplays_online"], "spdisplays_yes"),
+            (.bluetooth, ["controller_properties", "controller_transport"], "PCIe"),
+            (.wifi, ["spairport_airport_interfaces", "[]", "spairport_wireless_locale"], "FCC"),
+            (.usb, ["USBKeyHardwareType"], "Built-in"),
+            (.memory, ["dimm_type"], "LPDDR5"),
+            (.cardReader, ["spcardreader_link-speed"], "Off"),
+            (.cardReader, ["spcardreader_link-width"], "Off"),
+            (.managedClient, ["_items", "[]", "data_state"], "always")
         ]
 
         for (dataType, path, value) in observed {
