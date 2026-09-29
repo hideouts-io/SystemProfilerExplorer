@@ -60,6 +60,7 @@
 		8D9B09B8B72B1F0B2F5873B1 /* ChangeInsightTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D71F24CE50090E539F32B351 /* ChangeInsightTests.swift */; };
 		8F73A3F1DEF503AC82BB01E0 /* SystemValueRules.swift in Sources */ = {isa = PBXBuildFile; fileRef = 350E4068BE34201E57D6E7F1 /* SystemValueRules.swift */; };
 		8FC388BD696936AFF5AE1D5F /* FindingLocationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC3A92239C2A73BC1B542323 /* FindingLocationTests.swift */; };
+		6699A88421FAB5A3F395D271 /* SampleFixtureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83C8CA9CCE8BBA4E67E5A65D /* SampleFixtureTests.swift */; };
 		97A1E28F7BFBEF4421AE4E92 /* ReportChangeInsight.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6460BE296C1F7F744F9F12D3 /* ReportChangeInsight.swift */; };
 		9D46BCA19ECB093D93DBAE06 /* ProfilerSubjectTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D7876658E1CB763768872B9 /* ProfilerSubjectTests.swift */; };
 		9F66FDE04FD35DA276E954F9 /* RecordNameTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 309DB71C1EAE15141AD8C745 /* RecordNameTests.swift */; };
@@ -205,6 +206,7 @@
 		FB55F1B2791C2A64C4652248 /* SystemProfilerIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SystemProfilerIntegrationTests.swift; sourceTree = "<group>"; };
 		FBF3F5386846F5A5904ED3D4 /* ReportGlance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportGlance.swift; sourceTree = "<group>"; };
 		FC3A92239C2A73BC1B542323 /* FindingLocationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FindingLocationTests.swift; sourceTree = "<group>"; };
+		83C8CA9CCE8BBA4E67E5A65D /* SampleFixtureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SampleFixtureTests.swift; sourceTree = "<group>"; };
 		FCB5B24DFE76BB7DE34B6878 /* DiagnosticLogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticLogView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -293,6 +295,7 @@
 				C35DE469A87125CB7900A4B5 /* ReportGlanceTests.swift */,
 				9FAAE3107D80F2D5A01EB9E4 /* ReportPresentationIndexTests.swift */,
 				E020DF1E5CFFD5F007B05424 /* ReviewWorkflowTests.swift */,
+				83C8CA9CCE8BBA4E67E5A65D /* SampleFixtureTests.swift */,
 				4928C4683330CA3011EF28FC /* SecondWaveValueTests.swift */,
 				E2856D3BC6853702F365B33C /* SecurityExplanationTests.swift */,
 				BE97DBED35D8D7601108A901 /* SoftwareExplanationTests.swift */,
@@ -593,6 +596,7 @@
 				6FF43E5578E19BB433BED0F7 /* DiagnosticLogTests.swift in Sources */,
 				C7F0D4506B289938656B482F /* FindingExplanationTests.swift in Sources */,
 				8FC388BD696936AFF5AE1D5F /* FindingLocationTests.swift in Sources */,
+				6699A88421FAB5A3F395D271 /* SampleFixtureTests.swift in Sources */,
 				B616D5EFB6A8E3C1F75867F8 /* FindingQueryTests.swift in Sources */,
 				8C3D0CD28A134182E72A1765 /* GlossaryTests.swift in Sources */,
 				D8099CE854F06A49F0BBB25F /* NetworkExplanationTests.swift in Sources */,

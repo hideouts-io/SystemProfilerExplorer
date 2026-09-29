@@ -150,3 +150,121 @@ private func profileValueIsFullyRedacted(_ value: ProfileValue) -> Bool {
         false
     }
 }
+
+struct AnonymizedSampleTests {
+    private let report = SystemProfilerReport(
+        sections: [
+            SystemProfilerSection(
+                dataType: .hardware,
+                items: [
+                    .object([
+                        "_name": .string("hardware_overview"),
+                        "machine_model": .string("Mac15,3"),
+                        "serial_number": .string("SECRET-SERIAL-123"),
+                        "platform_UUID": .string("8C1A2B3C-1111-2222-3333-444455556666"),
+                        "activation_lock_status": .string("activation_lock_enabled"),
+                        "number_processors": .string("proc 14:0:10:4")
+                    ])
+                ]
+            ),
+            SystemProfilerSection(
+                dataType: .software,
+                items: [
+                    .object([
+                        "os_version": .string("macOS 26.0 (25A354)"),
+                        "user_name": .string("alex_smith"),
+                        "local_host_name": .string("Alexs-MacBook-Pro"),
+                        "uptime": .string("up 0:1:17:52")
+                    ])
+                ]
+            ),
+            SystemProfilerSection(
+                dataType: .wifi,
+                items: [
+                    .object([
+                        "spairport_airport_interfaces": .array([
+                            .object([
+                                "_name": .string("en0"),
+                                "spairport_wireless_mac_address": .string("a4:83:e7:12:34:56"),
+                                "spairport_current_network_information": .object([
+                                    "_name": .string("Home Network"),
+                                    "spairport_network_channel": .string("36 (5GHz, 160MHz)"),
+                                    "spairport_security_mode": .string("spairport_security_mode_wpa3_personal")
+                                ])
+                            ])
+                        ])
+                    ])
+                ]
+            ),
+            SystemProfilerSection(
+                dataType: .storage,
+                items: [
+                    .object([
+                        "_name": .string("Alex’s Drive"),
+                        "mount_point": .string("/Volumes/Alex’s Drive"),
+                        "free_space_in_bytes": .integer(123_456),
+                        "writable": .string("yes"),
+                        "file_system": .string("APFS")
+                    ])
+                ]
+            ),
+            SystemProfilerSection(
+                dataType: .bluetooth,
+                items: [
+                    .object([
+                        "device_not_connected": .array([
+                            .object(["Alex’s AirPods Pro": .object(["device_minorType": .string("Headphones")])])
+                        ])
+                    ])
+                ]
+            ),
+            SystemProfilerSection(
+                dataType: .syncServices,
+                items: [
+                    .object([
+                        "_items": .array([
+                            .object([
+                                "description": .string("system_log_description"),
+                                "contents": .string("Sep 19 15:26:50 syncd[88]: account alex@example.com")
+                            ])
+                        ])
+                    ])
+                ]
+            )
+        ],
+        commandArguments: ["-json"],
+        standardError: "private diagnostic text",
+        startedAt: Date(timeIntervalSince1970: 1_000),
+        completedAt: Date(timeIntervalSince1970: 1_001)
+    )
+
+    @Test
+    func removesPersonalValuesAndKeepsWhatExplanationsNeed() throws {
+        let data: Data = try encodeAnonymizedSample(makeAnonymizedSample(report))
+        let text: String = String(decoding: data, as: UTF8.self)
+
+        for removed in ["SECRET-SERIAL-123", "8C1A2B3C", "alex_smith", "Alexs-MacBook-Pro", "a4:83:e7",
+                        "Home Network", "Alex’s", "alex@example.com", "private diagnostic text"] {
+            #expect(!text.contains(removed), "\(removed) was kept")
+        }
+
+        for kept in ["hardware_overview", "Mac15,3", "activation_lock_enabled", "proc 14:0:10:4", "macOS 26.0 (25A354)",
+                     "up 0:1:17:52", "36 (5GHz, 160MHz)", "spairport_security_mode_wpa3_personal", "123456",
+                     "\"yes\"", "APFS", "device_minorType", "<name 1>", "system_log_description", anonymizedSampleRemovedLog] {
+            #expect(text.contains(kept), "\(kept) was removed")
+        }
+    }
+
+    @Test
+    func samplesOpenAsSystemProfilerJSON() throws {
+        let sample: [String: [ProfileValue]] = makeAnonymizedSample(report)
+        let data: Data = try encodeAnonymizedSample(sample)
+        let opened: SystemProfilerReport = try SystemProfilerParser().parseImportedReport(data, importedAt: Date())
+
+        #expect(Set(opened.sections.map(\.dataType)) == Set(report.sections.map(\.dataType)))
+        // Anonymizing a sample again changes nothing, which the sample tests rely on.
+        #expect(makeAnonymizedSample(opened) == sample)
+        #expect(anonymizedSampleFilename(report) == "Sample-Mac15,3-macOS-26.0.sample.json")
+        #expect(anonymizedSampleFilename(SystemProfilerReport(sections: [], commandArguments: [], standardError: "", startedAt: Date(), completedAt: Date())) == "Sample.sample.json")
+    }
+}

@@ -253,6 +253,13 @@ private let valueRuleIndex: [ValueRuleKey: [ValueRule]] = {
     return index
 }()
 
+/// Whether any value rule covers this field. Anonymized samples keep these fields'
+/// values, since the rules are what the samples exercise.
+func hasValueRule(dataType: SystemProfilerDataType, path: [String]) -> Bool {
+    let context: ValueContext = ValueContext(dataType: dataType, path: path, scalar: .null, siblings: [:], report: .empty)
+    return valueRuleIndex[ValueRuleKey(dataType: dataType, field: context.field)] != nil
+}
+
 /// Explains what this reported value means. Returns nil for free text and identifiers,
 /// where the field explanation is the whole story, and an honest fallback for
 /// enumeration values the catalog doesn't cover yet.

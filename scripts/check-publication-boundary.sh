@@ -15,13 +15,15 @@ FORBIDDEN_PATHS_FILE="$(mktemp)"
 CANDIDATE_FILES_FILE="$(mktemp)"
 USER_PATHS_FILE="$(mktemp)"
 PRIVATE_KEYS_FILE="$(mktemp)"
+SAMPLE_VALUES_FILE="$(mktemp)"
 
 cleanup() {
     rm -f -- \
         "${FORBIDDEN_PATHS_FILE}" \
         "${CANDIDATE_FILES_FILE}" \
         "${USER_PATHS_FILE}" \
-        "${PRIVATE_KEYS_FILE}"
+        "${PRIVATE_KEYS_FILE}" \
+        "${SAMPLE_VALUES_FILE}"
 }
 
 trap cleanup EXIT
@@ -79,6 +81,28 @@ scan_pattern() {
 
 scan_pattern '/(Users)/[^/]+/|/var/(folders)/' "${USER_PATHS_FILE}"
 scan_pattern 'BEGIN[[:space:]].*PRIVATE[[:space:]]KEY' "${PRIVATE_KEYS_FILE}"
+
+# Anonymized samples must not contain hardware addresses, UUIDs, or email addresses.
+while IFS= read -r -d '' file_path; do
+    [[ "${file_path}" == *.sample.json ]] || continue
+
+    set +e
+    grep -InI -i -E '([0-9a-f]{2}[:-]){5}[0-9a-f]{2}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|[^[:space:]"]+@[^[:space:]"]+[.][a-z]{2,}' \
+        "${file_path}" >> "${SAMPLE_VALUES_FILE}"
+    grep_status=$?
+    set -e
+
+    if [[ ${grep_status} -ne 0 && ${grep_status} -ne 1 ]]; then
+        echo "Publication check failed: could not inspect ${file_path}." >&2
+        exit 1
+    fi
+done < "${CANDIDATE_FILES_FILE}"
+
+if [[ -s "${SAMPLE_VALUES_FILE}" ]]; then
+    echo "Publication check failed: a sample contains an address or unique identifier:" >&2
+    cat "${SAMPLE_VALUES_FILE}" >&2
+    exit 1
+fi
 
 if [[ -s "${USER_PATHS_FILE}" ]]; then
     echo "Publication check failed: absolute user-specific paths were found:" >&2
