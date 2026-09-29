@@ -37,3 +37,10 @@ func sourcePath(fromLocation location: String) -> String {
 func bookmarkMatches(_ bookmarks: Set<String>, location: String, sourcePath: String) -> Bool {
     bookmarks.contains(location) || bookmarks.contains(sourcePath)
 }
+
+/// Whether a value's location is inside the group at `groupLocation`, such as
+/// `SPStorageDataType[1].physical_drive.medium_type` inside `SPStorageDataType[1]`.
+/// `SPStorageDataType[10]` is not inside `SPStorageDataType[1]`.
+func locationIsInsideGroup(_ location: String, groupLocation: String) -> Bool {
+    location.hasPrefix(groupLocation + ".")
+}

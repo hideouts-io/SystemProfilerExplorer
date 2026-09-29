@@ -1087,6 +1087,9 @@ private struct ProfileValueDisclosure: View {
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 11)
+            .onChange(of: highlightedLocation) { _ in
+                revealHighlightedLocation()
+            }
 
         case let .array(values):
             let items: [ProfileArrayItem] = filteredArrayItems(values)
@@ -1122,6 +1125,9 @@ private struct ProfileValueDisclosure: View {
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 11)
+            .onChange(of: highlightedLocation) { _ in
+                revealHighlightedLocation()
+            }
 
         case let .string(value):
             scalarRow(scalar: .string(value))
@@ -1133,6 +1139,13 @@ private struct ProfileValueDisclosure: View {
             scalarRow(scalar: .boolean(value))
         case .null:
             scalarRow(scalar: .null)
+        }
+    }
+
+    /// A group the user collapsed opens again when a value inside it is shown.
+    private func revealHighlightedLocation() {
+        if containsHighlightedLocation {
+            manualExpansion = nil
         }
     }
 
@@ -1174,8 +1187,25 @@ private struct ProfileValueDisclosure: View {
 
     private var expansionBinding: Binding<Bool> {
         Binding(
-            get: { manualExpansion ?? (automaticallyExpandResults || expandsByDefault) },
+            get: { manualExpansion ?? (automaticallyExpandResults || expandsByDefault || containsHighlightedLocation) },
             set: { manualExpansion = $0 }
+        )
+    }
+
+    /// Whether the highlighted value is inside this group, so it opens to show it.
+    private var containsHighlightedLocation: Bool {
+        guard let highlightedLocation else {
+            return false
+        }
+
+        return locationIsInsideGroup(
+            highlightedLocation,
+            groupLocation: findingLocation(
+                dataType: dataType,
+                recordIndex: recordIndex,
+                path: path,
+                arrayIndices: arrayIndices
+            )
         )
     }
 
