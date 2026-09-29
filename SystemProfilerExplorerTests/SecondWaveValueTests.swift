@@ -34,7 +34,7 @@ struct SecondWaveValueTests {
 
         #expect(bus.summary.contains("not a physical Ethernet adapter"))
         #expect(bus.confidence?.reasons.count == 2)
-        #expect(usb.suggestedAction == nil)
+        #expect(usb.suggestedAction?.contains("faster") != true)
     }
 
     @Test

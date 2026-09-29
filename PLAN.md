@@ -94,7 +94,8 @@ test run.
     volume content.
 11. [x] Startup security, software overview and hardware: Secure Boot and
     its protections, SIP, secure virtual memory, boot mode, Activation Lock.
-12. [ ] Displays, audio, Bluetooth, Thunderbolt, USB, memory, card readers.
+12. [x] Displays, audio, Bluetooth, Thunderbolt, USB, memory, card readers,
+    and Ethernet.
 13. [ ] Settings and profiles: accessibility, language and region,
     configuration profiles, managed preferences, printers, sync services,
     Secure Element.

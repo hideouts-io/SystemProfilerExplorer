@@ -393,15 +393,41 @@ let ethernetValueRules: [ValueRule] = [
             return .info(
                 "A network link to \(device) connected over USB, not a physical Ethernet adapter.",
                 detail: "macOS creates links like this for Personal Hotspot over USB and for services such as Finder syncing and Xcode.",
+                why: "It appears whenever the device is plugged in and trusted, and goes away when it's unplugged.",
+                action: "Nothing to do.",
                 confidence: .likely(reasons: appleDeviceLinkReasons(context, device: device))
             )
         }
 
+        let why: String = "How the adapter connects can limit its speed."
+
         return switch tokenSuffix(context.reportedValue, after: "spethernet_") {
-        case "usb_device": .info("A USB Ethernet adapter.")
-        case "pcie", "pci": .info("Connected over PCI Express.")
-        case "builtin", "built_in": .info("Built into this Mac.")
-        default: nil
+        case "usb_device":
+            .info(
+                "A USB Ethernet adapter.",
+                detail: "The Ethernet port is on an adapter or dock connected over USB.",
+                why: "\(why) USB adapters depend on the USB port and cable they use.",
+                action: "Nothing to do.",
+                confidence: .documented
+            )
+        case "pcie", "pci", "pci_device":
+            .info(
+                "Connected over PCI Express.",
+                detail: "The Ethernet controller is a chip or card connected directly over PCI Express.",
+                why: "\(why) PCI Express gives the controller its full speed.",
+                action: "Nothing to do.",
+                confidence: .documented
+            )
+        case "builtin", "built_in":
+            .info(
+                "Built into this Mac.",
+                detail: "The Ethernet port is part of the Mac itself.",
+                why: "\(why) Built-in ports run at their full rated speed.",
+                action: "Nothing to do.",
+                confidence: .documented
+            )
+        default:
+            nil
         }
     },
 
@@ -414,11 +440,19 @@ let ethernetValueRules: [ValueRule] = [
             return .info(
                 "Reported as \(ethernetSpeedDescription(megabits: megabits)), a nominal figure for the link to \(device).",
                 detail: "Actual speed depends on the USB connection and on the device itself.",
+                why: "The figure doesn't describe a real network cable.",
+                action: "Nothing to do.",
                 confidence: .likely(reasons: appleDeviceLinkReasons(context, device: device))
             )
         }
 
-        return .info("Supports Ethernet speeds up to \(ethernetSpeedDescription(megabits: megabits)).", confidence: .documented)
+        return .info(
+            "Supports Ethernet speeds up to \(ethernetSpeedDescription(megabits: megabits)).",
+            detail: "This is the fastest speed the adapter can use. The actual speed depends on the cable and the router or switch.",
+            why: "Your network connection can't be faster than the slowest part of the link.",
+            action: "Nothing to do. For full speed, use a cable and switch rated for it.",
+            confidence: .documented
+        )
     },
 
     ValueRule(.ethernet, field: "spethernet_usb_device_speed") { context in
@@ -487,6 +521,7 @@ func usbLinkExplanation(_ value: String, adapterMegabits: Int?) -> ValueExplanat
         return .info(
             summary,
             detail: "The adapter supports \(ethernetSpeedDescription(megabits: adapterMegabits)), but its USB connection runs at up to \(ethernetSpeedDescription(megabits: link.megabits)), which can limit its speed.",
+            why: "The network can't be faster than the USB link the adapter uses.",
             action: "For full speed, connect the adapter to a faster USB or Thunderbolt port, not through a slower hub or cable.",
             confidence: .likely(reasons: [
                 "The USB connection's reported speed is lower than the adapter's Ethernet speed."
@@ -494,7 +529,13 @@ func usbLinkExplanation(_ value: String, adapterMegabits: Int?) -> ValueExplanat
         )
     }
 
-    return .info(summary, confidence: .documented)
+    return .info(
+        summary,
+        detail: "This is the USB speed the device negotiated with the Mac.",
+        why: "A device can't send data faster than its USB link allows.",
+        action: "Nothing to do.",
+        confidence: .documented
+    )
 }
 
 // MARK: - Wi-Fi
@@ -1002,21 +1043,51 @@ private func wifiCapabilityExplanation(_ value: String, feature: String, why: St
 
 // MARK: - Bluetooth
 
+// Sources: attrib_on and attrib_off are seen in docs/value-inventory.md. Discoverability
+// is described in https://support.apple.com/guide/mac-help/blth1004.
+
 let bluetoothValueRules: [ValueRule] = [
     ValueRule(.bluetooth, field: "controller_state") { context in
         switch decodeBooleanLike(context.reportedValue) {
-        case true?: .normal("Bluetooth is on.")
-        case false?: .info("Bluetooth is off, so wireless keyboards, mice, and headphones can't connect.")
-        case nil: nil
+        case true?:
+            .normal(
+                "Bluetooth is on.",
+                detail: "The Bluetooth radio was on when the scan ran.",
+                why: "Wireless keyboards, mice, headphones, and Continuity features such as Handoff and AirDrop can work.",
+                action: "Nothing to do.",
+                confidence: .documented
+            )
+        case false?:
+            .info(
+                "Bluetooth is off, so wireless keyboards, mice, and headphones can't connect.",
+                detail: "The Bluetooth radio was off when the scan ran.",
+                why: "Continuity features such as Handoff, AirDrop, and Unlock with Apple Watch also need Bluetooth.",
+                action: "If you expected Bluetooth to be on, turn it on in Control Center or System Settings › Bluetooth.",
+                confidence: .documented
+            )
+        case nil:
+            nil
         }
     },
 
     ValueRule(.bluetooth, field: "controller_discoverable") { context in
         switch decodeBooleanLike(context.reportedValue) {
         case true?:
-            .info("This Mac is visible to nearby Bluetooth devices. That normally happens only while Bluetooth settings is open.")
+            .info(
+                "This Mac is visible to nearby Bluetooth devices. That normally happens only while Bluetooth settings is open.",
+                detail: "Nearby devices can find this Mac by name to pair with it.",
+                why: "Being visible is needed for pairing, but it also shows the Mac's name to people nearby.",
+                action: "Nothing to do. It stops when you close Bluetooth settings.",
+                confidence: .documented
+            )
         case false?:
-            .normal("This Mac isn't visible to nearby devices, the normal state outside Bluetooth settings.")
+            .normal(
+                "This Mac isn't visible to nearby devices, the normal state outside Bluetooth settings.",
+                detail: "Devices that are already paired can still connect.",
+                why: "Staying hidden keeps the Mac's name private and avoids unwanted pairing requests.",
+                action: "Nothing to do. To pair a new device, open System Settings › Bluetooth.",
+                confidence: .documented
+            )
         case nil:
             nil
         }
@@ -1035,7 +1106,10 @@ let bluetoothValueRules: [ValueRule] = [
             let quality: String = rssi >= -60 ? "Strong" : rssi >= -80 ? "Fair" : "Weak"
             return .info(
                 "\(quality) signal (\(rssi) dBm) when the device was last seen.",
-                detail: "Values closer to 0 are stronger. Walls, bodies, and distance weaken Bluetooth quickly."
+                detail: "Values closer to 0 are stronger. Walls, bodies, and distance weaken Bluetooth quickly.",
+                why: "A weak signal can make audio skip or a keyboard or mouse lag.",
+                action: "Nothing to do. If the device drops out, move it closer to the Mac.",
+                confidence: .observed
             )
         }
     }

@@ -51,6 +51,7 @@ let intelReport: ValueReportContext = ValueReportContext(usbDeviceNames: nil, pr
 let explainedValueSamples: [ValueSample] = applicationValueSamples + fontValueSamples + extensionValueSamples
     + networkValueSamples + softwareHistoryAndFirewallValueSamples + wifiValueSamples
     + powerValueSamples + storageValueSamples + startupAndOverviewValueSamples
+    + hardwareValueSamples
 
 /// Each value is checked with no Hardware section, on Apple silicon, and on an Intel Mac,
 /// because what an architecture means depends on the Mac.
@@ -368,6 +369,74 @@ private let startupAndOverviewValueSamples: [ValueSample] = {
     return samples
 }()
 
+private let hardwareValueSamples: [ValueSample] = {
+    let display: [String] = ["spdisplays_ndrvs", "[]"]
+    let port: [String] = ["_items", "[]", "receptacle_1_tag"]
+    var samples: [ValueSample] = [
+        "LCD", "CRT", "retinaLCD", "built-in_retinaLCD", "projector", "television", "airplaydisplay", "built-in-liquid-retina-xdr"
+    ].map { ValueSample(.displays, display + ["spdisplays_display_type"], "spdisplays_\($0)") }
+
+    samples += ["internal", "external", "airplay"].map {
+        ValueSample(.displays, display + ["spdisplays_connection_type"], "spdisplays_\($0)")
+    }
+    for field in ["spdisplays_online", "spdisplays_main", "spdisplays_mirror", "spdisplays_ambient_brightness"] {
+        samples += ["spdisplays_yes", "spdisplays_off"].map { ValueSample(.displays, display + [field], $0) }
+    }
+    samples += ["gpu", "egpu"].map { ValueSample(.displays, ["sppci_device_type"], "spdisplays_\($0)") }
+    samples += ["builtin", "pcie_device", "tb_device", "agp_device"].map { ValueSample(.displays, ["sppci_bus"], "spdisplays_\($0)") }
+    samples += ["spdisplays_metal4", "spdisplays_mtlgpufamilymac2"].map { ValueSample(.displays, ["spdisplays_mtlgpufamilysupport"], $0) }
+    samples += ["sppci_vendor_Apple", "sppci_vendor_amd"].map { ValueSample(.displays, ["spdisplays_vendor"], $0) }
+    samples.append(ValueSample(.displays, display + ["spdisplays_pixelresolution"], "spdisplays_3024x1964Retina"))
+    samples.append(ValueSample(.displays, display + ["_spdisplays_resolution"], "1512 x 982 @ 120.00Hz", siblings: ["_spdisplays_pixels": .string("3024 x 1964")]))
+    samples.append(ValueSample(.displays, ["sppci_cores"], "40"))
+
+    samples += [
+        "airplay", "avb", "bluetooth", "builtin", "displayport", "firewire", "hdmi", "network", "other", "pci",
+        "thunderbolt", "unknown", "usb", "virtual", "wireless", "bluetoothle", "aggregate"
+    ].map { ValueSample(.audio, ["_items", "[]", "coreaudio_device_transport"], "coreaudio_device_type_\($0)") }
+    for field in ["coreaudio_default_audio_input_device", "coreaudio_default_audio_output_device", "coreaudio_default_audio_system_device"] {
+        samples.append(ValueSample(.audio, ["_items", "[]", field], "spaudio_yes"))
+    }
+    samples.append(ValueSample(.audio, ["_items", "[]", "_properties"], "coreaudio_default_audio_system_device"))
+    samples.append(ValueSample(.audio, ["_items", "[]", "coreaudio_device_srate"], scalar: .integer(48_000)))
+
+    samples += ["receptacle_no_devices_connected", "receptacle_connected"].map {
+        ValueSample(.thunderbolt, port + ["receptacle_status_key"], $0)
+    }
+    samples += ["trained", "training", "untrained", "disabled", "off", "Loopback", "unknown"].map {
+        ValueSample(.thunderbolt, port + ["link_status_key"], "\($0)_link_status")
+    }
+    samples += ["Up to 40 Gb/s", "Up to 20 Gb/s x2", "Up to 10 Gb/s x1", "Up to 120 Gb/s"].map {
+        ValueSample(.thunderbolt, port + ["current_speed_key"], $0)
+    }
+
+    samples += ["attrib_on", "attrib_off"].map { ValueSample(.bluetooth, ["controller_properties", "controller_state"], $0) }
+    samples += ["attrib_on", "attrib_off"].map { ValueSample(.bluetooth, ["controller_properties", "controller_discoverable"], $0) }
+    samples += ["PCIe", "USB", "UART"].map { ValueSample(.bluetooth, ["controller_properties", "controller_transport"], $0) }
+    samples.append(ValueSample(.bluetooth, ["device_connected", "[]", "Keyboard", "device_rssi"], "-58"))
+
+    samples.append(ValueSample(.usb, ["_items", "[]", "USBKeyHardwareType"], "Built-in"))
+    samples += ["LPDDR5", "DDR4"].map { ValueSample(.memory, ["dimm_type"], $0) }
+    samples += ["ok", "empty", "mapped_out", "unknown"].map { ValueSample(.memory, ["_items", "[]", "dimm_status"], $0) }
+    samples += ["ecc_enabled", "ecc_disabled"].map { ValueSample(.memory, ["global_ecc_state"], $0) }
+    samples += ["Yes", "No"].map { ValueSample(.memory, ["is_memory_upgradeable"], $0) }
+    samples += ["spcardreader_link-speed", "spcardreader_link-width"].map { ValueSample(.cardReader, [$0], "Off") }
+
+    let adapter: [String: ProfileValue] = [
+        "spethernet_product_name": .string("USB 10/100/1000 LAN"),
+        "spethernet_max_link_speed": .string("ethernet_speed_1000")
+    ]
+    samples += ["spethernet_usb_device", "spethernet_pcie", "spethernet_builtin"].map {
+        ValueSample(.ethernet, ["spethernet_bus"], $0, siblings: adapter)
+    }
+    samples.append(ValueSample(.ethernet, ["spethernet_max_link_speed"], "ethernet_speed_1000", siblings: adapter))
+    samples += ["high_speed", "super_speed", "super_speed_plus"].map {
+        ValueSample(.ethernet, ["spethernet_usb_device_speed"], $0, siblings: adapter)
+    }
+
+    return samples
+}()
+
 struct ValueCatalogTests {
     @Test(arguments: explainedValueSamples)
     func everyKnownValueHasEveryPart(_ sample: ValueSample) throws {
@@ -552,6 +621,25 @@ struct ValueCatalogTests {
         #expect(installer.status == .informational)
         #expect(installer.detail?.contains("installation CD/DVD") == true)
         #expect(valueExplanation(dataType: .software, path: ["boot_mode"], scalar: .string("network_boot"))?.status == .unknown)
+    }
+
+    // MARK: - Hardware
+
+    @Test
+    func thunderboltLinkStatesFromAppleAreRecognized() throws {
+        let path: [String] = ["_items", "[]", "receptacle_1_tag", "link_status_key"]
+        let trained = try #require(valueExplanation(dataType: .thunderbolt, path: path, scalar: .string("trained_link_status")))
+
+        #expect(trained.status == .normal)
+        #expect(valueExplanation(dataType: .thunderbolt, path: path, scalar: .string("0x2"))?.status == .unknown)
+    }
+
+    @Test
+    func olderAppleGPUBusSpellingIsRecognized() {
+        #expect(valueExplanation(dataType: .displays, path: ["sppci_bus"], scalar: .string("spdisplays_pcie_device"))?.summary
+            == "Connected over PCI Express, as a separate graphics card.")
+        #expect(valueExplanation(dataType: .displays, path: ["spdisplays_display_type"], scalar: .string("spdisplays_retinaLCD"))?.summary
+            == "Display type: Retina LCD.")
     }
 
     @Test

@@ -331,3 +331,51 @@ settings on the startup disk of a Mac with Apple silicon"
 | `activation_lock_status` | `activation_lock_enabled`, `activation_lock_disabled` | Normal, Info | Apple | seen, Apple key |
 | `number_processors` | `proc total:…:performance:efficiency` | Info | Inferred | seen |
 | `physical_memory` | a size on Apple silicon | Info | Apple | seen (withheld) |
+
+## Displays, audio, Bluetooth, Thunderbolt, USB, memory, card readers, and Ethernet
+
+Sources: the values seen in `docs/value-inventory.md`, and the keys in Apple's
+`SPDisplaysReporter`, `SPAudioReporter`, `SPThunderboltReporter`,
+`SPMemoryReporter`, and `SPEthernetReporter` strings. The glossaries have no
+Bluetooth or USB reporter, so those spellings come only from the inventory.
+Bluetooth visibility: <https://support.apple.com/guide/mac-help/blth1004>.
+
+| field | value | status | source | spelling |
+|---|---|---|---|---|
+| `spdisplays_display_type` | `spdisplays_built-in-liquid-retina-xdr` | Info | Standard | seen |
+| `spdisplays_display_type` | `LCD`, `CRT`, `retinaLCD`, `built-in_retinaLCD`, `projector`, `television`, `airplaydisplay` | Info | Apple | Apple key |
+| `spdisplays_display_type` | other `spdisplays_…` names (shown as written) | Info | Standard | as reported |
+| `spdisplays_connection_type` | `spdisplays_internal` | Info | Apple | seen |
+| `spdisplays_connection_type` | `spdisplays_airplay` | Info | Apple | Apple key |
+| `spdisplays_connection_type` | `spdisplays_external` | Info | Apple | unconfirmed |
+| `spdisplays_online`, `_main`, `_mirror`, `_ambient_brightness` | `spdisplays_yes`/`_on`, `spdisplays_no`/`_off` | Normal, Info | Apple | seen (`yes`, `off`), Apple key |
+| `sppci_device_type` | `spdisplays_gpu` | Info | Apple | seen |
+| `sppci_device_type` | `spdisplays_egpu` | Info | Apple | Apple key |
+| `sppci_bus` | `spdisplays_builtin` | Info | Apple | seen |
+| `sppci_bus` | `spdisplays_pcie_device`, `spdisplays_tb_device`, `spdisplays_agp_device` | Info | Apple | Apple key |
+| `sppci_bus` | `spdisplays_pcie` | Info | Apple | unconfirmed |
+| `spdisplays_mtlgpufamilysupport` | `spdisplays_metalN` | Info | Apple | seen (`metal4`) |
+| `spdisplays_mtlgpufamilysupport` | `spdisplays_mtlgpufamilymacN`, `…commonN` | Info | Apple | Apple key |
+| `spdisplays_vendor` | `sppci_vendor_…` | Info | Apple | seen (`Apple`), Apple key (`Nvidia`, `amd`) |
+| `coreaudio_device_transport` | `coreaudio_device_type_builtin` | Info | Apple | seen |
+| `coreaudio_device_transport` | `airplay`, `avb`, `bluetooth`, `displayport`, `firewire`, `hdmi`, `network`, `other`, `pci`, `thunderbolt`, `unknown`, `usb`, `virtual`, `wireless` | Info | Apple | Apple key |
+| `coreaudio_device_transport` | `bluetoothle`, `aggregate` | Info | Standard | unconfirmed |
+| `coreaudio_default_audio_*_device`, `_properties` | `spaudio_yes`, `coreaudio_default_audio_*_device` | Info | Apple | seen |
+| `receptacle_status_key` | `receptacle_no_devices_connected` | Info | Apple | seen |
+| `receptacle_status_key` | `receptacle_connected` | Info | Apple | Apple key |
+| `link_status_key` | `trained`, `training`, `untrained`, `disabled`, `off`, `Loopback`, `unknown` + `_link_status` | Normal, Info | Apple | Apple key; current format unconfirmed (withheld in the inventory) |
+| `current_speed_key` | `Up to 40 Gb/s` | Info | Apple | seen |
+| `current_speed_key` | `Up to 10/20 Gb/s x1/x2` | Info | Apple | Apple key |
+| `current_speed_key` | `Up to 80/120 Gb/s` (Thunderbolt 5) | Info | Apple | unconfirmed |
+| `controller_state`, `controller_discoverable` | `attrib_on`, `attrib_off` | Normal, Info | Apple | seen |
+| `controller_transport` | `PCIe` | Info | Apple | seen |
+| `controller_transport` | `USB`, `UART` | Info | Apple | unconfirmed |
+| `USBKeyHardwareType` | `Built-in` | Info | Apple | seen |
+| `dimm_type` | `LPDDR…`, `DDR…` | Info | Apple | seen (`LPDDR5`) |
+| `dimm_status` | `ok`, `empty`, `mapped_out`, `unknown` | Normal, Info, Worth a look | Apple | Apple key |
+| `global_ecc_state` | `ecc_enabled`, `ecc_disabled` | Normal, Info | Apple | Apple key |
+| `is_memory_upgradeable` | `Yes`, `No` | Info | Apple | Apple key (field) |
+| `spcardreader_link-speed`, `-width` | `Off` | Info | Inferred | seen |
+| `spethernet_bus` | `spethernet_usb_device`, `spethernet_pcie`, `spethernet_builtin` | Info | Apple | seen (`usb_device`); others unconfirmed |
+| `spethernet_max_link_speed` | `ethernet_speed_N` | Info | Apple | seen |
+| `spethernet_usb_device_speed` | `low_speed` … `super_speed_plus_by_2` | Info | Apple | seen (`high_speed`); others unconfirmed |
