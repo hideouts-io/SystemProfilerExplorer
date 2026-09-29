@@ -31,7 +31,14 @@ because anonymized samples keep the values of fields that have a rule.
 6. [x] Software and Secure Element: font format and flags, private
    frameworks, extension loadability and architectures, Secure Element
    restricted mode and production signing.
-7. [ ] Note in `docs/value-inventory.md` that value rules now exist and
+7. [x] Network locations and connection settings: active location, Wi-Fi
+   join mode, VPN sign-in method, when PPP and VPN connections end, the
+   dial-up switches, Ethernet media subtype, and automounted network
+   volumes.
+8. [ ] Hardware states: display online, Bluetooth controller transport,
+   Wi-Fi regulatory locale, USB hardware type, memory type, card reader
+   link, and display contrast.
+9. [ ] Note in `docs/value-inventory.md` that value rules now exist and
    which enumeration fields are still unexplained.
 
 ## Verification

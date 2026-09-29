@@ -720,3 +720,115 @@ let proxyValueRules: [ValueRule] = proxyProtocols.map { proxy -> ValueRule in
         }
     }
 ]
+
+// MARK: - Network locations, dial-up and VPN connection settings
+
+/// When a PPP or VPN connection ends, keyed by the setting that controls it.
+private let disconnectTriggers: [(field: String, event: String)] = [
+    ("DisconnectOnIdle", "the connection has been idle for a while"),
+    ("DisconnectOnLogout", "the user logs out"),
+    ("DisconnectOnSleep", "the Mac goes to sleep"),
+    ("DisconnectOnFastUserSwitch", "another user switches in"),
+    ("DisconnectOnWake", "the Mac wakes from sleep")
+]
+
+/// Dial-up (PPP) switches, with what each means when it's on and off.
+private let dialUpSwitches: [(field: String, whenOn: String, whenOff: String)] = [
+    ("DialOnDemand", "The connection dials automatically when an app needs the network.", "The connection dials only when someone connects it."),
+    ("CommRedialEnabled", "If the line is busy, the connection redials automatically.", "If the line is busy, the connection doesn't redial."),
+    ("IdleReminder", "macOS asks whether to stay connected after the connection has been idle.", "macOS doesn't ask whether to stay connected when the connection is idle."),
+    ("LCPEchoEnabled", "The connection regularly checks that the other end still answers, so a dropped line is noticed.", "The connection doesn't check that the other end still answers."),
+    ("VerboseLogging", "Detailed connection logging is on, which is useful for troubleshooting.", "Detailed connection logging is off."),
+    ("IPCPCompressionVJ", "TCP header compression is on, which saves bandwidth on slow links.", "TCP header compression is off."),
+    ("CommDisplayTerminalWindow", "A terminal window opens while dialing, for servers that need manual sign-in.", "No terminal window opens while dialing."),
+    ("CommUseTerminalScript", "A script runs while dialing to sign in to the server.", "No sign-in script runs while dialing.")
+]
+
+private let disconnectRules: [ValueRule] = disconnectTriggers.map { trigger -> ValueRule in
+    ValueRule(.networkLocation, field: trigger.field) { context in
+        switch decodeSettingFlag(context.reportedValue) {
+        case true?: .info("The connection ends when \(trigger.event).", confidence: .documented)
+        case false?: .info("The connection stays up when \(trigger.event).", confidence: .documented)
+        case nil: nil
+        }
+    }
+}
+
+private let dialUpRules: [ValueRule] = dialUpSwitches.map { setting -> ValueRule in
+    ValueRule(.networkLocation, field: setting.field) { context in
+        switch decodeSettingFlag(context.reportedValue) {
+        case true?: .info(setting.whenOn, confidence: .documented)
+        case false?: .info(setting.whenOff, confidence: .documented)
+        case nil: nil
+        }
+    }
+}
+
+let networkLocationSettingValueRules: [ValueRule] = disconnectRules + dialUpRules + [
+    ValueRule(.networkLocation, field: "spnetworklocation_isActive") { context in
+        switch decodeSettingFlag(context.reportedValue) {
+        case true?: .info("The location in use when the scan ran.", confidence: .documented)
+        case false?: .info("A saved location that wasn't in use when the scan ran.", confidence: .documented)
+        case nil: nil
+        }
+    },
+
+    ValueRule(.networkLocation, field: "JoinMode") { context in
+        switch context.reportedValue {
+        case "Automatic": .normal("Joins known Wi-Fi networks automatically, the default.", confidence: .documented)
+        case "Preferred": .info("Joins known Wi-Fi networks in the order of the preferred networks list.", confidence: .documented)
+        case "Ranked": .info("Joins known Wi-Fi networks in a ranked order.", confidence: .documented)
+        case "Recent": .info("Joins the most recently used known Wi-Fi network.", confidence: .documented)
+        case "Strongest": .info("Joins the known Wi-Fi network with the strongest signal.", confidence: .documented)
+        default: nil
+        }
+    },
+
+    ValueRule(.networkLocation, field: "AuthenticationMethod") { context in
+        switch context.reportedValue {
+        case "Password": .info("The VPN signs in with a password.", confidence: .documented)
+        case "Certificate": .info("The VPN signs in with a certificate.", confidence: .documented)
+        case "SharedSecret": .info("The VPN signs in with a shared secret, a password shared by everyone who uses the server.", confidence: .documented)
+        case "Hybrid": .info("The VPN checks the server's certificate and signs in with a password.", confidence: .documented)
+        default: nil
+        }
+    },
+
+    ValueRule(.network, field: "MediaSubType") { context in
+        mediaSubtypeExplanation(context.reportedValue)
+    },
+
+    ValueRule(.networkVolumes, field: "spnetworkvolume_automounted") { context in
+        switch decodeBooleanLike(context.reportedValue) {
+        case true?:
+            .info("Mounted automatically, for example by a login item, a saved server, or device management.")
+        case false?:
+            .info("Not mounted automatically: someone connected to it, for example with Connect to Server in the Finder.")
+        case nil:
+            nil
+        }
+    }
+]
+
+/// Reads Ethernet media subtypes such as `autoselect`, `none`, or `1000baseT`.
+func mediaSubtypeExplanation(_ value: String) -> ValueExplanation? {
+    switch value.lowercased() {
+    case "autoselect":
+        return .normal("The link speed is negotiated automatically, the default.", confidence: .documented)
+    case "none":
+        return .info("No link type is set, which is usual for a service with nothing connected or no physical port.")
+    default:
+        break
+    }
+
+    guard value.lowercased().contains("baset"), let megabits = leadingInteger(value) else {
+        return nil
+    }
+
+    let unit: Int = value.lowercased().contains("gbaset") ? 1_000 : 1
+    return .info(
+        "The link speed is set by hand to \(ethernetSpeedDescription(megabits: megabits * unit)) instead of being negotiated.",
+        detail: "A fixed speed that doesn't match the other end can make the connection slow or unreliable.",
+        confidence: .documented
+    )
+}

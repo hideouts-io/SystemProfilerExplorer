@@ -162,6 +162,30 @@ struct ThirdWaveValueTests {
         #expect(valueExplanation(dataType: .frameworks, path: ["private_framework"], scalar: .string("yes"))?.summary.contains("private") == true)
     }
 
+    // MARK: - Network locations and connection settings
+
+    @Test
+    func connectionSettingsDescribeWhenTheyApply() {
+        let sleep = valueExplanation(dataType: .networkLocation, path: ["spnetworklocation_services", "[]", "PPP", "DisconnectOnSleep"], scalar: .string("yes"))
+        let wake = valueExplanation(dataType: .networkLocation, path: ["spnetworklocation_services", "[]", "VPN", "DisconnectOnWake"], scalar: .integer(0))
+
+        #expect(sleep?.summary == "The connection ends when the Mac goes to sleep.")
+        #expect(wake?.summary == "The connection stays up when the Mac wakes from sleep.")
+        #expect(valueExplanation(dataType: .networkLocation, path: ["PPP", "DialOnDemand"], scalar: .string("yes"))?.summary.contains("automatically") == true)
+        #expect(valueExplanation(dataType: .networkLocation, path: ["IEEE80211", "JoinMode"], scalar: .string("Automatic"))?.status == .normal)
+        #expect(valueExplanation(dataType: .networkLocation, path: ["VPN", "AuthenticationMethod"], scalar: .string("Certificate"))?.summary.contains("certificate") == true)
+    }
+
+    @Test
+    func ethernetMediaSubtypesAreDecoded() {
+        #expect(mediaSubtypeExplanation("autoselect")?.status == .normal)
+        #expect(mediaSubtypeExplanation("none")?.status == .informational)
+        #expect(mediaSubtypeExplanation("1000baseT")?.summary.contains("1 Gb/s") == true)
+        #expect(mediaSubtypeExplanation("2500baseT")?.summary.contains("2.5 Gb/s") == true)
+        #expect(mediaSubtypeExplanation("10GbaseT")?.summary.contains("10 Gb/s") == true)
+        #expect(mediaSubtypeExplanation("future") == nil)
+    }
+
     // MARK: - Coverage
 
     /// Values observed in the full scan behind docs/value-inventory.md for fields this
@@ -225,7 +249,29 @@ struct ThirdWaveValueTests {
             (.extensions, ["spext_loadable"], "yes"),
             (.extensions, ["spext_architectures", "[]"], "arm64e"),
             (.secureElement, ["se_in_restricted_mode"], "No"),
-            (.secureElement, ["se_prod_signed"], "Yes")
+            (.secureElement, ["se_prod_signed"], "Yes"),
+            (.network, ["Ethernet", "MediaSubType"], "none"),
+            (.network, ["Ethernet", "MediaSubType"], "autoselect"),
+            (.networkLocation, ["spnetworklocation_isActive"], "yes"),
+            (.networkLocation, ["spnetworklocation_services", "[]", "IEEE80211", "JoinMode"], "Automatic"),
+            (.networkLocation, ["spnetworklocation_services", "[]", "VPN", "AuthenticationMethod"], "Password"),
+            (.networkLocation, ["spnetworklocation_services", "[]", "PPP", "CommDisplayTerminalWindow"], "no"),
+            (.networkLocation, ["spnetworklocation_services", "[]", "PPP", "CommRedialEnabled"], "yes"),
+            (.networkLocation, ["spnetworklocation_services", "[]", "PPP", "CommUseTerminalScript"], "no"),
+            (.networkLocation, ["spnetworklocation_services", "[]", "PPP", "DialOnDemand"], "no"),
+            (.networkLocation, ["spnetworklocation_services", "[]", "PPP", "DisconnectOnFastUserSwitch"], "yes"),
+            (.networkLocation, ["spnetworklocation_services", "[]", "PPP", "DisconnectOnIdle"], "yes"),
+            (.networkLocation, ["spnetworklocation_services", "[]", "PPP", "DisconnectOnLogout"], "yes"),
+            (.networkLocation, ["spnetworklocation_services", "[]", "PPP", "DisconnectOnSleep"], "yes"),
+            (.networkLocation, ["spnetworklocation_services", "[]", "PPP", "IPCPCompressionVJ"], "yes"),
+            (.networkLocation, ["spnetworklocation_services", "[]", "PPP", "IdleReminder"], "no"),
+            (.networkLocation, ["spnetworklocation_services", "[]", "PPP", "LCPEchoEnabled"], "yes"),
+            (.networkLocation, ["spnetworklocation_services", "[]", "PPP", "VerboseLogging"], "no"),
+            (.networkLocation, ["spnetworklocation_services", "[]", "VPN", "DisconnectOnIdle"], "no"),
+            (.networkLocation, ["spnetworklocation_services", "[]", "VPN", "DisconnectOnLogout"], "no"),
+            (.networkLocation, ["spnetworklocation_services", "[]", "VPN", "DisconnectOnSleep"], "no"),
+            (.networkLocation, ["spnetworklocation_services", "[]", "VPN", "DisconnectOnWake"], "0"),
+            (.networkVolumes, ["spnetworkvolume_automounted"], "yes")
         ]
 
         for (dataType, path, value) in observed {
