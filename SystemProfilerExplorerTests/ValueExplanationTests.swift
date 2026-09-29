@@ -350,7 +350,10 @@ struct FindingMarkdownTests {
 
         #expect(lines.first?.hasPrefix("**") == true)
         #expect(markdown.contains("- Worth a look: System Integrity Protection is off."))
-        #expect(markdown.contains("- What you can do: "))
+        #expect(markdown.contains("- What this result means: "))
+        #expect(markdown.contains("- Why it matters: "))
+        #expect(markdown.contains("- What to check: "))
+        #expect(markdown.contains("- Explanation source: Documented by Apple"))
         #expect(markdown.contains("- Source: `SPSoftwareDataType.system_integrity`"))
         #expect(markdown.contains("raw value `integrity_disabled`"))
     }

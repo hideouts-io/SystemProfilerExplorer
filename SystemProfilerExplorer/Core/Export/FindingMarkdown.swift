@@ -13,8 +13,20 @@ func findingMarkdown(
         let likely: String = if case .likely = valueExplanation.confidence { "Likely: " } else { "" }
         lines.append("- \(valueExplanation.status.title): \(likely)\(valueExplanation.summary)")
 
+        if let detail = valueExplanation.detail {
+            lines.append("- What this result means: \(detail)")
+        }
+
+        if let significance = valueExplanation.significance {
+            lines.append("- Why it matters: \(significance)")
+        }
+
         if let action = valueExplanation.suggestedAction {
-            lines.append("- What you can do: \(action)")
+            lines.append("- What to check: \(action)")
+        }
+
+        if let confidence = valueExplanation.confidence {
+            lines.append("- Explanation source: \(confidence.title)")
         }
     }
 

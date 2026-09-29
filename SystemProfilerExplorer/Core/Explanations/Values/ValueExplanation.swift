@@ -30,7 +30,7 @@ enum ValueStatus: String, CaseIterable, Identifiable, Sendable {
 
 /// Where a value explanation comes from, so heuristics are never presented as facts.
 enum ValueConfidence: Sendable, Equatable {
-    /// Apple documentation describes this value.
+    /// Apple documentation, or Apple's own System Information strings, describe this value.
     case documented
     /// Standard macOS behavior, or a widely used convention the explanation names.
     case observed
@@ -40,8 +40,8 @@ enum ValueConfidence: Sendable, Equatable {
     var title: String {
         switch self {
         case .documented: "Documented by Apple"
-        case .observed: "Standard behavior"
-        case .likely: "Likely"
+        case .observed: "Standard macOS behavior"
+        case .likely: "Inferred by the app"
         }
     }
 
@@ -54,47 +54,96 @@ enum ValueConfidence: Sendable, Equatable {
     }
 }
 
+/// What one reported value means. The parts map to the expanded row: the summary is
+/// the one-line answer under the value, then what it means on this Mac, why it
+/// matters, and what to check.
 struct ValueExplanation: Sendable, Equatable {
     let summary: String
+    /// What this specific value means on this Mac.
     let detail: String?
+    /// Why this value matters to the person using the Mac.
+    let significance: String?
     let status: ValueStatus
     let confidence: ValueConfidence?
+    /// What to check or do next.
     let suggestedAction: String?
+
+    init(
+        summary: String,
+        detail: String?,
+        significance: String? = nil,
+        status: ValueStatus,
+        confidence: ValueConfidence?,
+        suggestedAction: String?
+    ) {
+        self.summary = summary
+        self.detail = detail
+        self.significance = significance
+        self.status = status
+        self.confidence = confidence
+        self.suggestedAction = suggestedAction
+    }
 
     static func normal(
         _ summary: String,
         detail: String? = nil,
+        why: String? = nil,
         action: String? = nil,
         confidence: ValueConfidence = .observed
     ) -> ValueExplanation {
-        ValueExplanation(summary: summary, detail: detail, status: .normal, confidence: confidence, suggestedAction: action)
+        ValueExplanation(
+            summary: summary,
+            detail: detail,
+            significance: why,
+            status: .normal,
+            confidence: confidence,
+            suggestedAction: action
+        )
     }
 
     static func info(
         _ summary: String,
         detail: String? = nil,
+        why: String? = nil,
         action: String? = nil,
         confidence: ValueConfidence = .observed
     ) -> ValueExplanation {
-        ValueExplanation(summary: summary, detail: detail, status: .informational, confidence: confidence, suggestedAction: action)
+        ValueExplanation(
+            summary: summary,
+            detail: detail,
+            significance: why,
+            status: .informational,
+            confidence: confidence,
+            suggestedAction: action
+        )
     }
 
     static func review(
         _ summary: String,
         detail: String? = nil,
+        why: String? = nil,
         action: String? = nil,
         confidence: ValueConfidence = .observed
     ) -> ValueExplanation {
-        ValueExplanation(summary: summary, detail: detail, status: .worthReviewing, confidence: confidence, suggestedAction: action)
+        ValueExplanation(
+            summary: summary,
+            detail: detail,
+            significance: why,
+            status: .worthReviewing,
+            confidence: confidence,
+            suggestedAction: action
+        )
     }
 
+    /// The honest answer for a value the app doesn't recognize. It never guesses.
     static func unexplained(_ reportedValue: String) -> ValueExplanation {
         ValueExplanation(
-            summary: "The app doesn't have a specific explanation for the value “\(reportedValue)” yet.",
-            detail: "The field explanation below still applies. The value is shown exactly as macOS reported it.",
+            summary: "This value isn't explained yet: the app doesn't recognize “\(reportedValue)”.",
+            detail: "It's shown exactly as macOS reported it. The app doesn't guess what an unrecognized value means, so it can't say whether this result is normal.",
+            significance: nil,
             status: .unknown,
             confidence: nil,
-            suggestedAction: nil
+            suggestedAction: "Open About this field below for what the field records in general."
         )
     }
 }

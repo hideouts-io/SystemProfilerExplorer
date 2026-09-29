@@ -1430,26 +1430,21 @@ private struct ScalarProfileRow: View {
 
     var body: some View {
         DisclosureGroup {
+            // The value comes first; text about the field in general sits in one small
+            // collapsed area below it, so it isn't repeated at full size on every row.
             if let valueExplanation {
                 ValueMeaningView(explanation: valueExplanation)
             }
 
             if presentation.isLogContent {
                 DiagnosticLogView(presentation: presentation, openSourceLocation: openThisLocation)
-            } else if let explanation = presentation.explanation {
-                FieldExplanationView(
-                    presentation: presentation,
-                    explanation: explanation,
-                    openSourceLocation: openThisLocation
-                )
             } else {
-                MissingExplanationView(
+                AboutThisFieldView(
                     presentation: presentation,
+                    startsExpanded: aboutThisFieldStartsExpanded(valueExplanation: valueExplanation),
                     openSourceLocation: openThisLocation
                 )
-            }
 
-            if !presentation.isLogContent {
                 GlossaryTermsRow(texts: explanationTexts)
             }
         } label: {
@@ -1492,7 +1487,12 @@ private struct ScalarProfileRow: View {
         var texts: [String] = []
 
         if let valueExplanation {
-            texts += [valueExplanation.summary, valueExplanation.detail, valueExplanation.suggestedAction].compactMap { $0 }
+            texts += [
+                valueExplanation.summary,
+                valueExplanation.detail,
+                valueExplanation.significance,
+                valueExplanation.suggestedAction
+            ].compactMap { $0 }
             texts += valueExplanation.confidence?.reasons ?? []
         }
 
@@ -1505,15 +1505,9 @@ private struct ScalarProfileRow: View {
 
     private var scalarHeader: some View {
         HStack(alignment: .firstTextBaseline, spacing: 12) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(presentation.title)
-                    .foregroundStyle(.secondary)
-
-                if detailMode == .developer {
-                    ExplanationCoverageBadge(coverage: explanationCoverage(for: presentation))
-                }
-            }
-            .frame(maxWidth: 280, alignment: .leading)
+            Text(presentation.title)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: 280, alignment: .leading)
 
             Spacer(minLength: 12)
 
@@ -1555,201 +1549,6 @@ private struct ScalarDeveloperDetails: View {
         .foregroundStyle(.tertiary)
         .textSelection(.enabled)
         .accessibilityIdentifier("developer-details")
-    }
-}
-
-private struct ExplanationCoverageBadge: View {
-    let coverage: ExplanationCoverage
-
-    var body: some View {
-        Label {
-            Text(coverage.title)
-                .foregroundStyle(.secondary)
-        } icon: {
-            Image(systemName: coverage.symbolName)
-                .foregroundStyle(coverageColor)
-        }
-            .font(.caption2.weight(.medium))
-            .lineLimit(1)
-    }
-
-    private var coverageColor: Color {
-        switch coverage {
-        case .curatedField: .blue
-        case .generalDataTypeContext: .blue
-        case .unrecognizedField: .secondary
-        }
-    }
-}
-
-private struct FieldExplanationView: View {
-    let presentation: FieldPresentation
-    let explanation: FieldExplanation
-    let openSourceLocation: (String) -> Void
-
-    @Environment(\.explanationDetailMode) private var detailMode
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text("About this field")
-                .font(.caption.weight(.semibold))
-                .textCase(.uppercase)
-                .foregroundStyle(.secondary)
-
-            if detailMode == .developer {
-                ExplanationCoverageDetail(coverage: explanationCoverage(for: presentation))
-            }
-
-            ExplanationSection(
-                title: "What it means",
-                symbolName: "text.book.closed",
-                text: explanation.meaning
-            )
-
-            // Beginners get the meaning up front; the careful detail is one click away.
-            if detailMode == .developer {
-                detailSections
-                FieldSourceDetails(presentation: presentation, openSourceLocation: openSourceLocation)
-            } else {
-                DisclosureGroup("More about this field") {
-                    detailSections
-                        .padding(.top, 8)
-                }
-                .font(.callout)
-                .accessibilityIdentifier("more-about-field")
-            }
-        }
-        .padding(14)
-        .background(Color.accentColor.opacity(0.055), in: RoundedRectangle(cornerRadius: 11))
-        .padding(.top, 8)
-    }
-}
-
-extension FieldExplanationView {
-    @ViewBuilder
-    fileprivate var detailSections: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            ExplanationSection(
-                title: "Why it matters",
-                symbolName: "scope",
-                text: explanation.significance
-            )
-            ExplanationSection(
-                title: "Interpret carefully",
-                symbolName: "exclamationmark.bubble",
-                text: explanation.interpretation
-            )
-
-            if let privacy = explanation.privacy {
-                ExplanationSection(
-                    title: "Privacy",
-                    symbolName: "eye.slash",
-                    text: privacy
-                )
-            }
-        }
-    }
-}
-
-private struct FieldSourceDetails: View {
-    let presentation: FieldPresentation
-    let openSourceLocation: (String) -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Divider()
-
-            VStack(alignment: .leading, spacing: 5) {
-                LabeledContent("Source field", value: presentation.sourcePath)
-
-                if presentation.displayedValue != presentation.rawValue {
-                    LabeledContent("Raw value", value: presentation.rawValue)
-                }
-            }
-            .font(.caption)
-            .foregroundStyle(.secondary)
-            .textSelection(.enabled)
-
-            Button {
-                openSourceLocation(presentation.sourcePath)
-            } label: {
-                Label("Show Raw Source Location", systemImage: "arrow.turn.down.right")
-            }
-            .buttonStyle(.bordered)
-            .accessibilityIdentifier("open-raw-source-\(presentation.sourcePath)")
-        }
-    }
-}
-
-private struct ExplanationCoverageDetail: View {
-    let coverage: ExplanationCoverage
-
-    var body: some View {
-        HStack(spacing: 7) {
-            Image(systemName: coverage.symbolName)
-            VStack(alignment: .leading, spacing: 1) {
-                Text(coverage.title)
-                    .font(.caption.weight(.semibold))
-                Text(coverage.detail)
-                    .font(.caption2)
-            }
-        }
-        .foregroundStyle(.secondary)
-        .padding(9)
-        .background(.quaternary.opacity(0.55), in: RoundedRectangle(cornerRadius: 8))
-    }
-}
-
-private struct ExplanationSection: View {
-    let title: String
-    let symbolName: String
-    let text: String
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 5) {
-            Label(title, systemImage: symbolName)
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(Color.accentColor)
-            Text(text)
-                .font(.callout)
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-                .textSelection(.enabled)
-        }
-    }
-}
-
-private struct MissingExplanationView: View {
-    let presentation: FieldPresentation
-    let openSourceLocation: (String) -> Void
-
-    @Environment(\.explanationDetailMode) private var detailMode
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Label("Unrecognized field", systemImage: "questionmark.circle")
-                .font(.subheadline.weight(.semibold))
-            Text("The value is preserved exactly as system_profiler reported it. The app does not infer a meaning for an unrecognized field.")
-                .font(.callout)
-                .foregroundStyle(.secondary)
-
-            if detailMode == .developer {
-                LabeledContent("Source field", value: presentation.sourcePath)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .textSelection(.enabled)
-
-                Button {
-                    openSourceLocation(presentation.sourcePath)
-                } label: {
-                    Label("Show Raw Source Location", systemImage: "arrow.turn.down.right")
-                }
-                .buttonStyle(.bordered)
-            }
-        }
-        .padding(14)
-        .background(.quaternary.opacity(0.45), in: RoundedRectangle(cornerRadius: 11))
-        .padding(.top, 8)
     }
 }
 

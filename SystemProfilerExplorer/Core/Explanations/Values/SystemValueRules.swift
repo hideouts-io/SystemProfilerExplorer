@@ -101,12 +101,15 @@ let softwareValueRules: [ValueRule] = [
             .normal(
                 "System Integrity Protection is on, which is the default.",
                 detail: "It stops any software, even with administrator rights, from changing protected parts of macOS.",
+                why: "Malware that gets administrator rights still can't modify macOS itself or the apps and files it protects.",
+                action: "Nothing to do.",
                 confidence: .documented
             )
         case false?:
             .review(
                 "System Integrity Protection is off.",
-                detail: "It is normally turned off only on purpose, for example for kernel or driver development.",
+                detail: "Software with administrator rights can change protected parts of macOS on this Mac. It is normally turned off only on purpose, for example for kernel or driver development.",
+                why: "Without it, malware or a faulty installer that gets administrator rights can modify macOS itself.",
                 action: "If you didn't turn it off deliberately, start up in macOS Recovery and run csrutil enable in Terminal.",
                 confidence: .documented
             )

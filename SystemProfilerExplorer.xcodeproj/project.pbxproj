@@ -102,6 +102,8 @@
 		FCC946A1C70F7FF865AD3B8C /* NetworkLocationExplanations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6631DF91B1CCB392AB60CE1B /* NetworkLocationExplanations.swift */; };
 		FDFE36FE6265328C82D9B3F9 /* ProfileValue.swift in Sources */ = {isa = PBXBuildFile; fileRef = 22E59FC08E72AC521D7F47C2 /* ProfileValue.swift */; };
 		FE864288671D00433353FBB2 /* CollectionCoverageTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 949093927A321A77B7F5D829 /* CollectionCoverageTests.swift */; };
+		D0EB1B42212523FE20AEC875 /* ValuePanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 782B45221FBF672C566ABAC4 /* ValuePanel.swift */; };
+		B2C53C0C964281379BF8AEB3 /* ValuePanelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C16CF4E58F995FDE34AE3D09 /* ValuePanelTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -212,6 +214,8 @@
 		FC3A92239C2A73BC1B542323 /* FindingLocationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FindingLocationTests.swift; sourceTree = "<group>"; };
 		83C8CA9CCE8BBA4E67E5A65D /* SampleFixtureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SampleFixtureTests.swift; sourceTree = "<group>"; };
 		FCB5B24DFE76BB7DE34B6878 /* DiagnosticLogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticLogView.swift; sourceTree = "<group>"; };
+		782B45221FBF672C566ABAC4 /* ValuePanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ValuePanel.swift; sourceTree = "<group>"; };
+		C16CF4E58F995FDE34AE3D09 /* ValuePanelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ValuePanelTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -281,6 +285,7 @@
 		387CBF80EA9183D8E5CB8111 /* SystemProfilerExplorerTests */ = {
 			isa = PBXGroup;
 			children = (
+				C16CF4E58F995FDE34AE3D09 /* ValuePanelTests.swift */,
 				5E4302147D18912C4D6C9E8F /* AdditionalExplanationCoverageTests.swift */,
 				D71F24CE50090E539F32B351 /* ChangeInsightTests.swift */,
 				949093927A321A77B7F5D829 /* CollectionCoverageTests.swift */,
@@ -314,6 +319,7 @@
 		3AB2827A2125644BA53D5C15 /* Presentation */ = {
 			isa = PBXGroup;
 			children = (
+				782B45221FBF672C566ABAC4 /* ValuePanel.swift */,
 				54856EED5233EA2B07614DAC /* CollectionAttemptHealth.swift */,
 				813E23B10C1353CEB0EDBEA5 /* CollectionCoverage.swift */,
 				0C939FCB80491F6CD18861FC /* DiagnosticLogSummary.swift */,
@@ -596,6 +602,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				B2C53C0C964281379BF8AEB3 /* ValuePanelTests.swift in Sources */,
 				41A352BEAE8240924801481C /* AdditionalExplanationCoverageTests.swift in Sources */,
 				8D9B09B8B72B1F0B2F5873B1 /* ChangeInsightTests.swift in Sources */,
 				FE864288671D00433353FBB2 /* CollectionCoverageTests.swift in Sources */,
@@ -629,6 +636,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D0EB1B42212523FE20AEC875 /* ValuePanel.swift in Sources */,
 				329EAAA4FAD74DC9148A730D /* AccessibilityExplanations.swift in Sources */,
 				1225F9FD5B4A1D5480726182 /* AdditionalDataTypeExplanations.swift in Sources */,
 				1402AD16FE4A9A723E7F5827 /* AppCommands.swift in Sources */,

@@ -68,8 +68,8 @@ Each step is one commit with its tests, and runs the publication-boundary
 check. There is no Xcode here, so CI's `build-and-test` job is the build and
 test run.
 
-1. [ ] Write this plan.
-2. [ ] Layout: add "why it matters" to value explanations, build the
+1. [x] Write this plan.
+2. [x] Layout: add "why it matters" to value explanations, build the
    value-first panel and the collapsed About this field area, move the
    coverage note into it, and include the new parts in Copy as Markdown.
 3. [ ] Applications and frameworks (most rows in a scan): architecture
