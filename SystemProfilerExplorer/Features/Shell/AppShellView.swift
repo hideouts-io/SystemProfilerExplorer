@@ -98,6 +98,8 @@ struct AppShellView: View {
         }
 
         let reportParser: SystemProfilerParser = parser
+        // A cancelled rescan leaves the previous report, so it keeps that report's status.
+        let previousHealth: CollectionAttemptHealth = collectionHealth[subject] ?? .notCollected
 
         activityStartedAt = .now
         scanState = .running(subject: subject)
@@ -118,7 +120,7 @@ struct AppShellView: View {
                 collectionHealth[subject] = .completed
             } catch is CancellationError {
                 scanState = .cancelled(subject: subject)
-                collectionHealth[subject] = .notCollected
+                collectionHealth[subject] = previousHealth
             } catch let error as SystemProfilerRequestError {
                 scanState = .failed(subject: subject, message: error.localizedDescription)
                 collectionHealth[subject] = .failed
@@ -191,6 +193,7 @@ struct AppShellView: View {
         }
 
         let reportParser: SystemProfilerParser = parser
+        let previousHealth: CollectionAttemptHealth = collectionHealth[.reports] ?? .notCollected
 
         selectedWorkspace = .subject(.reports)
         activityStartedAt = .now
@@ -214,7 +217,7 @@ struct AppShellView: View {
                 collectionHealth[.reports] = .imported
             } catch is CancellationError {
                 scanState = .cancelled(subject: .reports)
-                collectionHealth[.reports] = .notCollected
+                collectionHealth[.reports] = previousHealth
             } catch let error as SystemProfilerParsingError {
                 scanState = .failed(subject: .reports, message: error.localizedDescription)
                 collectionHealth[.reports] = .failed
@@ -503,8 +506,14 @@ private struct SubjectWorkspace: View {
                     ScanFailureCard(
                         message: failureMessage,
                         collectionHealth: collectionHealth,
+                        showsPreviousReport: report != nil,
                         retryScan: startScan
                     )
+
+                    // A failed rescan doesn't hide the report from the last one that worked.
+                    if let report {
+                        ProfileReportView(report: report, preparedIndex: presentationIndex)
+                    }
                 } else if let report {
                     ProfileReportView(report: report, preparedIndex: presentationIndex)
                 } else {
@@ -716,6 +725,8 @@ private struct ScanningCard: View {
 private struct ScanFailureCard: View {
     let message: String
     let collectionHealth: CollectionAttemptHealth
+    /// Whether the report from an earlier scan is shown below this card.
+    let showsPreviousReport: Bool
     let retryScan: () -> Void
 
     var body: some View {
@@ -740,6 +751,11 @@ private struct ScanFailureCard: View {
                 .font(.callout)
                 .foregroundStyle(.secondary)
 
+            if showsPreviousReport {
+                Text("The report below is from the previous scan, which completed.")
+                    .font(.callout.weight(.medium))
+            }
+
             Text(message)
                 .foregroundStyle(.secondary)
                 .textSelection(.enabled)
@@ -761,11 +777,11 @@ private struct ScanFailureCard: View {
         case .timedOut:
             "Collection reached its deadline and was terminated. No partial JSON report is presented as complete."
         case .permissionLimited:
-            "The command reported a permission-related failure. This tab has no complete collection result."
+            "The command reported a permission-related failure. This scan has no complete collection result."
         case .unavailable:
             "The requested collection did not return usable JSON. This does not prove the related hardware or service is absent."
         case .failed, .notCollected, .running, .completed, .imported:
-            "This tab has no complete collection result. Review the error details before interpreting absent findings."
+            "This scan has no complete collection result. Review the error details before interpreting absent findings."
         }
     }
 }
