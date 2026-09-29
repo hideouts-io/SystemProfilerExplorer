@@ -88,6 +88,18 @@ struct SecondWaveValueTests {
     }
 
     @Test
+    func syncServicesSummaryValuesAreExplained() throws {
+        let emptySummary = try #require(valueExplanation(dataType: .syncServices, path: ["_items", "[]", "summary_of_sync_log"], scalar: .string("")))
+        let oldVersion = try #require(valueExplanation(dataType: .syncServices, path: ["summary_os_version"], scalar: .string("10.6")))
+
+        #expect(emptySummary.status == .normal)
+        #expect(oldVersion.summary.contains("not the macOS on this Mac"))
+        #expect(oldVersion.confidence?.reasons.first?.contains("10.6") == true)
+        #expect(valueExplanation(dataType: .syncServices, path: ["_items", "[]", "summary_of_sync_log"], scalar: .string("3 sync sessions")) == nil)
+        #expect(valueExplanation(dataType: .syncServices, path: ["summary_os_version"], scalar: .string("26.0")) == nil)
+    }
+
+    @Test
     func observedSecondWaveValuesAreAllExplained() {
         let observed: [(SystemProfilerDataType, [String], String)] = [
             (.displays, ["spdisplays_connection_type"], "spdisplays_internal"),
