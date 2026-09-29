@@ -113,11 +113,11 @@ func syncServicesExplanation(path: [String], reportedValue: String) -> FieldExpl
         )
     case "description":
         return FieldExplanation(
-            title: "Sync Record Description",
-            meaning: "This is descriptive text associated with the Sync Services record.",
-            significance: "It provides human-readable context for legacy synchronization diagnostics.",
-            interpretation: "The text is not a complete event log and does not prove success, network transmission, or current account state.",
-            privacy: "Descriptions can contain account, device, application, or data-source identifiers. Review before sharing."
+            title: "Log Name",
+            meaning: "This names which log the Sync Services entry holds, such as the system log.",
+            significance: "It tells you where the entry's text came from, so you know which part of macOS wrote it.",
+            interpretation: "The name identifies the log only. It doesn't show whether synchronization happened, succeeded, or sent data.",
+            privacy: nil
         )
     case "lastModified":
         return FieldExplanation(

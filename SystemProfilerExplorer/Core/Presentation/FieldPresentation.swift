@@ -171,6 +171,10 @@ private func formattedValue(_ scalar: ProfileScalar, path: [String]) -> String {
     case let .string(value) where key == "medium_type":
         return value.uppercased()
 
+    // system_log_description → System Log
+    case let .string(value) where value.hasSuffix("_log_description") && isEnumeratedToken(value):
+        return friendlyReportGroupName(value)
+
     case let .string(value) where isEnumeratedToken(value):
         return readableToken(value, field: key)
 

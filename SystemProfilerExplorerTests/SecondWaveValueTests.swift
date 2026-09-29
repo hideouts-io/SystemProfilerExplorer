@@ -75,6 +75,19 @@ struct SecondWaveValueTests {
     }
 
     @Test
+    func syncServicesLogNamesAreExplained() throws {
+        let systemLog = try #require(valueExplanation(dataType: .syncServices, path: ["_items", "[]", "description"], scalar: .string("system_log_description")))
+        let otherLog = try #require(valueExplanation(dataType: .syncServices, path: ["_items", "[]", "description"], scalar: .string("sync_diagnostics_log_description")))
+        let unknown = try #require(valueExplanation(dataType: .syncServices, path: ["_items", "[]", "description"], scalar: .string("sync_future_value")))
+
+        #expect(systemLog.summary.contains("system.log"))
+        #expect(systemLog.confidence?.reasons.count == 2)
+        #expect(otherLog.summary == "This entry holds the Sync Diagnostics Log.")
+        #expect(unknown.status == .unknown)
+        #expect(fieldPresentation(dataType: .syncServices, path: ["_items", "[]", "description"], scalar: .string("system_log_description")).displayedValue == "System Log")
+    }
+
+    @Test
     func observedSecondWaveValuesAreAllExplained() {
         let observed: [(SystemProfilerDataType, [String], String)] = [
             (.displays, ["spdisplays_connection_type"], "spdisplays_internal"),
@@ -94,7 +107,8 @@ struct SecondWaveValueTests {
             (.configurationProfiles, ["spconfigprofile_install_source"], "Manual"),
             (.printers, ["status"], "idle"),
             (.networkLocation, ["type"], "IEEE80211"),
-            (.ethernet, ["spethernet_max_link_speed"], "ethernet_speed_10000")
+            (.ethernet, ["spethernet_max_link_speed"], "ethernet_speed_10000"),
+            (.syncServices, ["_items", "[]", "description"], "system_log_description")
         ]
 
         for (dataType, path, value) in observed {

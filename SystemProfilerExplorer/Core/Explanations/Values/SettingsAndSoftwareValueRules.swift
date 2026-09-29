@@ -29,6 +29,38 @@ let legacySoftwareValueRules: [ValueRule] = [
     }
 ]
 
+// MARK: - Sync Services
+
+let syncServicesValueRules: [ValueRule] = [
+    // The description names which log the entry holds, such as system_log_description.
+    ValueRule(.syncServices, field: "description") { context in
+        let value: String = context.reportedValue
+
+        if value == "system_log_description" {
+            return .info(
+                "This entry is the macOS system log (system.log), included because synchronization problems can leave messages there.",
+                detail: "Since macOS Sierra, most messages go to the unified log instead, so this file is often short. It's a retained excerpt, not a complete record of sync activity.",
+                confidence: .likely(reasons: [
+                    "The value's name says it describes the system log.",
+                    "The entry's contents field holds system.log text."
+                ])
+            )
+        }
+
+        guard value.hasSuffix("_log_description"), isEnumeratedToken(value) else {
+            return nil
+        }
+
+        return .info(
+            "This entry holds the \(friendlyReportGroupName(value)).",
+            detail: "It's a retained excerpt, not a complete record of sync activity.",
+            confidence: .likely(reasons: [
+                "The value's name ends in “log description”, the pattern System Information uses to name the log an entry holds."
+            ])
+        )
+    }
+]
+
 // MARK: - Language and region
 
 let internationalValueRules: [ValueRule] = [
