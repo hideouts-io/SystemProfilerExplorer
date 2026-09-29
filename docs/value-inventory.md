@@ -16,12 +16,12 @@ Column key: **class** = enumeration, boolean-like, numeric, identifier, or free 
 
 ## Value explanations added since this inventory
 
-The **value-aware** column and the count above predate value explanations. Each value is now explained by the rules in `SystemProfilerExplorer/Core/Explanations/Values`. The tables below are unchanged, because regenerating them needs a full scan on a Mac.
+The **value-aware** column and the count above predate value explanations. Each value is now explained by the rules in `SystemProfilerExplorer/Core/Explanations/Values`, and **`docs/value-explanations.md` lists every explained value** with its status, its source, and whether its spelling is confirmed. The tables below are unchanged, because regenerating them needs a full scan on a Mac.
 
 Among the fields this inventory classes as enumeration or boolean-like, these have no value rule yet:
 
 - **Values that are identifiers, names, dates, versions, or sizes**, which the class heuristic counted as enumerations. The field explanation covers them, and a rule would keep personal values in anonymized samples. Examples: `machine_model`, `chip_type`, `boot_volume`, locale and language codes, SDK versions, display and card reader IDs, `lastModified`, battery lot codes, Secure Element versions, Thunderbolt route strings and UIDs, and printer names.
-- **Enumerations whose values the inventory withheld**, so their format needs a sample from a Mac: `contrast` (Accessibility), `ibridge_extra_boot_policies` (Apple Bridge), `link_status_key` (Thunderbolt), `printersharing` and `scanner` (Printers), and `UserVisible` (scheduled power events).
+- **Enumerations whose values the inventory withheld and whose format no public source shows**: `contrast` (Accessibility), `ibridge_extra_boot_policies` (Apple Bridge), and `UserVisible` (scheduled power events). `link_status_key` (Thunderbolt) and `printersharing` and `scanner` (Printers) now have rules for the spellings Apple's strings or the usual yes/no forms use, but the format this Mac reports still needs a sample; an unmatched value is shown as not yet explained.
 - **Audio device names and manufacturers** (`coreaudio_input_source`, `coreaudio_output_source`, `coreaudio_device_manufacturer`), which are free text.
 
 ## Wi-Fi (`SPAirPortDataType`)

@@ -99,14 +99,61 @@ test run.
 13. [x] Settings and profiles: accessibility, language and region,
     configuration profiles, managed preferences, printers, sync services,
     Secure Element.
-14. [ ] Update `docs/value-inventory.md` to point at the new list, and
+14. [x] Update `docs/value-inventory.md` to point at the new list, and
     finish the scan list below.
 
 ## Values that need a scan on a real Mac
 
-To be completed as the steps land. These are spellings that no public
-source confirms, or fields whose values the inventory withheld.
+Each of these is explained, but no public source confirms the exact spelling
+current macOS reports, or the inventory withheld the field's values. A scan with
+the matching hardware or setting would confirm them (or show a spelling to add).
+Until then, a different spelling is shown as "not yet explained".
+
+**Fields whose value format is unknown** (no rule, or the rule may never match):
+
+- `contrast` (Accessibility): no rule; its values were withheld.
+- `ibridge_extra_boot_policies` (Apple Bridge): no rule; its values were withheld.
+- `UserVisible` (scheduled power events): no rule; its values were withheld.
+- `link_status_key` (Thunderbolt): the rule matches Apple's `trained_link_status`
+  family, but current macOS may report a number such as `0x2`.
+- `printersharing`, `scanner`, `shared`, `default`, and `status` (Printers):
+  needs a Mac with a printer set up.
+
+**Spellings to confirm, by section** (full list in `docs/value-explanations.md`):
+
+- Applications: `arch_ppc`, `ios_app_store`; and whether current macOS still
+  reports the older Apple keys `arch_i32`, `arch_i32_i64`, `app_store`.
+- Extensions: whether current macOS still reports `spext_runtime_environment`,
+  `spext_obtained_from`, and `spext_notarized`.
+- Network: `PPP (PPPoE)`, `PPP (L2TP)`, `PPP (PPTP)`; Ethernet media speeds
+  other than `100baseTX` and `1000baseT`; `spethernet_pcie`,
+  `spethernet_builtin`; USB link speeds other than `high_speed` (needs a USB
+  Ethernet adapter on a faster port).
+- Firewall: `spfirewall_globalstate_off` (turn the firewall off and scan).
+- Wi-Fi: `spairport_status_disconnected`, `_not_associated`; security modes
+  `wpa3_enterprise`, `wpa2_wpa3_enterprise`, `owe`, `wpa_personal_mixed`;
+  locale `MKK` (needs networks of those kinds nearby, or a Mac in Japan).
+- Battery: `Normal`, `Service Recommended` and the other System Settings
+  names (needs a notebook whose battery isn't `Good`).
+- Storage: file systems `ExFAT`, `MS-DOS FAT32`, `NTFS`; protocols `USB`,
+  `Thunderbolt`, `SATA`, `PCI-Express`, `NVMe`, `Secure Digital`; partition
+  types `EFI`, `Apple_HFS`, `Apple_Boot`, `Apple_CoreStorage`,
+  `Microsoft Basic Data` (needs external drives formatted each way).
+- Startup security: `Reduced Security`, `Permissive Security`; `Disabled` for
+  the `ibridge_sb_*` protections; `Custom Configuration`; `Yes` for
+  `ibridge_sb_other_kext` and the MDM fields (needs a Mac with a lowered
+  security policy).
+- Displays and audio: `spdisplays_external`, `spdisplays_pcie`; audio
+  transports `bluetoothle` and `aggregate`; Thunderbolt 5 speeds.
+- Bluetooth: controller transports `USB` and `UART` (older Macs).
+- Settings: zoom styles `zoom_picture_in_picture` and `zoom_pip`; profile
+  states `verified`, `invalid`, `unverified` and MDM install sources; managed
+  preference states `often` and `once`; other sync log names.
 
 ## Blocked or deferred
 
 - Regenerating `docs/value-inventory.md` needs a full scan on a Mac.
+- Apple Bridge `ibridge_external_boot` (Macs with the T2 Security Chip) has
+  Apple strings (`External Drive`, `Network`, `Internal`, `Disallowed`,
+  `BootCamp`), but which field reports which of them isn't clear without a
+  scan of a T2 Mac, so it has no rule yet.
