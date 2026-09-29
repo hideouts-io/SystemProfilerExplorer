@@ -165,3 +165,26 @@ Apple's `SPNetworkReporter` strings.
 
 `ACSPEnabled` is explained from its Apple name ("ACSP Enabled") and Apple's
 PPP documentation; what the server sends is not visible in the report.
+
+## Install history, legacy software, and firewall
+
+Sources: `package_source_*` and `reason_*` values appear in
+`docs/value-inventory.md`. Firewall states are keys in Apple's
+`SPFirewallReporter` strings, and the firewall settings are described in the
+Mac User Guide (<https://support.apple.com/guide/mac-help/mh34041>).
+
+| field | value | status | source | spelling |
+|---|---|---|---|---|
+| `package_source` | `package_source_apple` | Normal | Standard | seen |
+| `package_source` | `package_source_other` | Info | Standard | seen |
+| `reason` (legacy software) | `reason_x86_only` | Info | Apple | seen |
+| `reason` (legacy software) | `reason_x86_forced_environmental` | Info | Inferred | seen |
+| `spfirewall_globalstate` | `spfirewall_globalstate_limit_connections` | Normal | Apple | seen |
+| `spfirewall_globalstate` | `spfirewall_globalstate_block_all` | Normal | Apple | Apple key |
+| `spfirewall_globalstate` | `spfirewall_globalstate_allow_all` (firewall off) | Worth a look | Apple | Apple key |
+| `spfirewall_globalstate` | `spfirewall_globalstate_off` | Worth a look | Apple | unconfirmed |
+| `spfirewall_applications` | `spfirewall_allow_all` | Info | Apple | Apple key (values withheld in the inventory) |
+| `spfirewall_applications` | `spfirewall_block_all` | Normal | Apple | Apple key |
+| `spfirewall_applications` | `spfirewall_allow_local` | Info | Apple | Apple key |
+| `spfirewall_stealthenabled` | `Yes`, `No` | Normal, Info | Apple | seen (`Yes`) |
+| `spfirewall_loggingenabled` | `Yes`, `No` | Info | Standard | seen (`No`) |

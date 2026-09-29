@@ -202,23 +202,37 @@ func uptimeExplanation(_ value: String) -> ValueExplanation? {
 
 // MARK: - Firewall
 
+// Sources: global states and per-app states are keys in Apple's SPFirewallReporter
+// strings (spfirewall_globalstate_limit_connections, _block_all, _allow_all;
+// spfirewall_allow_all, spfirewall_block_all, spfirewall_allow_local). Apple's
+// firewall settings are described in https://support.apple.com/guide/mac-help/mh34041.
+// spfirewall_globalstate_off is unconfirmed; older macOS reported the firewall being
+// off as allow_all ("Allow all incoming connections").
+
 let firewallValueRules: [ValueRule] = [
     ValueRule(.firewall, field: "spfirewall_globalstate") { context in
         switch tokenSuffix(context.reportedValue, after: "globalstate_") {
         case "limit_connections":
             .normal(
                 "The firewall is on and lets only allowed apps and services accept incoming connections.",
+                detail: "Incoming connections are blocked unless the app or service receiving them is allowed, by you or automatically because it's signed.",
+                why: "Other devices on the network can't reach services on this Mac unless they're allowed.",
+                action: "Nothing to do. Review the allowed apps in System Settings › Network › Firewall › Options.",
                 confidence: .documented
             )
         case "block_all":
             .normal(
                 "The firewall is on and blocks all incoming connections except those basic internet services need.",
+                detail: "Only basic services, such as getting a network address, can receive incoming connections. Sharing services can't.",
+                why: "It's the strictest setting. It also stops features like screen sharing, file sharing, and AirPlay to this Mac.",
+                action: "Nothing to do, unless a sharing feature you use stops working.",
                 confidence: .documented
             )
-        case "off":
+        case "off", "allow_all":
             .review(
                 "The firewall is off, which is the macOS default.",
                 detail: "Other devices on the same network can reach services this Mac offers, such as file or screen sharing.",
+                why: "Any sharing service that's turned on can be reached by every device on the same network, including public Wi-Fi.",
                 action: "Turn it on in System Settings › Network › Firewall, especially if you use public Wi-Fi.",
                 confidence: .documented
             )
@@ -230,9 +244,29 @@ let firewallValueRules: [ValueRule] = [
     ValueRule(.firewall, field: "spfirewall_applications") { context in
         switch tokenSuffix(context.reportedValue, after: "spfirewall_") {
         case "allow_all":
-            .info("This app may accept incoming connections from other devices.", confidence: .documented)
+            .info(
+                "This app may accept incoming connections from other devices.",
+                detail: "When the firewall is on, it lets other devices connect to this app.",
+                why: "An app that accepts connections can be reached from the network, so it should be one you trust.",
+                action: "If you don't recognize the app, set it to block incoming connections in Firewall Options.",
+                confidence: .documented
+            )
         case "block_all":
-            .normal("Incoming connections to this app are blocked.", confidence: .documented)
+            .normal(
+                "Incoming connections to this app are blocked.",
+                detail: "The firewall stops other devices from connecting to this app.",
+                why: "The app can still connect out, but features that need incoming connections, such as sharing, won't work.",
+                action: "Nothing to do unless one of this app's features needs incoming connections.",
+                confidence: .documented
+            )
+        case "allow_local":
+            .info(
+                "Only devices on the local network may connect to this app.",
+                detail: "Connections from the same local network are allowed, and others are blocked.",
+                why: "Devices on your network can reach it, but devices elsewhere on the internet can't.",
+                action: "Nothing to do if you trust the networks you use.",
+                confidence: .documented
+            )
         default:
             nil
         }
@@ -243,11 +277,17 @@ let firewallValueRules: [ValueRule] = [
         case true?:
             .normal(
                 "Stealth mode is on: this Mac doesn't answer probing requests such as ping.",
+                detail: "The Mac ignores ping and doesn't reply to connection attempts on closed ports.",
+                why: "It makes the Mac harder to find with network scans, especially on public networks.",
+                action: "Nothing to do.",
                 confidence: .documented
             )
         case false?:
             .info(
                 "Stealth mode is off: this Mac answers some probing requests, such as ping. That's the default.",
+                detail: "The Mac answers ping and reports closed ports, as most computers do.",
+                why: "Other devices on the network can discover the Mac more easily.",
+                action: "On public networks, you can turn on stealth mode in System Settings › Network › Firewall › Options.",
                 confidence: .documented
             )
         case nil:
@@ -258,9 +298,19 @@ let firewallValueRules: [ValueRule] = [
     ValueRule(.firewall, field: "spfirewall_loggingenabled") { context in
         switch decodeBooleanLike(context.reportedValue) {
         case true?:
-            .info("Firewall logging is on, so blocked connections are recorded in the system log.")
+            .info(
+                "Firewall logging is on, so blocked connections are recorded in the system log.",
+                detail: "Each connection the firewall blocks is written to the log.",
+                why: "The log helps find out why a connection to this Mac didn't work.",
+                action: "Nothing to do."
+            )
         case false?:
-            .info("Firewall logging is off.")
+            .info(
+                "Firewall logging is off.",
+                detail: "Connections the firewall blocks aren't recorded.",
+                why: "There's no record to check if a connection is blocked unexpectedly.",
+                action: "Nothing to do."
+            )
         case nil:
             nil
         }

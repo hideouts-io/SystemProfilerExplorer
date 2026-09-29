@@ -2,22 +2,27 @@ import Foundation
 
 // MARK: - Legacy software
 
+// Sources: reason_x86_only and reason_x86_forced_environmental appear in
+// docs/value-inventory.md. Apple's Rosetta plans are in Apple Developer News
+// (https://developer.apple.com/news/?id=w5ngl9k2).
 let legacySoftwareValueRules: [ValueRule] = [
     ValueRule(.legacySoftware, field: "reason") { context in
-        let rosettaNote: String = "Apple has said Rosetta 2 remains fully available through macOS 27, and after that only for some older games, so Intel-only apps may stop working in later releases."
+        let rosettaNote: String = "Translated apps use more power and can be slower. Apple has said Rosetta 2 remains fully available through macOS 27, and after that only for some older games, so Intel-only apps may stop working in later releases."
 
         switch tokenSuffix(context.reportedValue, after: "reason_") {
         case "x86_only":
             return .info(
                 "Built for Intel Macs only, so it runs through Rosetta 2 translation.",
-                detail: rosettaNote,
+                detail: "The app contains Intel code only, so on this Mac Rosetta 2 translates it to run on Apple silicon.",
+                why: rosettaNote,
                 action: "Check whether the developer offers a version for Apple silicon.",
                 confidence: .documented
             )
         case "x86_forced_environmental":
             return .info(
                 "Set to run as Intel code through Rosetta 2, even if it may also support Apple silicon.",
-                detail: "This happens when “Open using Rosetta” is selected for the app, or when it's started from a process that runs under Rosetta. \(rosettaNote)",
+                detail: "This happens when “Open using Rosetta” is selected for the app, or when it's started from a process that runs under Rosetta.",
+                why: rosettaNote,
                 action: "If the app supports Apple silicon, turn off “Open using Rosetta” in its Get Info window.",
                 confidence: .likely(reasons: [
                     "The value names an Intel (x86) requirement that comes from the environment rather than the app itself."

@@ -55,7 +55,7 @@ struct SecondWaveValueTests {
         let intelOnly = try #require(valueExplanation(dataType: .legacySoftware, path: ["reason"], scalar: .string("reason_x86_only")))
         let forced = try #require(valueExplanation(dataType: .legacySoftware, path: ["reason"], scalar: .string("reason_x86_forced_environmental")))
 
-        #expect(intelOnly.detail?.contains("macOS 27") == true)
+        #expect(intelOnly.significance?.contains("macOS 27") == true)
         #expect(intelOnly.confidence == .documented)
         #expect(forced.confidence?.reasons.isEmpty == false)
     }

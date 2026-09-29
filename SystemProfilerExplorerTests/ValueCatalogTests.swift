@@ -49,7 +49,7 @@ let intelReport: ValueReportContext = ValueReportContext(usbDeviceNames: nil, pr
 
 /// Every value the app explains for fields with a limited set of values.
 let explainedValueSamples: [ValueSample] = applicationValueSamples + fontValueSamples + extensionValueSamples
-    + networkValueSamples
+    + networkValueSamples + softwareHistoryAndFirewallValueSamples
 
 /// Each value is checked with no Hardware section, on Apple silicon, and on an Intel Mac,
 /// because what an architecture means depends on the Mac.
@@ -196,6 +196,27 @@ private let networkValueSamples: [ValueSample] = {
     return samples
 }()
 
+private let softwareHistoryAndFirewallValueSamples: [ValueSample] = {
+    var samples: [ValueSample] = ["package_source_apple", "package_source_other"].map {
+        ValueSample(.installHistory, ["package_source"], $0)
+    }
+
+    samples += ["reason_x86_only", "reason_x86_forced_environmental"].map { ValueSample(.legacySoftware, ["reason"], $0) }
+    samples += [
+        "spfirewall_globalstate_limit_connections", "spfirewall_globalstate_block_all",
+        "spfirewall_globalstate_allow_all", "spfirewall_globalstate_off"
+    ].map { ValueSample(.firewall, ["spfirewall_globalstate"], $0) }
+    samples += ["spfirewall_allow_all", "spfirewall_block_all", "spfirewall_allow_local"].map {
+        ValueSample(.firewall, ["spfirewall_applications", "com.example.app"], $0)
+    }
+
+    for field in ["spfirewall_stealthenabled", "spfirewall_loggingenabled"] {
+        samples += ["Yes", "No"].map { ValueSample(.firewall, [field], $0) }
+    }
+
+    return samples
+}()
+
 struct ValueCatalogTests {
     @Test(arguments: explainedValueSamples)
     func everyKnownValueHasEveryPart(_ sample: ValueSample) throws {
@@ -308,6 +329,20 @@ struct ValueCatalogTests {
 
         #expect(on.significance?.contains("see, log, and filter") == true)
         #expect(on.suggestedAction?.contains("System Settings") == true)
+    }
+
+    // MARK: - Firewall
+
+    @Test
+    func olderFirewallOffSpellingReadsAsOff() throws {
+        let allowAll = try #require(valueExplanation(
+            dataType: .firewall,
+            path: ["spfirewall_globalstate"],
+            scalar: .string("spfirewall_globalstate_allow_all")
+        ))
+
+        #expect(allowAll.status == .worthReviewing)
+        #expect(allowAll.summary.contains("off"))
     }
 
     @Test

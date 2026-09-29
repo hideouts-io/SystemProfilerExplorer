@@ -15,12 +15,23 @@ let softwareArtifactValueRules: [ValueRule] = [
         originExplanation(context.reportedValue)
     },
 
+    // package_source_apple and package_source_other appear in docs/value-inventory.md.
     ValueRule(.installHistory, field: "package_source") { context in
         switch tokenSuffix(context.reportedValue, after: "package_source_") {
         case "apple":
-            .normal("Installed by Apple, such as a macOS or security update.")
+            .normal(
+                "Installed by Apple, such as a macOS or security update.",
+                detail: "The package came from Apple: a macOS update, a security response, or an Apple app or component.",
+                why: "Apple updates keep macOS secure, and this history shows when each one was installed.",
+                action: "Nothing to do."
+            )
         case "other":
-            .info("Installed from a third-party installer package.")
+            .info(
+                "Installed from a third-party installer package.",
+                detail: "The package came from a developer other than Apple, installed with Installer or a management tool.",
+                why: "Installer packages can place software anywhere on the Mac, including background items that start at login.",
+                action: "Nothing to do if you recognize the software. If you don't, check System Settings › General › Login Items & Extensions for items it added."
+            )
         default:
             nil
         }
