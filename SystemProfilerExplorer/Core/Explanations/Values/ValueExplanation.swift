@@ -241,7 +241,7 @@ private let valueRuleIndex: [ValueRuleKey: [ValueRule]] = {
         + displayValueRules + audioValueRules + thunderboltValueRules
         + legacySoftwareValueRules + syncServicesValueRules + internationalValueRules + accessibilityValueRules
         + nvmeValueRules + configurationProfileValueRules + printerValueRules
-        + vendorIdentifierValueRules
+        + vendorIdentifierValueRules + iBridgeValueRules
     var index: [ValueRuleKey: [ValueRule]] = [:]
 
     for rule in rules {

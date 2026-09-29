@@ -17,7 +17,7 @@ because anonymized samples keep the values of fields that have a rule.
 ## Steps
 
 1. [x] Write this plan.
-2. [ ] Startup security (Apple Bridge): Secure Boot level, System Integrity
+2. [x] Startup security (Apple Bridge): Secure Boot level, System Integrity
    Protection, Signed System Volume, kernel CTRR, boot-argument filtering,
    third-party kernel extensions, and privileged MDM operations.
 3. [ ] Proxy settings (Network and Network Locations): each proxy switch,
