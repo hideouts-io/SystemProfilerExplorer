@@ -86,7 +86,7 @@ test run.
 7. [x] Install history, legacy software, and firewall.
 8. [x] Wi-Fi: status, security, network type, capabilities, regulatory
    locale.
-9. [ ] Power and battery: battery condition and charge states, power
+9. [x] Power and battery: battery condition and charge states, power
    source, hibernate mode, Low and High Power Mode, network reachability,
    reduced brightness, adapter, UPS, scheduled events.
 10. [ ] Storage and NVMe: SMART, file system, medium, partition map,

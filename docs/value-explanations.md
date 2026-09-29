@@ -232,3 +232,36 @@ on a nearby network the same value is Info.
 | `spairport_network_phymode`, `spairport_supported_phymodes` | `802.11` lists up to `be` | Normal (current), Info | Apple | seen (values withheld) |
 | `spairport_network_rate` | a number of Mbps | Info | Apple | seen |
 | `spairport_network_country_code`, `spairport_wireless_country_code` | two-letter country codes | Info | Apple | seen (`US`) |
+
+## Power and battery
+
+Sources: the values seen in `docs/value-inventory.md`, and the keys in Apple's
+`SPPowerReporter` strings. Battery conditions: "Check the condition of your Mac
+laptop's battery" (<https://support.apple.com/guide/mac-help/mh20865>) and "If
+you see battery Service Recommended" (<https://support.apple.com/en-us/108376>).
+Cycle and capacity limits: <https://support.apple.com/en-us/102888>. Hibernate
+modes: the `pmset` man page.
+
+| field | value | status | source | spelling |
+|---|---|---|---|---|
+| `sppower_battery_health` | `Good` (shown as Normal) | Normal | Apple | seen |
+| `sppower_battery_health` | `Fair` (Replace Soon) | Worth a look | Apple | Apple key |
+| `sppower_battery_health` | `Poor` (Replace Now) | Worth a look | Apple | Apple key |
+| `sppower_battery_health` | `Check Battery` (Service Battery) | Worth a look | Apple | Apple key |
+| `sppower_battery_health` | `Normal`, `Service Recommended`, `Replace Soon`, `Replace Now`, `Service Battery` | Normal, Worth a look | Apple | unconfirmed (shown in System Settings and menus) |
+| `sppower_battery_at_warn_level` | `TRUE` (charging or not), `FALSE` | Info or Worth a look, Normal | Apple | seen (`TRUE`), Apple key (`FALSE`) |
+| `sppower_battery_is_charging` | `TRUE`, `FALSE` (full or not) | Normal, Info | Apple | seen (`FALSE`), Apple key |
+| `sppower_battery_fully_charged` | `TRUE`, `FALSE` | Normal, Info | Apple | seen (`FALSE`), Apple key |
+| `sppower_battery_charger_connected` | `TRUE`, `FALSE` | Info | Apple | seen (`FALSE`), Apple key |
+| `sppower_ups_installed` | `TRUE`, `FALSE` | Info | Apple | seen (`FALSE`), Apple key |
+| `sppower_battery_state_of_charge` | a percentage (10% or less and not charging is Worth a look) | Normal, Worth a look | Apple | seen |
+| `sppower_battery_cycle_count` | a number (1,000 or more is Info) | Normal, Info | Apple | seen |
+| `sppower_battery_health_maximum_capacity` | a percentage (below 80% is Worth a look) | Normal, Worth a look | Apple | seen (withheld) |
+| `Current Power Source` | `TRUE` under `AC Power`, `Battery Power`, `UPS Power` | Info | Apple | Apple key |
+| `Hibernate Mode` | `0`, `3`, `25` | Normal, Info | Apple | seen (`3`) |
+| `Display`, `System`, `Disk Sleep Timer` | minutes, `0` (never) | Info | Apple | seen |
+| `LowPowerMode`, `HighPowerMode` | `0`/`1` (or yes/no) | Normal, Info | Apple | seen (withheld) |
+| `PrioritizeNetworkReachabilityOverSleep` | `0`/`1` | Normal, Info | Apple | seen (withheld) |
+| `ReduceBrightness` | `0`/`1` | Info | Apple | seen (withheld) |
+| `eventtype` | `wake` | Info | Apple | seen |
+| `eventtype` | `poweron`, `wakepoweron`, `sleep`, `shutdown`, `restart` | Info | Apple | Apple key |

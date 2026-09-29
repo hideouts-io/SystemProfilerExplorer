@@ -50,6 +50,7 @@ let intelReport: ValueReportContext = ValueReportContext(usbDeviceNames: nil, pr
 /// Every value the app explains for fields with a limited set of values.
 let explainedValueSamples: [ValueSample] = applicationValueSamples + fontValueSamples + extensionValueSamples
     + networkValueSamples + softwareHistoryAndFirewallValueSamples + wifiValueSamples
+    + powerValueSamples
 
 /// Each value is checked with no Hardware section, on Apple silicon, and on an Intel Mac,
 /// because what an architecture means depends on the Mac.
@@ -258,6 +259,50 @@ private let wifiValueSamples: [ValueSample] = {
     return samples
 }()
 
+private let powerValueSamples: [ValueSample] = {
+    let charge: [String] = ["sppower_battery_charge_info"]
+    let health: [String] = ["sppower_battery_health_info"]
+    let charging: [String: ProfileValue] = ["sppower_battery_is_charging": .string("TRUE")]
+    let full: [String: ProfileValue] = ["sppower_battery_fully_charged": .string("TRUE")]
+
+    var samples: [ValueSample] = [
+        ValueSample(.power, charge + ["sppower_battery_at_warn_level"], "TRUE"),
+        ValueSample(.power, charge + ["sppower_battery_at_warn_level"], "TRUE", siblings: charging),
+        ValueSample(.power, charge + ["sppower_battery_at_warn_level"], "FALSE"),
+        ValueSample(.power, charge + ["sppower_battery_state_of_charge"], scalar: .integer(4)),
+        ValueSample(.power, charge + ["sppower_battery_state_of_charge"], scalar: .integer(67)),
+        ValueSample(.power, charge + ["sppower_battery_is_charging"], "TRUE"),
+        ValueSample(.power, charge + ["sppower_battery_is_charging"], "FALSE"),
+        ValueSample(.power, charge + ["sppower_battery_is_charging"], "FALSE", siblings: full),
+        ValueSample(.power, charge + ["sppower_battery_fully_charged"], "TRUE"),
+        ValueSample(.power, charge + ["sppower_battery_fully_charged"], "FALSE"),
+        ValueSample(.power, health + ["sppower_battery_cycle_count"], scalar: .integer(154)),
+        ValueSample(.power, health + ["sppower_battery_cycle_count"], scalar: .integer(1_200)),
+        ValueSample(.power, health + ["sppower_battery_health_maximum_capacity"], "97%"),
+        ValueSample(.power, health + ["sppower_battery_health_maximum_capacity"], "72%")
+    ]
+    samples += ["Good", "Fair", "Poor", "Check Battery", "Normal", "Service Recommended"].map {
+        ValueSample(.power, health + ["sppower_battery_health"], $0)
+    }
+    samples += ["AC Power", "Battery Power", "UPS Power"].map { ValueSample(.power, [$0, "Current Power Source"], "TRUE") }
+    samples += ["0", "3", "25"].map { ValueSample(.power, ["AC Power", "Hibernate Mode"], $0) }
+
+    for timer in ["Display Sleep Timer", "System Sleep Timer", "Disk Sleep Timer"] {
+        samples += [Int64(0), 10].map { ValueSample(.power, ["AC Power", timer], scalar: .integer($0)) }
+    }
+    for setting in ["LowPowerMode", "HighPowerMode", "PrioritizeNetworkReachabilityOverSleep", "ReduceBrightness"] {
+        samples += [Int64(0), 1].map { ValueSample(.power, ["Battery Power", setting], scalar: .integer($0)) }
+    }
+    for field in ["sppower_battery_charger_connected", "sppower_ups_installed"] {
+        samples += ["TRUE", "FALSE"].map { ValueSample(.power, [field], $0) }
+    }
+    samples += ["wake", "poweron", "wakepoweron", "sleep", "shutdown", "restart"].map {
+        ValueSample(.power, ["_items", "[]", "_items", "[]", "eventtype"], $0)
+    }
+
+    return samples
+}()
+
 struct ValueCatalogTests {
     @Test(arguments: explainedValueSamples)
     func everyKnownValueHasEveryPart(_ sample: ValueSample) throws {
@@ -414,6 +459,23 @@ struct ValueCatalogTests {
 
         #expect(disassociated.summary == "Wi-Fi is on but not connected to a network.")
         #expect(valueExplanation(dataType: .wifi, path: ["spairport_status_information"], scalar: .string("spairport_status_future"))?.status == .unknown)
+    }
+
+    // MARK: - Power
+
+    @Test
+    func everyAppleBatteryConditionIsExplained() throws {
+        func explain(_ value: String) -> ValueExplanation? {
+            valueExplanation(dataType: .power, path: ["sppower_battery_health_info", "sppower_battery_health"], scalar: .string(value))
+        }
+
+        #expect(explain("Good")?.status == .normal)
+        for value in ["Fair", "Poor", "Check Battery"] {
+            #expect(explain(value)?.status == .worthReviewing, "\(value)")
+        }
+        #expect(explain("Fair")?.detail?.contains("Replace Soon") == true)
+        #expect(explain("Check Battery")?.detail?.contains("Service Battery") == true)
+        #expect(explain("Excellent")?.status == .unknown)
     }
 
     @Test
