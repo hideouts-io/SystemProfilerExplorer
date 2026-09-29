@@ -251,10 +251,8 @@ struct ProfileReportView: View {
         Task {
             do {
                 let prepared: (data: Data, filename: String) = try await Task.detached(priority: .userInitiated) {
-                    (
-                        data: try encodeAnonymizedSample(makeAnonymizedSample(reportToExport)),
-                        filename: anonymizedSampleFilename(reportToExport)
-                    )
+                    let data: Data = try encodeAnonymizedSample(makeAnonymizedSample(reportToExport))
+                    return (data: data, filename: anonymizedSampleFilename(reportToExport))
                 }.value
 
                 sampleDocument = ReportExportFileDocument(data: prepared.data)
