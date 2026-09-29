@@ -39,7 +39,7 @@ because anonymized samples keep the values of fields that have a rule.
    Wi-Fi regulatory locale, USB hardware type, memory type, card reader
    link, and managed preference state. Display contrast is left out: its
    values were withheld from the inventory, so their format is unknown.
-9. [ ] Note in `docs/value-inventory.md` that value rules now exist and
+9. [x] Note in `docs/value-inventory.md` that value rules now exist and
    which enumeration fields are still unexplained.
 
 ## Verification
