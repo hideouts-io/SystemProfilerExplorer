@@ -257,10 +257,13 @@ struct AnonymizedSampleTests {
 
     @Test
     func samplesOpenAsSystemProfilerJSON() throws {
-        let data: Data = try encodeAnonymizedSample(makeAnonymizedSample(report))
+        let sample: [String: [ProfileValue]] = makeAnonymizedSample(report)
+        let data: Data = try encodeAnonymizedSample(sample)
         let opened: SystemProfilerReport = try SystemProfilerParser().parseImportedReport(data, importedAt: Date())
 
         #expect(Set(opened.sections.map(\.dataType)) == Set(report.sections.map(\.dataType)))
+        // Anonymizing a sample again changes nothing, which the sample tests rely on.
+        #expect(makeAnonymizedSample(opened) == sample)
         #expect(anonymizedSampleFilename(report) == "Sample-Mac15,3-macOS-26.0.sample.json")
         #expect(anonymizedSampleFilename(SystemProfilerReport(sections: [], commandArguments: [], standardError: "", startedAt: Date(), completedAt: Date())) == "Sample.sample.json")
     }

@@ -268,7 +268,10 @@ private func anonymizedValue(
                 preconditionFailure("The anonymized profiler object changed during traversal.")
             }
 
-            let sampleKey: String = keysAreNames || keyLooksLikeIdentifier(key) ? "<name \(position + 1)>" : key
+            // A key that is already a placeholder stays as it is, so anonymizing a sample
+            // again doesn't change it.
+            let isName: Bool = (keysAreNames || keyLooksLikeIdentifier(key)) && !isSampleNamePlaceholder(key)
+            let sampleKey: String = isName ? "<name \(position + 1)>" : key
             anonymized[sampleKey] = anonymizedValue(
                 fieldValue,
                 dataType: dataType,
@@ -290,6 +293,10 @@ private func anonymizedValue(
     case let .string(text):
         return .string(anonymizedText(text, dataType: dataType, path: path))
     }
+}
+
+private func isSampleNamePlaceholder(_ key: String) -> Bool {
+    key.range(of: #"^<name \d+>$"#, options: .regularExpression) != nil
 }
 
 /// Fields that describe the kind of Mac rather than the person who owns it.
