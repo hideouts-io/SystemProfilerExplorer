@@ -49,6 +49,7 @@ let intelReport: ValueReportContext = ValueReportContext(usbDeviceNames: nil, pr
 
 /// Every value the app explains for fields with a limited set of values.
 let explainedValueSamples: [ValueSample] = applicationValueSamples + fontValueSamples + extensionValueSamples
+    + networkValueSamples
 
 /// Each value is checked with no Hardware section, on Apple silicon, and on an Intel Mac,
 /// because what an architecture means depends on the Mac.
@@ -118,6 +119,80 @@ private let extensionValueSamples: [ValueSample] = {
     samples += ["spext_apple", "spext_identified_developer", "spext_unknown", "spext_not_signed"].map {
         ValueSample(.extensions, ["spext_obtained_from"], $0)
     }
+    return samples
+}()
+
+private let networkValueSamples: [ValueSample] = {
+    let serviceTypes: [String] = [
+        "Ethernet", "AirPort", "IEEE80211", "Bridge", "Bond", "VLAN", "6to4", "IPSec", "PPP", "PPP (PPPSerial)",
+        "PPP (PPPoE)", "PPP (L2TP)", "PPP (PPTP)", "VPN", "VPN (com.example.vpn)"
+    ]
+    let ipv4Methods: [String] = ["DHCP", "Manual", "INFORM", "BOOTP", "LinkLocal", "Automatic", "PPP", "VPN"]
+    let ipv6Methods: [String] = ["Automatic", "LinkLocal", "Manual", "RouterAdvertisement", "6to4"]
+    let proxySwitches: [String] = [
+        "HTTPEnable", "HTTPSEnable", "SOCKSEnable", "FTPEnable", "GopherEnable", "RTSPEnable",
+        "ProxyAutoConfigEnable", "ProxyAutoDiscoveryEnable", "FTPPassive", "ExcludeSimpleHostnames"
+    ]
+    let connectionSwitches: [String] = [
+        "DisconnectOnIdle", "DisconnectOnLogout", "DisconnectOnSleep", "DisconnectOnFastUserSwitch", "DisconnectOnWake",
+        "DialOnDemand", "CommRedialEnabled", "IdleReminder", "LCPEchoEnabled", "VerboseLogging", "IPCPCompressionVJ",
+        "CommDisplayTerminalWindow", "CommUseTerminalScript", "ACSPEnabled", "CCPEnabled", "CCPMPPE40Enabled",
+        "CCPMPPE128Enabled", "IPCPUsePeerDNS", "LCPCompressionACField", "LCPCompressionPField", "UseSessionTimer"
+    ]
+    let service: [String] = ["spnetworklocation_services", "[]"]
+    var samples: [ValueSample] = []
+
+    for dataType in [SystemProfilerDataType.network, .networkLocation] {
+        samples += ["Ethernet", "AirPort", "FireWire", "Modem"].map { ValueSample(dataType, ["hardware"], $0) }
+        samples += serviceTypes.map { ValueSample(dataType, ["type"], $0) }
+        samples += ipv4Methods.map { ValueSample(dataType, ["IPv4", "ConfigMethod"], $0) }
+        samples += ipv6Methods.map { ValueSample(dataType, ["IPv6", "ConfigMethod"], $0) }
+
+        for proxySwitch in proxySwitches {
+            for value in ["yes", "no", "1", "0"] {
+                samples.append(ValueSample(dataType, ["Proxies", proxySwitch], value))
+            }
+        }
+    }
+
+    samples.append(ValueSample(
+        .network,
+        ["hardware"],
+        "Modem",
+        siblings: ["_name": .string("nRF52 USB Product"), "type": .string("PPP (PPPSerial)"), "interface": .string("usbmodem0001")]
+    ))
+
+    for value in ["true", "false"] {
+        samples.append(ValueSample(.networkLocation, service + ["VPN", "OnDemandEnabled"], value))
+    }
+
+    samples += ["Connect", "Disconnect", "EvaluateConnection", "Ignore"].map {
+        ValueSample(.networkLocation, service + ["VPN", "OnDemandRules", "[]", "Action"], $0)
+    }
+    samples += ["WiFi", "Ethernet", "Cellular"].map {
+        ValueSample(.networkLocation, service + ["VPN", "OnDemandRules", "[]", "InterfaceTypeMatch"], $0)
+    }
+
+    for connectionSwitch in connectionSwitches {
+        for value in ["yes", "no"] {
+            samples.append(ValueSample(.networkLocation, service + ["PPP", connectionSwitch], value))
+        }
+    }
+
+    samples += ["yes", "no"].map { ValueSample(.networkLocation, ["spnetworklocation_isActive"], $0) }
+    samples += ["Automatic", "Preferred", "Ranked", "Recent", "Strongest"].map {
+        ValueSample(.networkLocation, service + ["IEEE80211", "JoinMode"], $0)
+    }
+    samples += ["Password", "Certificate", "SharedSecret", "Hybrid"].map {
+        ValueSample(.networkLocation, service + ["VPN", "AuthenticationMethod"], $0)
+    }
+    samples += ["autoselect", "none", "10baseT/UTP", "100baseTX", "1000baseT", "10GbaseT"].map {
+        ValueSample(.network, ["Ethernet", "MediaSubType"], $0)
+    }
+    samples += ["full-duplex", "half-duplex", "flow-control"].map {
+        ValueSample(.network, ["Ethernet", "MediaOptions", "[]"], $0)
+    }
+    samples += ["yes", "no"].map { ValueSample(.networkVolumes, ["spnetworkvolume_automounted"], $0) }
     return samples
 }()
 
@@ -209,6 +284,30 @@ struct ValueCatalogTests {
 
         #expect(onIntel.detail?.contains("can't load on this Mac") == true)
         #expect(onAppleSilicon.detail?.contains("only for Macs with Apple silicon") == true)
+    }
+
+    // MARK: - Network
+
+    @Test
+    func pppSubtypesAreToldApart() throws {
+        func summary(_ value: String) -> String? {
+            valueExplanation(dataType: .network, path: ["type"], scalar: .string(value))?.summary
+        }
+
+        #expect(summary("PPP (PPPSerial)")?.contains("serial port") == true)
+        #expect(summary("PPP (PPPoE)")?.contains("PPPoE") == true)
+        #expect(summary("PPP (L2TP)")?.contains("L2TP") == true)
+        #expect(summary("PPP (PPTP)")?.contains("no longer supports") == true)
+        #expect(summary("PPP")?.contains("serial port") == false)
+        #expect(valueExplanation(dataType: .network, path: ["type"], scalar: .string("PPP (FutureLink)"))?.status == .unknown)
+    }
+
+    @Test
+    func aProxyThatsOnSaysWhyItMatters() throws {
+        let on = try #require(valueExplanation(dataType: .network, path: ["Proxies", "HTTPSEnable"], scalar: .string("yes")))
+
+        #expect(on.significance?.contains("see, log, and filter") == true)
+        #expect(on.suggestedAction?.contains("System Settings") == true)
     }
 
     @Test

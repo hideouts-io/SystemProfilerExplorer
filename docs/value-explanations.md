@@ -117,3 +117,51 @@ Apple keys that current macOS may no longer report.
 | `spext_runtime_environment` | `spext_arch_arm`, `spext_arch_x86`, `spext_universal`, `spext_arch_ppc` | kind | Info, Normal (Universal) | Apple | Apple key |
 | `spext_obtained_from` | `spext_apple`, `spext_identified_developer`, `spext_unknown`, `spext_not_signed` | where it came from | as for apps; Info for not signed | Apple | Apple key |
 | `spext_notarized` | `spext_yes`, `spext_no` | notarized or not | Normal, Info | Apple | Apple key |
+
+## Network services and locations
+
+Sources: service hardware, service types and PPP subtypes, IPv4 and IPv6
+configuration methods, proxy switches, PPP options, AirPort join modes, and VPN
+authentication methods are System Configuration constants, documented in
+Apple's `SCSchemaDefinitions.h` and `SCNetworkConfiguration.h`
+(<https://developer.apple.com/documentation/systemconfiguration>). VPN On
+Demand rule actions and interface types are documented in Apple's device
+management reference for `VPN.OnDemandRulesElement`
+(<https://developer.apple.com/documentation/devicemanagement/vpn/ondemandruleselement>).
+Apple removed its PPTP client in macOS Sierra
+(<https://support.apple.com/en-us/102003>). Ethernet media options are keys in
+Apple's `SPNetworkReporter` strings.
+
+| field | values | status | source | spelling |
+|---|---|---|---|---|
+| `hardware` | `Ethernet`, `AirPort`, `Modem` | Normal; Modem Info (a USB serial device is Inferred) | Apple, Inferred | seen |
+| `hardware` | `FireWire` | Info | Apple | Apple key |
+| `type` | `Ethernet`, `AirPort`, `IEEE80211`, `Bridge`, `PPP`, `PPP (PPPSerial)`, `VPN`, `VPN (<app>)` | Normal (Ethernet, Wi-Fi); Info | Apple | seen |
+| `type` | `Bond`, `VLAN`, `6to4`, `IPSec` | Info | Apple | Apple constant |
+| `type` | `PPP (PPPoE)`, `PPP (L2TP)`, `PPP (PPTP)` | Info | Apple | subtypes are Apple keys; the `PPP (subtype)` form is unconfirmed for these |
+| IPv4 `ConfigMethod` | `DHCP`, `Manual`, `PPP`, `VPN` | Normal (DHCP); Info | Apple | seen |
+| IPv4 `ConfigMethod` | `INFORM`, `BOOTP`, `LinkLocal`, `Automatic` | Info; Normal (Automatic) | Apple | Apple key |
+| IPv6 `ConfigMethod` | `Automatic` | Normal | Apple | seen |
+| IPv6 `ConfigMethod` | `LinkLocal`, `Manual`, `RouterAdvertisement`, `6to4` | Info; Normal (RouterAdvertisement) | Apple | Apple constant |
+| proxy switches (`HTTPEnable`, `HTTPSEnable`, `SOCKSEnable`, `FTPEnable`, `GopherEnable`, `RTSPEnable`) | on, off (`yes`/`no`, `1`/`0`) | Info when on, Normal when off | Apple | seen |
+| `ProxyAutoConfigEnable`, `ProxyAutoDiscoveryEnable` | on, off | Info when on, Normal when off | Apple | seen |
+| `FTPPassive` | on, off | Normal, Info | Apple | seen |
+| `ExcludeSimpleHostnames` | on, off | Info | Apple | seen (withheld values) |
+| `OnDemandEnabled` | `true`, `false` | Info | Apple | seen |
+| On Demand `Action` | `Connect`, `Disconnect`, `EvaluateConnection`, `Ignore` | Info | Apple | seen (`Connect`), Apple docs |
+| `InterfaceTypeMatch` | `WiFi`, `Ethernet`, `Cellular` | Info | Apple | Apple docs (the inventory withheld them) |
+| `DisconnectOnIdle`, `DisconnectOnLogout`, `DisconnectOnSleep`, `DisconnectOnFastUserSwitch`, `DisconnectOnWake` | on, off | Info | Apple | seen |
+| PPP switches (`DialOnDemand`, `CommRedialEnabled`, `IdleReminder`, `LCPEchoEnabled`, `VerboseLogging`, `IPCPCompressionVJ`, `CommDisplayTerminalWindow`, `CommUseTerminalScript`, `ACSPEnabled`) | on, off | Info | Apple | seen |
+| PPP switches (`CCPEnabled`, `CCPMPPE40Enabled`, `CCPMPPE128Enabled`, `IPCPUsePeerDNS`, `LCPCompressionACField`, `LCPCompressionPField`, `UseSessionTimer`) | on, off | Info | Apple | Apple key |
+| `spnetworklocation_isActive` | on, off | Info | Apple | seen (withheld values) |
+| `JoinMode` | `Automatic` | Normal | Apple | seen |
+| `JoinMode` | `Preferred`, `Ranked`, `Recent`, `Strongest` | Info | Apple | Apple constant |
+| `AuthenticationMethod` | `Password` | Info | Apple | seen |
+| `AuthenticationMethod` | `Certificate`, `SharedSecret`, `Hybrid` | Info | Apple | Apple constant |
+| `MediaSubType` | `autoselect`, `none` | Normal, Info | Apple | seen |
+| `MediaSubType` | fixed speeds such as `1000baseT`, `100baseTX`, `10GbaseT` | Info | Apple | Apple key (`100baseTX`, `1000baseT`); other speeds unconfirmed |
+| `MediaOptions` | `full-duplex`, `half-duplex`, `flow-control` | Normal, Info | Apple | Apple key |
+| `spnetworkvolume_automounted` | on, off | Info | Apple | seen (withheld values) |
+
+`ACSPEnabled` is explained from its Apple name ("ACSP Enabled") and Apple's
+PPP documentation; what the server sends is not visible in the report.
