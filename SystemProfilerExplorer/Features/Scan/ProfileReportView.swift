@@ -30,6 +30,11 @@ struct ProfileReportView: View {
     @State private var isShowingSystemReview: Bool = false
     @State private var highlightedLocation: String?
     @State private var isShowingCoverageDetails: Bool = false
+    @State private var isConfirmingSampleExport: Bool = false
+    @State private var sampleDocument: ReportExportFileDocument?
+    @State private var sampleFilename: String = ""
+    @State private var isShowingSampleExporter: Bool = false
+    @State private var sampleExportErrorMessage: String?
     @Environment(\.explanationDetailMode) private var detailMode
     @AppStorage("bookmarked-finding-source-paths") private var storedBookmarks: String = ""
     @AppStorage("recent-finding-searches") private var storedRecentSearches: String = ""
@@ -195,11 +200,70 @@ struct ProfileReportView: View {
                 isShowingExportReview = true
             }
             .help("The full scan data as JSON, redacted or complete")
+
+            if detailMode == .developer {
+                Divider()
+
+                Button("Anonymized Sample…") {
+                    isConfirmingSampleExport = true
+                }
+                .help("A copy without personal values, for contributing a test sample to the project")
+            }
         } label: {
             Label("Share", systemImage: "square.and.arrow.up")
         }
         .fixedSize()
         .accessibilityIdentifier("share-report")
+        .confirmationDialog("Export an anonymized sample?", isPresented: $isConfirmingSampleExport) {
+            Button("Export…", action: prepareSampleExport)
+        } message: {
+            Text("The sample keeps field names, numbers, on/off values, and the values the app explains, so it shows how this Mac reports them. Names, serial numbers, addresses, paths, and log text are removed. Open the file and check it before you share it.")
+        }
+        .fileExporter(
+            isPresented: $isShowingSampleExporter,
+            document: sampleDocument,
+            contentType: ReportExportFileDocument.contentType,
+            defaultFilename: sampleFilename
+        ) { _ in
+            sampleDocument = nil
+        }
+        .alert("Export Failed", isPresented: sampleExportErrorBinding) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(sampleExportErrorMessage ?? "The sample could not be created.")
+        }
+    }
+
+    private var sampleExportErrorBinding: Binding<Bool> {
+        Binding(
+            get: { sampleExportErrorMessage != nil },
+            set: { isPresented in
+                if !isPresented {
+                    sampleExportErrorMessage = nil
+                }
+            }
+        )
+    }
+
+    private func prepareSampleExport() {
+        let reportToExport: SystemProfilerReport = report
+
+        Task {
+            do {
+                let prepared: (data: Data, filename: String) = try await Task.detached(priority: .userInitiated) {
+                    (
+                        data: try encodeAnonymizedSample(makeAnonymizedSample(reportToExport)),
+                        filename: anonymizedSampleFilename(reportToExport)
+                    )
+                }.value
+
+                sampleDocument = ReportExportFileDocument(data: prepared.data)
+                sampleFilename = prepared.filename
+                isShowingSampleExporter = true
+            } catch {
+                sampleExportErrorMessage = "The sample could not be created. \(error.localizedDescription)"
+            }
+        }
     }
 
     /// Shows only the values worth a look, with the chosen one highlighted.
