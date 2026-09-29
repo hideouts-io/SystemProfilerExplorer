@@ -104,6 +104,7 @@
 		FE864288671D00433353FBB2 /* CollectionCoverageTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 949093927A321A77B7F5D829 /* CollectionCoverageTests.swift */; };
 		D0EB1B42212523FE20AEC875 /* ValuePanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 782B45221FBF672C566ABAC4 /* ValuePanel.swift */; };
 		B2C53C0C964281379BF8AEB3 /* ValuePanelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C16CF4E58F995FDE34AE3D09 /* ValuePanelTests.swift */; };
+		B89D0EC021ABEEDFA1DE36B0 /* ValueCatalogTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A841B78A28F111C12390310A /* ValueCatalogTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -216,6 +217,7 @@
 		FCB5B24DFE76BB7DE34B6878 /* DiagnosticLogView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiagnosticLogView.swift; sourceTree = "<group>"; };
 		782B45221FBF672C566ABAC4 /* ValuePanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ValuePanel.swift; sourceTree = "<group>"; };
 		C16CF4E58F995FDE34AE3D09 /* ValuePanelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ValuePanelTests.swift; sourceTree = "<group>"; };
+		A841B78A28F111C12390310A /* ValueCatalogTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ValueCatalogTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
@@ -285,6 +287,7 @@
 		387CBF80EA9183D8E5CB8111 /* SystemProfilerExplorerTests */ = {
 			isa = PBXGroup;
 			children = (
+				A841B78A28F111C12390310A /* ValueCatalogTests.swift */,
 				C16CF4E58F995FDE34AE3D09 /* ValuePanelTests.swift */,
 				5E4302147D18912C4D6C9E8F /* AdditionalExplanationCoverageTests.swift */,
 				D71F24CE50090E539F32B351 /* ChangeInsightTests.swift */,
@@ -602,6 +605,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				B89D0EC021ABEEDFA1DE36B0 /* ValueCatalogTests.swift in Sources */,
 				B2C53C0C964281379BF8AEB3 /* ValuePanelTests.swift in Sources */,
 				41A352BEAE8240924801481C /* AdditionalExplanationCoverageTests.swift in Sources */,
 				8D9B09B8B72B1F0B2F5873B1 /* ChangeInsightTests.swift in Sources */,

@@ -72,7 +72,7 @@ test run.
 2. [x] Layout: add "why it matters" to value explanations, build the
    value-first panel and the collapsed About this field area, move the
    coverage note into it, and include the new parts in Copy as Markdown.
-3. [ ] Applications and frameworks (most rows in a scan): architecture
+3. [x] Applications and frameworks (most rows in a scan): architecture
    (`arch_kind`), where it came from (`obtained_from`), and private
    frameworks.
 4. [ ] Fonts (the most values in a scan): font kind, enabled, valid,

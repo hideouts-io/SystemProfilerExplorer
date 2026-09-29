@@ -1,0 +1,72 @@
+# Value explanations
+
+Every value the app explains for fields with a limited set of values, with the
+source of the explanation and whether the exact spelling is confirmed. The
+rules live in `SystemProfilerExplorer/Core/Explanations/Values`, and
+`SystemProfilerExplorerTests/ValueCatalogTests.swift` checks that each value
+below has every part of an explanation.
+
+Each explained value has a one-line summary, what it means on this Mac, why it
+matters, what to check, a status, and a source. A value that isn't listed for a
+field that has a rule is shown as **Not yet explained**; the app never guesses.
+
+## Key
+
+**Status:** Normal, Info, or Worth a look. Some values change status with the
+rest of the report (for example the processor, or whether a network is the
+current one); the table says so.
+
+**Source:**
+
+- **Apple**: Apple documentation, or Apple's own System Information strings.
+- **Standard**: standard macOS behavior or a widely used convention.
+- **Inferred**: an inference the app shows its reasons for.
+
+**Spelling:**
+
+- **seen**: in `docs/value-inventory.md` (a full scan of one Mac).
+- **Apple key**: a key in Apple's System Information localization strings,
+  published in the macOS glossaries at
+  <https://github.com/clindsay3/GlossaryLookup> (files such as
+  `Apple_System_Profiler.lg` and `SP*Reporter.lg`). These glossaries come from
+  an older macOS release, so a key there is a spelling Apple used, not proof
+  that current macOS still reports it.
+- **published**: in system_profiler output published online.
+- **unconfirmed**: no source shows this spelling. It's matched so the value is
+  explained if it appears, and it's listed under "Values that need a scan" in
+  `PLAN.md`.
+
+## Applications and frameworks
+
+Sources: Apple Support, "Using Intel-based apps on a Mac with Apple silicon"
+(<https://support.apple.com/en-us/102527>), which names the Kind column's
+Apple silicon, Intel, Universal and 32-bit kinds; Apple Developer News on
+Rosetta after macOS 27 (<https://developer.apple.com/news/?id=w5ngl9k2>);
+CPython issue 137673 (<https://github.com/python/cpython/issues/137673>),
+which shows `arch_ios` reported for a Mac app without
+`CFBundleSupportedPlatforms`; mondoohq/mql pull request 11104
+(<https://github.com/mondoohq/mql/pull/11104>), which shows `arch_other` for
+an app whose main program is a shell script.
+
+| field | value | meaning | status | source | spelling |
+|---|---|---|---|---|---|
+| `arch_kind` | `arch_arm` | Apple silicon only | Normal; Info on an Intel Mac | Apple | seen |
+| `arch_kind` | `arch_arm_i64` | Universal | Normal | Apple | seen |
+| `arch_kind` | `arch_i64` | Intel only (Rosetta 2 on Apple silicon) | Info; Normal on an Intel Mac | Apple | seen |
+| `arch_kind` | `arch_i32_i64` | Intel only, 32- and 64-bit | Info; Normal on an Intel Mac | Apple | Apple key |
+| `arch_kind` | `arch_ios` | iPhone or iPad app | Info | Apple | seen |
+| `arch_kind` | `arch_other` | not a kind System Information recognizes | Info | Inferred | seen |
+| `arch_kind` | `arch_i32` | 32-bit Intel, can't run | Info | Apple | Apple key |
+| `arch_kind` | `arch_ppc` | PowerPC, can't run | Info | Apple | unconfirmed |
+| `obtained_from` | `apple` | Apple | Normal | Apple | Apple key, published |
+| `obtained_from` | `mac_app_store` | Mac App Store | Normal | Apple | Apple key, published |
+| `obtained_from` | `app_store` | App Store | Normal | Apple | Apple key |
+| `obtained_from` | `ios_app_store` | App Store, as an iPhone or iPad app | Normal | Apple | unconfirmed |
+| `obtained_from` | `identified_developer` | Developer ID | Normal | Apple | Apple key, published |
+| `obtained_from` | `unknown` | no trusted signature | Info | Apple | Apple key, published |
+| `private_framework` | `yes`, `no` | private or public framework | Info | Apple | seen |
+
+`obtained_from` is also explained for extensions. Its values aren't listed in
+`docs/value-inventory.md` (the field was classed as free text), so their
+spellings come from Apple's keys and published output, such as the samples in
+<https://github.com/glpi-project/glpi-agent> (`resources/macos/system_profiler`).

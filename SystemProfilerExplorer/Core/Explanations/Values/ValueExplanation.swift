@@ -154,8 +154,35 @@ struct ValueReportContext: Sendable, Equatable {
     let usbDeviceNames: [String]?
     /// Mount points of the storage volumes in the report.
     var storageMountPoints: [String] = []
+    /// The kind of processor this Mac has, or nil when the report has no Hardware section.
+    var processor: MacProcessorFamily?
 
     static let empty: ValueReportContext = ValueReportContext(usbDeviceNames: nil)
+}
+
+enum MacProcessorFamily: Sendable, Equatable {
+    case appleSilicon
+    case intel
+}
+
+/// Reads the processor family from the Hardware overview: `chip_type` names an Apple
+/// chip on Apple silicon, and `cpu_type` names an Intel processor on Intel Macs.
+func processorFamily(inHardwareItems items: [ProfileValue]) -> MacProcessorFamily? {
+    for item in items {
+        guard case let .object(overview) = item else {
+            continue
+        }
+
+        if case let .string(chip)? = overview["chip_type"], chip.hasPrefix("Apple") {
+            return .appleSilicon
+        }
+
+        if case let .string(cpu)? = overview["cpu_type"], cpu.localizedCaseInsensitiveContains("Intel") {
+            return .intel
+        }
+    }
+
+    return nil
 }
 
 func valueReportContext(for report: SystemProfilerReport) -> ValueReportContext {
@@ -178,7 +205,11 @@ func valueReportContext(for report: SystemProfilerReport) -> ValueReportContext 
             return mountPoint
         }
 
-    return ValueReportContext(usbDeviceNames: usbDeviceNames, storageMountPoints: mountPoints)
+    let processor: MacProcessorFamily? = report.sections
+        .first(where: { $0.dataType == .hardware })
+        .flatMap { processorFamily(inHardwareItems: $0.items) }
+
+    return ValueReportContext(usbDeviceNames: usbDeviceNames, storageMountPoints: mountPoints, processor: processor)
 }
 
 private func collectDeviceNames(_ value: ProfileValue, into names: inout [String]) {
