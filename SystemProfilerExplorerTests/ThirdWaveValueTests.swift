@@ -81,6 +81,31 @@ struct ThirdWaveValueTests {
         #expect(valueExplanation(dataType: .networkLocation, path: ["VPN", "OnDemandEnabled"], scalar: .string("true"))?.summary.contains("On Demand is on") == true)
     }
 
+    // MARK: - Power
+
+    @Test
+    func powerModesNameTheirPowerSource() {
+        let battery = valueExplanation(dataType: .power, path: ["Battery Power", "LowPowerMode"], scalar: .integer(1))
+        let adapter = valueExplanation(dataType: .power, path: ["AC Power", "HighPowerMode"], scalar: .integer(0))
+
+        #expect(battery?.status == .informational)
+        #expect(battery?.summary.contains("on battery") == true)
+        #expect(adapter?.status == .normal)
+        #expect(adapter?.summary.contains("on the power adapter") == true)
+        #expect(powerSourcePhrase("Something Else") == "for this power source")
+        #expect(valueExplanation(dataType: .power, path: ["AC Power", "PrioritizeNetworkReachabilityOverSleep"], scalar: .integer(1))?.summary
+            .contains("reachable on the network") == true)
+    }
+
+    @Test
+    func scheduledPowerEventsAreNamed() {
+        let path: [String] = ["_items", "[]", "_items", "[]", "eventtype"]
+
+        #expect(valueExplanation(dataType: .power, path: path, scalar: .string("wake"))?.summary.contains("wakes") == true)
+        #expect(valueExplanation(dataType: .power, path: path, scalar: .string("shutdown"))?.summary.contains("shuts down") == true)
+        #expect(valueExplanation(dataType: .power, path: path, scalar: .string("future"))?.status == .unknown)
+    }
+
     // MARK: - Coverage
 
     /// Values observed in the full scan behind docs/value-inventory.md for fields this
@@ -110,7 +135,15 @@ struct ThirdWaveValueTests {
             (.networkLocation, ["spnetworklocation_services", "[]", "Proxies", "ProxyAutoConfigEnable"], "0"),
             (.networkLocation, ["spnetworklocation_services", "[]", "VPN", "Proxies", "HTTPEnable"], "0"),
             (.networkLocation, ["spnetworklocation_services", "[]", "VPN", "OnDemandEnabled"], "false"),
-            (.networkLocation, ["spnetworklocation_services", "[]", "VPN", "OnDemandRules", "[]", "Action"], "Connect")
+            (.networkLocation, ["spnetworklocation_services", "[]", "VPN", "OnDemandRules", "[]", "Action"], "Connect"),
+            (.power, ["AC Power", "LowPowerMode"], "0"),
+            (.power, ["Battery Power", "LowPowerMode"], "1"),
+            (.power, ["AC Power", "HighPowerMode"], "0"),
+            (.power, ["AC Power", "PrioritizeNetworkReachabilityOverSleep"], "0"),
+            (.power, ["Battery Power", "ReduceBrightness"], "1"),
+            (.power, ["sppower_battery_charger_connected"], "FALSE"),
+            (.power, ["sppower_ups_installed"], "FALSE"),
+            (.power, ["_items", "[]", "_items", "[]", "eventtype"], "wake")
         ]
 
         for (dataType, path, value) in observed {

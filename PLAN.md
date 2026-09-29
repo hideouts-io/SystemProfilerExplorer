@@ -23,7 +23,7 @@ because anonymized samples keep the values of fields that have a rule.
 3. [x] Proxy settings (Network and Network Locations): each proxy switch,
    automatic proxy configuration and discovery, passive FTP, simple host
    names, and VPN On Demand.
-4. [ ] Power: Low Power Mode, High Power Mode, network reachability during
+4. [x] Power: Low Power Mode, High Power Mode, network reachability during
    sleep, reduced brightness on battery, power adapter connected, UPS, and
    scheduled power event types.
 5. [ ] Storage: internal or external disk, connection protocol, ignored
