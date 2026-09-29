@@ -48,7 +48,7 @@ let appleSiliconReport: ValueReportContext = ValueReportContext(usbDeviceNames: 
 let intelReport: ValueReportContext = ValueReportContext(usbDeviceNames: nil, processor: .intel)
 
 /// Every value the app explains for fields with a limited set of values.
-let explainedValueSamples: [ValueSample] = applicationValueSamples
+let explainedValueSamples: [ValueSample] = applicationValueSamples + fontValueSamples
 
 /// Each value is checked with no Hardware section, on Apple silicon, and on an Intel Mac,
 /// because what an architecture means depends on the Mac.
@@ -73,6 +73,27 @@ private let applicationValueSamples: [ValueSample] = {
 
     samples += origins.map { ValueSample(.extensions, ["obtained_from"], $0) }
     samples += ["yes", "no"].map { ValueSample(.frameworks, ["private_framework"], $0) }
+    return samples
+}()
+
+private let fontValueSamples: [ValueSample] = {
+    var samples: [ValueSample] = ["truetype", "opentype", "postscript", "bitmap", "unknown"].map {
+        ValueSample(.fonts, ["type"], $0)
+    }
+
+    for flag in ["enabled", "valid"] {
+        for value in ["yes", "no"] {
+            samples.append(ValueSample(.fonts, [flag], value))
+            samples.append(ValueSample(.fonts, ["typefaces", "[]", flag], value))
+        }
+    }
+
+    for flag in ["duplicate", "copy_protected", "embeddable", "outline"] {
+        for value in ["yes", "no"] {
+            samples.append(ValueSample(.fonts, ["typefaces", "[]", flag], value))
+        }
+    }
+
     return samples
 }()
 

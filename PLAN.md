@@ -75,7 +75,7 @@ test run.
 3. [x] Applications and frameworks (most rows in a scan): architecture
    (`arch_kind`), where it came from (`obtained_from`), and private
    frameworks.
-4. [ ] Fonts (the most values in a scan): font kind, enabled, valid,
+4. [x] Fonts (the most values in a scan): font kind, enabled, valid,
    duplicate, copy protected, embeddable, outline.
 5. [ ] Extensions: loaded, loadable, dependencies, Intel code,
    architectures.

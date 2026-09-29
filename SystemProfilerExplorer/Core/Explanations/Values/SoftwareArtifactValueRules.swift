@@ -244,33 +244,94 @@ func originExplanation(_ value: String) -> ValueExplanation? {
 // MARK: - Fonts, frameworks, extensions, and the Secure Element
 
 let softwareFlagValueRules: [ValueRule] = [
+    // Font kinds are keys in Apple's SPFontReporter strings: truetype, opentype,
+    // postscript, bitmap, and unknown. On/off flags are reported as yes and no.
     ValueRule(.fonts, field: "type") { context in
         switch context.reportedValue.lowercased() {
-        case "truetype": .info("A TrueType font, a common scalable format on Macs and PCs.", confidence: .documented)
-        case "opentype": .info("An OpenType font, the current cross-platform scalable format.", confidence: .documented)
-        case "postscript": .info("A PostScript font, an older format that some newer apps no longer support.")
-        case "bitmap": .info("A bitmap font, drawn from fixed-size pixel images rather than scalable outlines.", confidence: .documented)
-        default: nil
+        case "truetype":
+            .info(
+                "A TrueType font, a common scalable format on Macs and PCs.",
+                detail: "Its characters are stored as TrueType outlines, which scale smoothly to any size.",
+                why: "Almost every app on Mac and Windows can use TrueType fonts.",
+                action: "Nothing to do.",
+                confidence: .documented
+            )
+        case "opentype":
+            .info(
+                "An OpenType font, the current cross-platform scalable format.",
+                detail: "OpenType builds on TrueType and can hold extra typographic features, such as ligatures and alternate characters, and many languages in one file.",
+                why: "It's the most widely supported font format today, so documents that use it look the same on Macs and PCs.",
+                action: "Nothing to do.",
+                confidence: .documented
+            )
+        case "postscript":
+            .info(
+                "A PostScript font, an older format that some newer apps no longer support.",
+                detail: "It's a PostScript Type 1 font, the format desktop publishing used before OpenType.",
+                why: "Several apps, including Adobe's since 2023, no longer support Type 1 fonts, so documents that use it may show a substitute font.",
+                action: "If an app can't use it, look for an OpenType version from the font's vendor."
+            )
+        case "bitmap":
+            .info(
+                "A bitmap font, drawn from fixed-size pixel images rather than scalable outlines.",
+                detail: "Its characters are pixel images made for particular sizes.",
+                why: "It looks sharp only at the sizes it was made for, and blocky when enlarged or printed.",
+                action: "Nothing to do. If text looks blocky, choose an outline font instead.",
+                confidence: .documented
+            )
+        case "unknown":
+            .info(
+                "macOS couldn't tell what format this font file uses.",
+                detail: "System Information didn't recognize the file as TrueType, OpenType, PostScript, or bitmap.",
+                why: "Apps may not be able to use a font whose format isn't recognized.",
+                action: "Open Font Book, select the font, and choose Validate Font to check the file.",
+                confidence: .documented
+            )
+        default:
+            nil
         }
     },
 
     ValueRule(.fonts, field: "enabled") { context in
         switch decodeBooleanLike(context.reportedValue) {
-        case true?: .normal("Turned on, so apps can use it.")
-        case false?: .info("Turned off in Font Book, so apps can't use it.", action: "Turn it back on in Font Book if you need it.")
-        case nil: nil
+        case true?:
+            .normal(
+                "Turned on, so apps can use it.",
+                detail: "It's active in Font Book, so it appears in apps' font menus.",
+                why: "Only fonts that are turned on can be used in documents.",
+                action: "Nothing to do.",
+                confidence: .documented
+            )
+        case false?:
+            .info(
+                "Turned off in Font Book, so apps can't use it.",
+                detail: "It's installed but turned off, so it doesn't appear in font menus. Documents that use it show a substitute font.",
+                why: "Turning off fonts you don't use keeps font menus short, but documents that need this font won't look as designed.",
+                action: "Turn it back on in Font Book if you need it.",
+                confidence: .documented
+            )
+        case nil:
+            nil
         }
     },
 
     ValueRule(.fonts, field: "valid") { context in
         switch decodeBooleanLike(context.reportedValue) {
         case true?:
-            .normal("The font file passed macOS's checks.")
+            .normal(
+                "The font file passed macOS's checks.",
+                detail: "macOS checked the file's structure and found no problems.",
+                why: "A valid font displays and prints as its designer intended.",
+                action: "Nothing to do.",
+                confidence: .documented
+            )
         case false?:
             .info(
                 "macOS found a problem in this font file.",
-                detail: "A damaged font can display incorrectly or make some apps behave unexpectedly.",
-                action: "Open Font Book, select the font, and choose Validate Font to see the problem."
+                detail: "The file's structure didn't pass macOS's checks, for example because it's damaged or incomplete.",
+                why: "A damaged font can display incorrectly or make some apps behave unexpectedly.",
+                action: "Open Font Book, select the font, and choose Validate Font to see the problem.",
+                confidence: .documented
             )
         case nil:
             nil
@@ -282,10 +343,19 @@ let softwareFlagValueRules: [ValueRule] = [
         case true?:
             .info(
                 "Another copy of this typeface is installed.",
-                action: "Font Book can find duplicates and turn off or remove the extra copies."
+                detail: "More than one font file provides this typeface, for example an older and a newer version.",
+                why: "Apps may use either copy, so text can look slightly different from one app or document to another.",
+                action: "Font Book can find duplicates and turn off or remove the extra copies.",
+                confidence: .documented
             )
         case false?:
-            .normal("No other copy of this typeface is installed.")
+            .normal(
+                "No other copy of this typeface is installed.",
+                detail: "Only one font file provides this typeface.",
+                why: "Every app uses the same version of it.",
+                action: "Nothing to do.",
+                confidence: .documented
+            )
         case nil:
             nil
         }
@@ -293,25 +363,70 @@ let softwareFlagValueRules: [ValueRule] = [
 
     ValueRule(.fonts, field: "copy_protected") { context in
         switch decodeBooleanLike(context.reportedValue) {
-        case true?: .info("The font is marked copy-protected, so some apps won't copy or export it.")
-        case false?: .normal("The font isn't copy-protected.")
-        case nil: nil
+        case true?:
+            .info(
+                "The font is marked copy-protected, so some apps won't copy or export it.",
+                detail: "Its maker set a flag asking apps not to copy the font's data.",
+                why: "Apps that honor the flag may refuse to include it in PDFs or exported files, so documents can look different elsewhere.",
+                action: "If you share documents that use it, check the font's license, or use another font.",
+                confidence: .documented
+            )
+        case false?:
+            .normal(
+                "The font isn't copy-protected.",
+                detail: "Its maker didn't set a flag restricting copying.",
+                why: "Apps can include it when exporting documents, as far as its license allows.",
+                action: "Nothing to do.",
+                confidence: .documented
+            )
+        case nil:
+            nil
         }
     },
 
     ValueRule(.fonts, field: "embeddable") { context in
         switch decodeBooleanLike(context.reportedValue) {
-        case true?: .info("Its license lets apps embed it in documents such as PDFs, so they look the same on other devices.")
-        case false?: .info("Its license doesn't allow embedding in documents, so a PDF may show another font on other devices.")
-        case nil: nil
+        case true?:
+            .info(
+                "Its license lets apps embed it in documents such as PDFs, so they look the same on other devices.",
+                detail: "The font's embedding permission allows apps to include it in the files they create.",
+                why: "People who open your documents see this font even if they don't have it installed.",
+                action: "Nothing to do.",
+                confidence: .documented
+            )
+        case false?:
+            .info(
+                "Its license doesn't allow embedding in documents, so a PDF may show another font on other devices.",
+                detail: "The font's embedding permission tells apps not to include it in the files they create.",
+                why: "Documents you share can look different for people who don't have this font installed.",
+                action: "For documents you share, choose a font that allows embedding.",
+                confidence: .documented
+            )
+        case nil:
+            nil
         }
     },
 
     ValueRule(.fonts, field: "outline") { context in
         switch decodeBooleanLike(context.reportedValue) {
-        case true?: .info("An outline font, which stays sharp at any size.", confidence: .documented)
-        case false?: .info("Not an outline font: it's drawn from fixed-size bitmaps, which can look blocky when enlarged.", confidence: .documented)
-        case nil: nil
+        case true?:
+            .info(
+                "An outline font, which stays sharp at any size.",
+                detail: "Its characters are stored as outlines that are drawn at whatever size is needed.",
+                why: "Text stays crisp on screen and in print, at any size.",
+                action: "Nothing to do.",
+                confidence: .documented
+            )
+        case false?:
+            .info(
+                "Not an outline font: it's drawn from fixed-size bitmaps, which can look blocky when enlarged.",
+                detail: "Its characters are stored as pixel images made for particular sizes.",
+                why: "It looks sharp only at the sizes it was made for.",
+                action: "Nothing to do. For large or printed text, choose an outline font.",
+                confidence: .documented
+            )
+        case nil:
+            nil
         }
     },
 

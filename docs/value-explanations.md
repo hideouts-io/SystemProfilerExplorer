@@ -70,3 +70,27 @@ an app whose main program is a shell script.
 `docs/value-inventory.md` (the field was classed as free text), so their
 spellings come from Apple's keys and published output, such as the samples in
 <https://github.com/glpi-project/glpi-agent> (`resources/macos/system_profiler`).
+
+## Fonts
+
+Sources: the font kinds and yes/no values are keys in Apple's
+`SPFontReporter` strings; Font Book's Validate Font and duplicate handling are
+described in the Font Book User Guide (<https://support.apple.com/guide/font-book/>).
+Adobe ended support for PostScript Type 1 fonts in January 2023
+(<https://helpx.adobe.com/fonts/kb/postscript-type-1-fonts-end-of-support.html>).
+
+| field | value | meaning | status | source | spelling |
+|---|---|---|---|---|---|
+| `type` | `truetype` | TrueType | Info | Apple | seen |
+| `type` | `opentype` | OpenType | Info | Apple | seen |
+| `type` | `postscript` | PostScript Type 1 | Info | Standard | seen |
+| `type` | `bitmap` | bitmap | Info | Apple | seen |
+| `type` | `unknown` | unrecognized format | Info | Apple | Apple key |
+| `enabled` | `yes`, `no` | turned on or off in Font Book | Normal, Info | Apple | seen (`yes`), Apple key (`no`) |
+| `valid` | `yes`, `no` | passed or failed macOS's checks | Normal, Info | Apple | Apple key |
+| `duplicate` | `yes`, `no` | another copy is installed | Info, Normal | Apple | seen (`no`), Apple key (`yes`) |
+| `copy_protected` | `yes`, `no` | marked copy-protected | Info, Normal | Apple | seen (`no`), Apple key (`yes`) |
+| `embeddable` | `yes`, `no` | license allows embedding | Info | Apple | seen (`yes`), Apple key (`no`) |
+| `outline` | `yes`, `no` | outline or bitmap characters | Info | Apple | seen |
+
+`enabled` and `valid` are explained both for the font file and for each typeface.
