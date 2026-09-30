@@ -1,0 +1,313 @@
+import Foundation
+import Testing
+@testable import SystemProfilerExplorer
+
+/// Value rules for enumeration and on/off fields that docs/value-inventory.md lists
+/// without a value explanation.
+struct ThirdWaveValueTests {
+    // MARK: - Startup security
+
+    @Test
+    func secureBootLevelsChangeTheStatus() {
+        func status(_ value: String) -> ValueStatus? {
+            valueExplanation(dataType: .iBridge, path: ["ibridge_secure_boot"], scalar: .string(value))?.status
+        }
+
+        #expect(status("Full Security") == .normal)
+        #expect(status("Reduced Security") == .informational)
+        #expect(status("Permissive Security") == .worthReviewing)
+        #expect(status("Medium Security") == .informational)
+        #expect(status("No Security") == .worthReviewing)
+        #expect(status("Future Security") == .unknown)
+    }
+
+    @Test
+    func loweredStartupProtectionsAreWorthALook() {
+        func explanation(_ field: String, _ value: String) -> ValueExplanation? {
+            valueExplanation(dataType: .iBridge, path: [field], scalar: .string(value))
+        }
+
+        #expect(explanation("ibridge_sb_sip", "Enabled")?.status == .normal)
+        #expect(explanation("ibridge_sb_sip", "Disabled")?.status == .worthReviewing)
+        #expect(explanation("ibridge_sb_sip", "Custom Configuration")?.summary.contains("partly") == true)
+        #expect(explanation("ibridge_sb_ssv", "Disabled")?.status == .worthReviewing)
+        #expect(explanation("ibridge_sb_ctrr", "Disabled")?.status == .worthReviewing)
+        #expect(explanation("ibridge_sb_boot_args", "Disabled")?.status == .informational)
+        #expect(explanation("ibridge_sb_other_kext", "Yes")?.status == .informational)
+        #expect(explanation("ibridge_sb_other_kext", "No")?.status == .normal)
+    }
+
+    @Test
+    func privilegedManagementIsMarkedAsAnInference() throws {
+        let person = try #require(valueExplanation(dataType: .iBridge, path: ["ibridge_sb_manual_mdm"], scalar: .string("Yes")))
+        let enrollment = try #require(valueExplanation(dataType: .iBridge, path: ["ibridge_sb_device_mdm"], scalar: .string("Yes")))
+
+        #expect(person.confidence?.reasons.isEmpty == false)
+        #expect(person.suggestedAction != nil)
+        #expect(enrollment.summary.contains("Automated Device Enrollment"))
+        #expect(valueExplanation(dataType: .iBridge, path: ["ibridge_sb_device_mdm"], scalar: .string("No"))?.status == .normal)
+    }
+
+    // MARK: - Proxies and VPN On Demand
+
+    @Test
+    func proxySwitchesAreExplainedInEveryForm() {
+        func explanation(_ path: [String], _ scalar: ProfileScalar, _ dataType: SystemProfilerDataType = .network) -> ValueExplanation? {
+            valueExplanation(dataType: dataType, path: path, scalar: scalar)
+        }
+
+        let on = explanation(["Proxies", "HTTPSEnable"], .string("yes"))
+        #expect(on?.status == .informational)
+        #expect(on?.summary.contains("HTTPS") == true)
+        #expect(on?.suggestedAction != nil)
+        #expect(explanation(["Proxies", "HTTPSEnable"], .string("no"))?.status == .normal)
+        #expect(explanation(["spnetworklocation_services", "[]", "VPN", "Proxies", "SOCKSEnable"], .integer(1), .networkLocation)?.status == .informational)
+        #expect(explanation(["spnetworklocation_services", "[]", "VPN", "Proxies", "SOCKSEnable"], .integer(0), .networkLocation)?.status == .normal)
+        #expect(explanation(["Proxies", "ProxyAutoConfigEnable"], .string("yes"))?.summary.contains("PAC") == true)
+        #expect(explanation(["Proxies", "FTPPassive"], .string("no"))?.status == .informational)
+        #expect(explanation(["Proxies", "HTTPEnable"], .string("sometimes"))?.status == .unknown)
+        #expect(decodeSettingFlag("1") == true)
+        #expect(decodeSettingFlag("0") == false)
+        #expect(decodeSettingFlag("2") == nil)
+    }
+
+    @Test
+    func onDemandActionsOnlyApplyToOnDemandRules() {
+        let rulePath: [String] = ["spnetworklocation_services", "[]", "VPN", "OnDemandRules", "[]", "Action"]
+
+        #expect(valueExplanation(dataType: .networkLocation, path: rulePath, scalar: .string("Connect"))?.summary.contains("connects") == true)
+        #expect(valueExplanation(dataType: .networkLocation, path: rulePath, scalar: .string("FutureAction"))?.status == .unknown)
+        #expect(valueExplanation(dataType: .networkLocation, path: ["Other", "Action"], scalar: .string("Connect")) == nil)
+        #expect(valueExplanation(dataType: .networkLocation, path: ["VPN", "OnDemandEnabled"], scalar: .string("true"))?.summary.contains("On Demand is on") == true)
+    }
+
+    // MARK: - Power
+
+    @Test
+    func powerModesNameTheirPowerSource() {
+        let battery = valueExplanation(dataType: .power, path: ["Battery Power", "LowPowerMode"], scalar: .integer(1))
+        let adapter = valueExplanation(dataType: .power, path: ["AC Power", "HighPowerMode"], scalar: .integer(0))
+
+        #expect(battery?.status == .informational)
+        #expect(battery?.summary.contains("on battery") == true)
+        #expect(adapter?.status == .normal)
+        #expect(adapter?.summary.contains("on the power adapter") == true)
+        #expect(powerSourcePhrase("Something Else") == "for this power source")
+        #expect(valueExplanation(dataType: .power, path: ["AC Power", "PrioritizeNetworkReachabilityOverSleep"], scalar: .integer(1))?.summary
+            .contains("reachable on the network") == true)
+    }
+
+    @Test
+    func scheduledPowerEventsAreNamed() {
+        let path: [String] = ["_items", "[]", "_items", "[]", "eventtype"]
+
+        #expect(valueExplanation(dataType: .power, path: path, scalar: .string("wake"))?.summary.contains("wakes") == true)
+        #expect(valueExplanation(dataType: .power, path: path, scalar: .string("shutdown"))?.summary.contains("shuts down") == true)
+        #expect(valueExplanation(dataType: .power, path: path, scalar: .string("future"))?.status == .unknown)
+    }
+
+    // MARK: - Storage
+
+    @Test
+    func externalDrivesAndDiskImagesAreToldApart() {
+        let path: [String] = ["physical_drive", "is_internal_disk"]
+        let diskImage = valueExplanation(dataType: .storage, path: path, scalar: .string("no"), siblings: ["protocol": .string("Disk Image")])
+        let external = valueExplanation(dataType: .storage, path: path, scalar: .string("no"), siblings: ["protocol": .string("USB")])
+
+        #expect(diskImage?.summary.contains("disk image") == true)
+        #expect(external?.summary.contains("external") == true)
+        #expect(valueExplanation(dataType: .storage, path: path, scalar: .string("yes"))?.summary.contains("built into") == true)
+    }
+
+    @Test
+    func storageProtocolsAndOwnershipAreExplained() {
+        #expect(storageProtocolExplanation("Apple Fabric")?.confidence?.reasons.isEmpty == false)
+        #expect(storageProtocolExplanation("USB")?.summary == "Connected over USB.")
+        #expect(valueExplanation(dataType: .storage, path: ["physical_drive", "protocol"], scalar: .string("Future Bus"))?.status == .unknown)
+        #expect(valueExplanation(dataType: .storage, path: ["ignore_ownership"], scalar: .string("yes"))?.status == .informational)
+        #expect(valueExplanation(dataType: .storage, path: ["ignore_ownership"], scalar: .string("no"))?.status == .normal)
+    }
+
+    // MARK: - Software and Secure Element
+
+    @Test
+    func fontFlagsChangeTheExplanation() {
+        func explanation(_ path: [String], _ value: String) -> ValueExplanation? {
+            valueExplanation(dataType: .fonts, path: path, scalar: .string(value))
+        }
+
+        #expect(explanation(["typefaces", "[]", "outline"], "yes")?.summary != explanation(["typefaces", "[]", "outline"], "no")?.summary)
+        #expect(explanation(["typefaces", "[]", "valid"], "no")?.suggestedAction?.contains("Validate Font") == true)
+        #expect(explanation(["typefaces", "[]", "duplicate"], "yes")?.status == .informational)
+        #expect(explanation(["enabled"], "no")?.summary.contains("Font Book") == true)
+        #expect(explanation(["type"], "opentype")?.summary.contains("OpenType") == true)
+        #expect(explanation(["type"], "future_format")?.status == .unknown)
+    }
+
+    @Test
+    func undocumentedSecureElementStatesAreMarkedAsInferences() {
+        let restricted = valueExplanation(dataType: .secureElement, path: ["se_in_restricted_mode"], scalar: .string("Yes"))
+        let development = valueExplanation(dataType: .secureElement, path: ["se_prod_signed"], scalar: .string("No"))
+
+        #expect(restricted?.confidence?.reasons.isEmpty == false)
+        #expect(development?.confidence?.reasons.isEmpty == false)
+        #expect(development?.status == .informational)
+        #expect(valueExplanation(dataType: .secureElement, path: ["se_prod_signed"], scalar: .string("Yes"))?.status == .normal)
+    }
+
+    @Test
+    func extensionArchitecturesAndFrameworkScopeAreExplained() {
+        #expect(valueExplanation(dataType: .extensions, path: ["spext_architectures", "[]"], scalar: .string("x86_64"))?.summary.contains("Intel") == true)
+        #expect(valueExplanation(dataType: .extensions, path: ["spext_loadable"], scalar: .string("no"))?.detail != nil)
+        #expect(valueExplanation(dataType: .frameworks, path: ["private_framework"], scalar: .string("yes"))?.summary.contains("private") == true)
+    }
+
+    // MARK: - Network locations and connection settings
+
+    @Test
+    func connectionSettingsDescribeWhenTheyApply() {
+        let sleep = valueExplanation(dataType: .networkLocation, path: ["spnetworklocation_services", "[]", "PPP", "DisconnectOnSleep"], scalar: .string("yes"))
+        let wake = valueExplanation(dataType: .networkLocation, path: ["spnetworklocation_services", "[]", "VPN", "DisconnectOnWake"], scalar: .integer(0))
+
+        #expect(sleep?.summary == "The connection ends when the Mac goes to sleep.")
+        #expect(wake?.summary == "The connection stays up when the Mac wakes from sleep.")
+        #expect(valueExplanation(dataType: .networkLocation, path: ["PPP", "DialOnDemand"], scalar: .string("yes"))?.summary.contains("automatically") == true)
+        #expect(valueExplanation(dataType: .networkLocation, path: ["IEEE80211", "JoinMode"], scalar: .string("Automatic"))?.status == .normal)
+        #expect(valueExplanation(dataType: .networkLocation, path: ["VPN", "AuthenticationMethod"], scalar: .string("Certificate"))?.summary.contains("certificate") == true)
+    }
+
+    @Test
+    func ethernetMediaSubtypesAreDecoded() {
+        #expect(mediaSubtypeExplanation("autoselect")?.status == .normal)
+        #expect(mediaSubtypeExplanation("none")?.status == .informational)
+        #expect(mediaSubtypeExplanation("1000baseT")?.summary.contains("1 Gb/s") == true)
+        #expect(mediaSubtypeExplanation("2500baseT")?.summary.contains("2.5 Gb/s") == true)
+        #expect(mediaSubtypeExplanation("10GbaseT")?.summary.contains("10 Gb/s") == true)
+        #expect(mediaSubtypeExplanation("future") == nil)
+    }
+
+    // MARK: - Hardware states and managed settings
+
+    @Test
+    func hardwareStatesAreExplained() {
+        #expect(valueExplanation(dataType: .displays, path: ["spdisplays_ndrvs", "[]", "spdisplays_online"], scalar: .string("spdisplays_no"))?.status == .informational)
+        #expect(memoryTypeExplanation("LPDDR5")?.summary.contains("can't be upgraded") == true)
+        #expect(memoryTypeExplanation("DDR4")?.summary.contains("DDR4") == true)
+        #expect(memoryTypeExplanation("HBM") == nil)
+        #expect(valueExplanation(dataType: .cardReader, path: ["spcardreader_link-speed"], scalar: .string("Off"))?.confidence?.reasons.isEmpty == false)
+        #expect(valueExplanation(dataType: .cardReader, path: ["spcardreader_link-speed"], scalar: .string("2.5 GT/s")) == nil)
+        #expect(valueExplanation(dataType: .wifi, path: ["spairport_wireless_locale"], scalar: .string("ETSI"))?.summary.contains("European") == true)
+    }
+
+    @Test
+    func managedPreferenceStatesSayWhetherUsersCanChangeThem() {
+        let path: [String] = ["_items", "[]", "data_state"]
+
+        #expect(valueExplanation(dataType: .managedClient, path: path, scalar: .string("always"))?.summary.contains("can't change") == true)
+        #expect(valueExplanation(dataType: .managedClient, path: path, scalar: .string("once"))?.summary.contains("can change") == true)
+        #expect(valueExplanation(dataType: .managedClient, path: path, scalar: .string("sometimes"))?.status == .unknown)
+    }
+
+    // MARK: - Coverage
+
+    /// Values observed in the full scan behind docs/value-inventory.md for fields this
+    /// wave covers. A value listed here must never fall back to "not yet explained".
+    @Test
+    func observedThirdWaveValuesAreAllExplained() {
+        let observed: [(SystemProfilerDataType, [String], String)] = [
+            (.iBridge, ["ibridge_secure_boot"], "Full Security"),
+            (.iBridge, ["ibridge_sb_sip"], "Enabled"),
+            (.iBridge, ["ibridge_sb_ssv"], "Enabled"),
+            (.iBridge, ["ibridge_sb_ctrr"], "Enabled"),
+            (.iBridge, ["ibridge_sb_boot_args"], "Enabled"),
+            (.iBridge, ["ibridge_sb_other_kext"], "No"),
+            (.iBridge, ["ibridge_sb_manual_mdm"], "No"),
+            (.iBridge, ["ibridge_sb_device_mdm"], "No"),
+            (.network, ["Proxies", "FTPEnable"], "no"),
+            (.network, ["Proxies", "FTPPassive"], "yes"),
+            (.network, ["Proxies", "GopherEnable"], "no"),
+            (.network, ["Proxies", "HTTPEnable"], "no"),
+            (.network, ["Proxies", "HTTPSEnable"], "no"),
+            (.network, ["Proxies", "ProxyAutoConfigEnable"], "no"),
+            (.network, ["Proxies", "ProxyAutoDiscoveryEnable"], "no"),
+            (.network, ["Proxies", "RTSPEnable"], "no"),
+            (.network, ["Proxies", "SOCKSEnable"], "no"),
+            (.network, ["Proxies", "ExcludeSimpleHostnames"], "1"),
+            (.networkLocation, ["spnetworklocation_services", "[]", "Proxies", "HTTPEnable"], "no"),
+            (.networkLocation, ["spnetworklocation_services", "[]", "Proxies", "ProxyAutoConfigEnable"], "0"),
+            (.networkLocation, ["spnetworklocation_services", "[]", "VPN", "Proxies", "HTTPEnable"], "0"),
+            (.networkLocation, ["spnetworklocation_services", "[]", "VPN", "OnDemandEnabled"], "false"),
+            (.networkLocation, ["spnetworklocation_services", "[]", "VPN", "OnDemandRules", "[]", "Action"], "Connect"),
+            (.power, ["AC Power", "LowPowerMode"], "0"),
+            (.power, ["Battery Power", "LowPowerMode"], "1"),
+            (.power, ["AC Power", "HighPowerMode"], "0"),
+            (.power, ["AC Power", "PrioritizeNetworkReachabilityOverSleep"], "0"),
+            (.power, ["Battery Power", "ReduceBrightness"], "1"),
+            (.power, ["sppower_battery_charger_connected"], "FALSE"),
+            (.power, ["sppower_ups_installed"], "FALSE"),
+            (.power, ["_items", "[]", "_items", "[]", "eventtype"], "wake"),
+            (.storage, ["physical_drive", "is_internal_disk"], "yes"),
+            (.storage, ["physical_drive", "is_internal_disk"], "no"),
+            (.storage, ["physical_drive", "protocol"], "Apple Fabric"),
+            (.storage, ["physical_drive", "protocol"], "Disk Image"),
+            (.storage, ["ignore_ownership"], "no"),
+            (.nvme, ["_items", "[]", "detachable_drive"], "no"),
+            (.nvme, ["_items", "[]", "removable_media"], "no"),
+            (.fonts, ["type"], "truetype"),
+            (.fonts, ["type"], "opentype"),
+            (.fonts, ["type"], "postscript"),
+            (.fonts, ["type"], "bitmap"),
+            (.fonts, ["enabled"], "yes"),
+            (.fonts, ["valid"], "yes"),
+            (.fonts, ["typefaces", "[]", "copy_protected"], "no"),
+            (.fonts, ["typefaces", "[]", "duplicate"], "no"),
+            (.fonts, ["typefaces", "[]", "embeddable"], "yes"),
+            (.fonts, ["typefaces", "[]", "enabled"], "yes"),
+            (.fonts, ["typefaces", "[]", "outline"], "yes"),
+            (.fonts, ["typefaces", "[]", "outline"], "no"),
+            (.fonts, ["typefaces", "[]", "valid"], "yes"),
+            (.frameworks, ["private_framework"], "yes"),
+            (.frameworks, ["private_framework"], "no"),
+            (.extensions, ["spext_loadable"], "yes"),
+            (.extensions, ["spext_architectures", "[]"], "arm64e"),
+            (.secureElement, ["se_in_restricted_mode"], "No"),
+            (.secureElement, ["se_prod_signed"], "Yes"),
+            (.network, ["Ethernet", "MediaSubType"], "none"),
+            (.network, ["Ethernet", "MediaSubType"], "autoselect"),
+            (.networkLocation, ["spnetworklocation_isActive"], "yes"),
+            (.networkLocation, ["spnetworklocation_services", "[]", "IEEE80211", "JoinMode"], "Automatic"),
+            (.networkLocation, ["spnetworklocation_services", "[]", "VPN", "AuthenticationMethod"], "Password"),
+            (.networkLocation, ["spnetworklocation_services", "[]", "PPP", "CommDisplayTerminalWindow"], "no"),
+            (.networkLocation, ["spnetworklocation_services", "[]", "PPP", "CommRedialEnabled"], "yes"),
+            (.networkLocation, ["spnetworklocation_services", "[]", "PPP", "CommUseTerminalScript"], "no"),
+            (.networkLocation, ["spnetworklocation_services", "[]", "PPP", "DialOnDemand"], "no"),
+            (.networkLocation, ["spnetworklocation_services", "[]", "PPP", "DisconnectOnFastUserSwitch"], "yes"),
+            (.networkLocation, ["spnetworklocation_services", "[]", "PPP", "DisconnectOnIdle"], "yes"),
+            (.networkLocation, ["spnetworklocation_services", "[]", "PPP", "DisconnectOnLogout"], "yes"),
+            (.networkLocation, ["spnetworklocation_services", "[]", "PPP", "DisconnectOnSleep"], "yes"),
+            (.networkLocation, ["spnetworklocation_services", "[]", "PPP", "IPCPCompressionVJ"], "yes"),
+            (.networkLocation, ["spnetworklocation_services", "[]", "PPP", "IdleReminder"], "no"),
+            (.networkLocation, ["spnetworklocation_services", "[]", "PPP", "LCPEchoEnabled"], "yes"),
+            (.networkLocation, ["spnetworklocation_services", "[]", "PPP", "VerboseLogging"], "no"),
+            (.networkLocation, ["spnetworklocation_services", "[]", "VPN", "DisconnectOnIdle"], "no"),
+            (.networkLocation, ["spnetworklocation_services", "[]", "VPN", "DisconnectOnLogout"], "no"),
+            (.networkLocation, ["spnetworklocation_services", "[]", "VPN", "DisconnectOnSleep"], "no"),
+            (.networkLocation, ["spnetworklocation_services", "[]", "VPN", "DisconnectOnWake"], "0"),
+            (.networkVolumes, ["spnetworkvolume_automounted"], "yes"),
+            (.displays, ["spdisplays_ndrvs", "[]", "spdisplays_online"], "spdisplays_yes"),
+            (.bluetooth, ["controller_properties", "controller_transport"], "PCIe"),
+            (.wifi, ["spairport_airport_interfaces", "[]", "spairport_wireless_locale"], "FCC"),
+            (.usb, ["USBKeyHardwareType"], "Built-in"),
+            (.memory, ["dimm_type"], "LPDDR5"),
+            (.cardReader, ["spcardreader_link-speed"], "Off"),
+            (.cardReader, ["spcardreader_link-width"], "Off"),
+            (.managedClient, ["_items", "[]", "data_state"], "always")
+        ]
+
+        for (dataType, path, value) in observed {
+            let explanation: ValueExplanation? = valueExplanation(dataType: dataType, path: path, scalar: .string(value))
+            #expect(explanation != nil, "\(dataType.rawValue).\(path.joined(separator: ".")) = \(value) has no explanation")
+            #expect(explanation?.status != .unknown, "\(dataType.rawValue).\(path.joined(separator: ".")) = \(value) is not yet explained")
+        }
+    }
+}

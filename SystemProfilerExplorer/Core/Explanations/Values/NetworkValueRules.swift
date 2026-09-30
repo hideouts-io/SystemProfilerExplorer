@@ -590,3 +590,245 @@ private func bluetoothVendorExplanation(_ value: String) -> ValueExplanation? {
 
     return vendorExplanation(value, kind: .bluetooth, reportedName: reportedName)
 }
+
+// MARK: - Proxies and VPN On Demand
+
+/// Reads on/off settings that network configuration stores as `yes`/`no`, `true`/`false`,
+/// or the numbers 1 and 0.
+func decodeSettingFlag(_ value: String) -> Bool? {
+    if let decoded = decodeBooleanLike(value) {
+        return decoded
+    }
+
+    switch value.trimmingCharacters(in: .whitespaces) {
+    case "1": return true
+    case "0": return false
+    default: return nil
+    }
+}
+
+private let proxyProtocols: [(field: String, traffic: String)] = [
+    ("HTTPEnable", "web traffic (HTTP)"),
+    ("HTTPSEnable", "secure web traffic (HTTPS)"),
+    ("SOCKSEnable", "traffic from apps that use a SOCKS proxy"),
+    ("FTPEnable", "FTP file transfers"),
+    ("GopherEnable", "Gopher, an old protocol that's rarely used today"),
+    ("RTSPEnable", "streaming media (RTSP)")
+]
+
+private let proxySettingsAction: String =
+    "If you didn't set up a proxy and your organization doesn't use one, check the Proxies settings for this service in System Settings › Network."
+
+let proxyValueRules: [ValueRule] = proxyProtocols.map { proxy -> ValueRule in
+    ValueRule(.network, .networkLocation, field: proxy.field) { context in
+        switch decodeSettingFlag(context.reportedValue) {
+        case true?:
+            .info(
+                "A proxy server is set for \(proxy.traffic) on this service.",
+                detail: "Matching connections go through the proxy instead of straight to the destination. Organizations, schools, and some security or filtering apps set proxies.",
+                action: proxySettingsAction,
+                confidence: .documented
+            )
+        case false?:
+            .normal("No proxy is set for \(proxy.traffic); connections go directly.", confidence: .documented)
+        case nil:
+            nil
+        }
+    }
+} + [
+    ValueRule(.network, .networkLocation, field: "ProxyAutoConfigEnable") { context in
+        switch decodeSettingFlag(context.reportedValue) {
+        case true?:
+            .info(
+                "Proxy settings come from an automatic configuration (PAC) file.",
+                detail: "The file decides, for each address, whether to use a proxy. Organizations often set this up.",
+                action: proxySettingsAction,
+                confidence: .documented
+            )
+        case false?:
+            .normal("No automatic proxy configuration file is used.", confidence: .documented)
+        case nil:
+            nil
+        }
+    },
+
+    ValueRule(.network, .networkLocation, field: "ProxyAutoDiscoveryEnable") { context in
+        switch decodeSettingFlag(context.reportedValue) {
+        case true?:
+            .info(
+                "macOS looks for proxy settings published on the network (WPAD).",
+                detail: "This is useful on managed networks. On other networks, it lets the network suggest a proxy.",
+                confidence: .documented
+            )
+        case false?:
+            .normal("macOS doesn't look for proxy settings on the network.", confidence: .documented)
+        case nil:
+            nil
+        }
+    },
+
+    ValueRule(.network, .networkLocation, field: "FTPPassive") { context in
+        switch decodeSettingFlag(context.reportedValue) {
+        case true?: .normal("FTP uses passive mode, the default, which works better through firewalls and routers.")
+        case false?: .info("FTP uses active mode, which firewalls and routers often block.")
+        case nil: nil
+        }
+    },
+
+    ValueRule(.network, .networkLocation, field: "ExcludeSimpleHostnames") { context in
+        switch decodeSettingFlag(context.reportedValue) {
+        case true?: .info("Simple host names without a domain, such as intranet names, bypass any proxy.", confidence: .documented)
+        case false?: .info("Simple host names without a domain are treated like other addresses when a proxy is set.", confidence: .documented)
+        case nil: nil
+        }
+    },
+
+    ValueRule(.networkLocation, field: "OnDemandEnabled") { context in
+        switch decodeSettingFlag(context.reportedValue) {
+        case true?:
+            .info(
+                "VPN On Demand is on: the VPN can connect by itself when its rules match, for example on certain networks.",
+                confidence: .documented
+            )
+        case false?:
+            .info("VPN On Demand is off: the VPN connects only when someone or an app starts it.", confidence: .documented)
+        case nil:
+            nil
+        }
+    },
+
+    ValueRule(.networkLocation, field: "Action", unrecognizedValues: .ignore) { context in
+        guard context.pathContains("OnDemandRules") else {
+            return nil
+        }
+
+        return switch context.reportedValue {
+        case "Connect": .info("When this rule matches, the VPN connects automatically.", confidence: .documented)
+        case "Disconnect": .info("When this rule matches, the VPN disconnects.", confidence: .documented)
+        case "EvaluateConnection": .info("When this rule matches, the VPN connects only for the domains the rule lists.", confidence: .documented)
+        case "Ignore": .info("When this rule matches, the VPN is left as it is: running if connected, off if not.", confidence: .documented)
+        default: .unexplained(context.reportedValue)
+        }
+    },
+
+    ValueRule(.networkLocation, field: "InterfaceTypeMatch", unrecognizedValues: .ignore) { context in
+        switch context.reportedValue {
+        case "WiFi": .info("This rule applies when the Mac is on Wi-Fi.", confidence: .documented)
+        case "Ethernet": .info("This rule applies when the Mac is on a wired network.", confidence: .documented)
+        case "Cellular": .info("This rule applies on a cellular connection.", confidence: .documented)
+        default: nil
+        }
+    }
+]
+
+// MARK: - Network locations, dial-up and VPN connection settings
+
+/// When a PPP or VPN connection ends, keyed by the setting that controls it.
+private let disconnectTriggers: [(field: String, event: String)] = [
+    ("DisconnectOnIdle", "the connection has been idle for a while"),
+    ("DisconnectOnLogout", "the user logs out"),
+    ("DisconnectOnSleep", "the Mac goes to sleep"),
+    ("DisconnectOnFastUserSwitch", "another user switches in"),
+    ("DisconnectOnWake", "the Mac wakes from sleep")
+]
+
+/// Dial-up (PPP) switches, with what each means when it's on and off.
+private let dialUpSwitches: [(field: String, whenOn: String, whenOff: String)] = [
+    ("DialOnDemand", "The connection dials automatically when an app needs the network.", "The connection dials only when someone connects it."),
+    ("CommRedialEnabled", "If the line is busy, the connection redials automatically.", "If the line is busy, the connection doesn't redial."),
+    ("IdleReminder", "macOS asks whether to stay connected after the connection has been idle.", "macOS doesn't ask whether to stay connected when the connection is idle."),
+    ("LCPEchoEnabled", "The connection regularly checks that the other end still answers, so a dropped line is noticed.", "The connection doesn't check that the other end still answers."),
+    ("VerboseLogging", "Detailed connection logging is on, which is useful for troubleshooting.", "Detailed connection logging is off."),
+    ("IPCPCompressionVJ", "TCP header compression is on, which saves bandwidth on slow links.", "TCP header compression is off."),
+    ("CommDisplayTerminalWindow", "A terminal window opens while dialing, for servers that need manual sign-in.", "No terminal window opens while dialing."),
+    ("CommUseTerminalScript", "A script runs while dialing to sign in to the server.", "No sign-in script runs while dialing.")
+]
+
+private let disconnectRules: [ValueRule] = disconnectTriggers.map { trigger -> ValueRule in
+    ValueRule(.networkLocation, field: trigger.field) { context in
+        switch decodeSettingFlag(context.reportedValue) {
+        case true?: .info("The connection ends when \(trigger.event).", confidence: .documented)
+        case false?: .info("The connection stays up when \(trigger.event).", confidence: .documented)
+        case nil: nil
+        }
+    }
+}
+
+private let dialUpRules: [ValueRule] = dialUpSwitches.map { setting -> ValueRule in
+    ValueRule(.networkLocation, field: setting.field) { context in
+        switch decodeSettingFlag(context.reportedValue) {
+        case true?: .info(setting.whenOn, confidence: .documented)
+        case false?: .info(setting.whenOff, confidence: .documented)
+        case nil: nil
+        }
+    }
+}
+
+let networkLocationSettingValueRules: [ValueRule] = disconnectRules + dialUpRules + [
+    ValueRule(.networkLocation, field: "spnetworklocation_isActive") { context in
+        switch decodeSettingFlag(context.reportedValue) {
+        case true?: .info("The location in use when the scan ran.", confidence: .documented)
+        case false?: .info("A saved location that wasn't in use when the scan ran.", confidence: .documented)
+        case nil: nil
+        }
+    },
+
+    ValueRule(.networkLocation, field: "JoinMode") { context in
+        switch context.reportedValue {
+        case "Automatic": .normal("Joins known Wi-Fi networks automatically, the default.", confidence: .documented)
+        case "Preferred": .info("Joins known Wi-Fi networks in the order of the preferred networks list.", confidence: .documented)
+        case "Ranked": .info("Joins known Wi-Fi networks in a ranked order.", confidence: .documented)
+        case "Recent": .info("Joins the most recently used known Wi-Fi network.", confidence: .documented)
+        case "Strongest": .info("Joins the known Wi-Fi network with the strongest signal.", confidence: .documented)
+        default: nil
+        }
+    },
+
+    ValueRule(.networkLocation, field: "AuthenticationMethod") { context in
+        switch context.reportedValue {
+        case "Password": .info("The VPN signs in with a password.", confidence: .documented)
+        case "Certificate": .info("The VPN signs in with a certificate.", confidence: .documented)
+        case "SharedSecret": .info("The VPN signs in with a shared secret, a password shared by everyone who uses the server.", confidence: .documented)
+        case "Hybrid": .info("The VPN checks the server's certificate and signs in with a password.", confidence: .documented)
+        default: nil
+        }
+    },
+
+    ValueRule(.network, field: "MediaSubType") { context in
+        mediaSubtypeExplanation(context.reportedValue)
+    },
+
+    ValueRule(.networkVolumes, field: "spnetworkvolume_automounted") { context in
+        switch decodeBooleanLike(context.reportedValue) {
+        case true?:
+            .info("Mounted automatically, for example by a login item, a saved server, or device management.")
+        case false?:
+            .info("Not mounted automatically: someone connected to it, for example with Connect to Server in the Finder.")
+        case nil:
+            nil
+        }
+    }
+]
+
+/// Reads Ethernet media subtypes such as `autoselect`, `none`, or `1000baseT`.
+func mediaSubtypeExplanation(_ value: String) -> ValueExplanation? {
+    switch value.lowercased() {
+    case "autoselect":
+        return .normal("The link speed is negotiated automatically, the default.", confidence: .documented)
+    case "none":
+        return .info("No link type is set, which is usual for a service with nothing connected or no physical port.")
+    default:
+        break
+    }
+
+    guard value.lowercased().contains("baset"), let megabits = leadingInteger(value) else {
+        return nil
+    }
+
+    let unit: Int = value.lowercased().contains("gbaset") ? 1_000 : 1
+    return .info(
+        "The link speed is set by hand to \(ethernetSpeedDescription(megabits: megabits * unit)) instead of being negotiated.",
+        detail: "A fixed speed that doesn't match the other end can make the connection slow or unreliable.",
+        confidence: .documented
+    )
+}

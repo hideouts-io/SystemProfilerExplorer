@@ -229,6 +229,11 @@ struct ValueRule: Sendable {
     }
 }
 
+/// Rules for enumeration and on/off fields added after the first two waves.
+private let thirdWaveValueRules: [ValueRule] = iBridgeValueRules + proxyValueRules
+    + powerSettingValueRules + storageConnectionValueRules + softwareFlagValueRules
+    + networkLocationSettingValueRules + hardwareStateValueRules
+
 private struct ValueRuleKey: Hashable {
     let dataType: SystemProfilerDataType
     let field: String
@@ -241,7 +246,7 @@ private let valueRuleIndex: [ValueRuleKey: [ValueRule]] = {
         + displayValueRules + audioValueRules + thunderboltValueRules
         + legacySoftwareValueRules + syncServicesValueRules + syncServicesSummaryValueRules + internationalValueRules + accessibilityValueRules
         + nvmeValueRules + configurationProfileValueRules + printerValueRules
-        + vendorIdentifierValueRules
+        + vendorIdentifierValueRules + thirdWaveValueRules
     var index: [ValueRuleKey: [ValueRule]] = [:]
 
     for rule in rules {

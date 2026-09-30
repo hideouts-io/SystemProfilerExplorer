@@ -220,3 +220,97 @@ let thunderboltValueRules: [ValueRule] = [
         )
     }
 ]
+
+// MARK: - Hardware connection states and managed settings
+
+let hardwareStateValueRules: [ValueRule] = [
+    ValueRule(.displays, field: "spdisplays_online") { context in
+        switch decodeBooleanLike(context.reportedValue) {
+        case true?: .normal("The display was on and in use when the scan ran.")
+        case false?: .info("The display is connected but wasn't in use when the scan ran, for example because it was off or asleep.")
+        case nil: nil
+        }
+    },
+
+    ValueRule(.bluetooth, field: "controller_transport") { context in
+        switch context.reportedValue.lowercased() {
+        case "pcie": .info("The Bluetooth controller is built in and connected over PCI Express.")
+        case "usb": .info("The Bluetooth controller is connected over USB, as in older Macs and plug-in Bluetooth adapters.")
+        case "uart": .info("The Bluetooth controller is built in and connected over a serial (UART) link.")
+        default: nil
+        }
+    },
+
+    ValueRule(.wifi, field: "spairport_wireless_locale") { context in
+        switch context.reportedValue.uppercased() {
+        case "FCC": .info("Wi-Fi follows the United States (FCC) rules for channels and transmit power.", confidence: .documented)
+        case "ETSI": .info("Wi-Fi follows the European (ETSI) rules for channels and transmit power.", confidence: .documented)
+        case "MKK", "JAPAN": .info("Wi-Fi follows the Japanese (MKK) rules for channels and transmit power.", confidence: .documented)
+        case "ROW": .info("Wi-Fi follows a general set of rules for channels and transmit power used outside specific regions.")
+        default: nil
+        }
+    },
+
+    ValueRule(.usb, field: "USBKeyHardwareType") { context in
+        switch context.reportedValue {
+        case "Built-in": .info("A USB controller built into this Mac.")
+        default: nil
+        }
+    },
+
+    ValueRule(.memory, field: "dimm_type") { context in
+        memoryTypeExplanation(context.reportedValue)
+    },
+
+    ValueRule(.cardReader, field: "spcardreader_link-speed", unrecognizedValues: .ignore) { context in
+        cardReaderLinkExplanation(context.reportedValue)
+    },
+
+    ValueRule(.cardReader, field: "spcardreader_link-width", unrecognizedValues: .ignore) { context in
+        cardReaderLinkExplanation(context.reportedValue)
+    },
+
+    ValueRule(.managedClient, field: "data_state") { context in
+        switch context.reportedValue.lowercased() {
+        case "always":
+            .info("Enforced: the setting is always applied, and users can't change it.", confidence: .documented)
+        case "often":
+            .info("Applied again each time someone logs in, but users can change it in between.", confidence: .documented)
+        case "once":
+            .info("Applied once as a starting point; users can change it afterward.", confidence: .documented)
+        default:
+            nil
+        }
+    }
+]
+
+/// Reads memory types such as `LPDDR5` or `DDR4`.
+func memoryTypeExplanation(_ value: String) -> ValueExplanation? {
+    let type: String = value.uppercased()
+
+    if type.hasPrefix("LPDDR") {
+        return .info(
+            "\(value) memory, a low-power type that is built in and can't be upgraded.",
+            confidence: .documented
+        )
+    }
+
+    if type.hasPrefix("DDR") {
+        return .info("\(value) memory, a standard desktop and notebook memory type.", confidence: .documented)
+    }
+
+    return nil
+}
+
+private func cardReaderLinkExplanation(_ value: String) -> ValueExplanation? {
+    guard decodeBooleanLike(value) == false else {
+        return nil
+    }
+
+    return .info(
+        "The card reader's link was inactive when the scan ran.",
+        confidence: .likely(reasons: [
+            "Card readers usually report an inactive link when no card is inserted."
+        ])
+    )
+}
