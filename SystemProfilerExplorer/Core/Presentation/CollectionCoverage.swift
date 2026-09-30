@@ -162,3 +162,16 @@ private func requestedDataTypes(from arguments: [String]) -> [SystemProfilerData
         seenDataTypes.insert(dataType).inserted
     }
 }
+
+/// Plain-language notes for messages macOS prints routinely while system_profiler runs,
+/// so harmless diagnostic output doesn't read as a problem. The original text is
+/// always shown as well.
+func knownDiagnosticNotes(_ standardError: String) -> [String] {
+    var notes: [String] = []
+
+    if standardError.contains("Class NoFlyZone is implemented in both") {
+        notes.append("“Class NoFlyZone is implemented in both…” is a known macOS message from the Sync Services reporter: two Apple components define the same class. It doesn't affect the results.")
+    }
+
+    return notes
+}
