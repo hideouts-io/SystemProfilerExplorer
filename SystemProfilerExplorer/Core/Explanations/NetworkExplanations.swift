@@ -298,6 +298,70 @@ func bluetoothExplanation(path: [String], reportedValue: String) -> FieldExplana
             interpretation: "The identifier is not proof of hardware authenticity, device ownership, or a remote vendor connection.",
             privacy: nil
         )
+    case "device_address":
+        FieldExplanation(
+            title: "Accessory Address",
+            meaning: "This is the Bluetooth address macOS recorded for a paired accessory, or for one part of it such as an earbud.",
+            significance: "The address is how the Mac recognizes the accessory when it reconnects, and it can match the accessory to entries in Bluetooth logs.",
+            interpretation: "A recorded address shows the accessory was paired at some point. It doesn't show when it last connected, and privacy features can make the address it uses over the air differ.",
+            privacy: "This address can persistently identify the accessory and link it to its owner. Redact it from public reports."
+        )
+    case "device_caseVersion":
+        FieldExplanation(
+            title: "Charging Case Firmware",
+            meaning: "This is the firmware version reported for the accessory's charging case, such as an AirPods case.",
+            significance: "Case firmware updates separately from the earbuds, so this helps when charging or pairing behaves differently from what a firmware release describes.",
+            interpretation: "The version is what the accessory last reported to this Mac. It may be out of date if the case updated while paired with another device.",
+            privacy: nil
+        )
+    case "device_firmwareVersion":
+        FieldExplanation(
+            title: "Accessory Firmware",
+            meaning: "This is the firmware version the paired accessory reported to this Mac.",
+            significance: "It can be compared with the vendor's release notes when an accessory misbehaves after an update.",
+            interpretation: "The version is the last one the accessory reported here, not necessarily what it runs now. It doesn't show whether the firmware is current or genuine.",
+            privacy: nil
+        )
+    case "device_minorType":
+        FieldExplanation(
+            title: "Accessory Type",
+            meaning: "This is the kind of accessory the device says it is, such as headphones, a keyboard, or a mouse.",
+            significance: "It tells you what a paired device is when its name alone doesn't make that clear.",
+            interpretation: "The accessory reports its own type, so an unusual or generic type is not by itself a sign of a problem.",
+            privacy: nil
+        )
+    case "device_productID":
+        FieldExplanation(
+            title: "Accessory Product ID",
+            meaning: "This is the product identifier the paired accessory reports, which names its model within the vendor's range.",
+            significance: "Together with the vendor ID, it identifies which model of accessory this is.",
+            interpretation: "A product ID identifies a model, not this individual accessory, and the accessory reports it about itself.",
+            privacy: nil
+        )
+    case "device_rssi":
+        FieldExplanation(
+            title: "Signal Strength",
+            meaning: "This is the received signal strength macOS last measured from the accessory, in dBm. Values closer to zero are stronger.",
+            significance: "Weak signal can explain dropouts, stutter, or lag with Bluetooth audio and input devices.",
+            interpretation: "The value is one reading from the last time the Mac heard the accessory. It changes with distance, walls, and interference, and it doesn't give a location.",
+            privacy: nil
+        )
+    case "device_serialNumber":
+        FieldExplanation(
+            title: "Accessory Serial Number",
+            meaning: "This is the serial number the paired accessory reported to this Mac.",
+            significance: "It can be used for warranty or support lookups for that specific accessory.",
+            interpretation: "The accessory reports its own serial number. It doesn't prove where the accessory was bought or that it is genuine.",
+            privacy: "A serial number uniquely identifies the accessory and can link it to its owner. Redact it from public reports."
+        )
+    case "device_vendorID":
+        FieldExplanation(
+            title: "Accessory Vendor ID",
+            meaning: "This is the vendor identifier the paired accessory reports, which names the company assigned that ID.",
+            significance: "It helps identify who made the accessory when the name doesn't say.",
+            interpretation: "The accessory reports this about itself, so it is not proof that the hardware is genuine.",
+            privacy: nil
+        )
     default:
         nil
     }

@@ -35,6 +35,22 @@ func internationalExplanation(path: [String], reportedValue: String) -> FieldExp
     let field: String = softwareField(path)
 
     return switch field {
+    case "boot_kbd":
+        FieldExplanation(
+            title: "Startup Keyboard Layout",
+            meaning: "This identifies the keyboard layout macOS uses before anyone signs in, such as at the login window or when unlocking a FileVault-protected disk.",
+            significance: "If it doesn't match the physical keyboard, a correct password can be rejected at startup because keys produce different characters.",
+            interpretation: "The layout is a system setting and can differ from the layout a user picks after signing in. It doesn't reveal what was typed.",
+            privacy: "A keyboard layout can reveal linguistic context. Review it before sharing."
+        )
+    case "boot_locale":
+        FieldExplanation(
+            title: "Startup Locale",
+            meaning: "This is the language and region macOS uses before anyone signs in, such as at the login window and in startup screens.",
+            significance: "It decides which language startup and sign-in screens appear in, which can differ from each user's own settings.",
+            interpretation: "The locale is configuration, not proof of physical location, nationality, or the language anyone speaks.",
+            privacy: "Locale can reveal language and regional preferences. Review it before publishing."
+        )
     case "linguistic_data_assets_requested":
         FieldExplanation(
             title: "Requested Linguistic Asset",
@@ -99,6 +115,14 @@ func internationalExplanation(path: [String], reportedValue: String) -> FieldExp
             significance: "It determines which language models and voice resources the assistant is expected to use.",
             interpretation: "The setting does not prove the assistant was enabled, invoked, recorded audio, or transmitted a request.",
             privacy: "Assistant language preferences can reveal linguistic and regional context. Review them before sharing."
+        )
+    case "user_assistant_voice_gender":
+        FieldExplanation(
+            title: "Assistant Voice",
+            meaning: "This identifies which of the digital assistant's voice options is selected for spoken responses.",
+            significance: "It only changes how spoken responses sound.",
+            interpretation: "The setting says nothing about the user and doesn't show that the assistant was enabled, used, or recorded audio.",
+            privacy: nil
         )
     case "user_calendar":
         FieldExplanation(
