@@ -478,6 +478,8 @@ private let settingsValueSamples: [ValueSample] = {
     samples += ["system_log_description", "sync_diagnostics_log_description"].map {
         ValueSample(.syncServices, ["_items", "[]", "description"], $0)
     }
+    samples.append(ValueSample(.syncServices, ["_items", "[]", "summary_of_sync_log"], ""))
+    samples.append(ValueSample(.syncServices, ["summary_os_version"], "10.6"))
     for field in ["se_in_restricted_mode", "se_prod_signed"] {
         samples += ["Yes", "No"].map { ValueSample(.secureElement, [field], $0) }
     }

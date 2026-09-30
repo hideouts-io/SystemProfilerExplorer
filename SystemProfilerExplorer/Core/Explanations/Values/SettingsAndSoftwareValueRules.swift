@@ -83,7 +83,9 @@ let syncServicesSummaryValueRules: [ValueRule] = [
 
         return .normal(
             "No sync log summary was recorded.",
-            detail: "That's expected on current macOS, which no longer uses Sync Services to sync contacts, calendars, and bookmarks; iCloud does that instead."
+            detail: "That's expected on current macOS, which no longer uses Sync Services to sync contacts, calendars, and bookmarks; iCloud does that instead.",
+            why: "An empty summary means there's no Sync Services activity to review, not that syncing is broken.",
+            action: "Nothing to do. If iCloud data isn't syncing, check iCloud in System Settings instead."
         )
     },
 
@@ -95,6 +97,8 @@ let syncServicesSummaryValueRules: [ValueRule] = [
         return .info(
             "This is the Mac OS X version Sync Services was built for, not the macOS on this Mac.",
             detail: "Apple introduced Sync Services in Mac OS X 10.4 and deprecated it in 10.7, so its reporter can show an old version even on current macOS.",
+            why: "It can look as if this Mac runs a very old system. It doesn't; the Software section shows the macOS version in use.",
+            action: "Nothing to do. Check the Software section for the version of macOS this Mac runs.",
             confidence: .likely(reasons: [
                 "Mac OS X \(context.reportedValue) is older than any macOS this app runs on.",
                 "The value names a Mac OS X release from the period when Sync Services was current."
