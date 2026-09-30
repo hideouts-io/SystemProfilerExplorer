@@ -227,7 +227,7 @@ private func firewallGlance(_ report: SystemProfilerReport) -> String? {
     switch state {
     case "limit_connections", "block_all":
         return "The firewall is on\(stealth == true ? ", with stealth mode on" : "")."
-    case "off":
+    case "off", "allow_all":
         return "The firewall is off."
     default:
         return nil

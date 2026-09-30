@@ -34,7 +34,7 @@ struct SecondWaveValueTests {
 
         #expect(bus.summary.contains("not a physical Ethernet adapter"))
         #expect(bus.confidence?.reasons.count == 2)
-        #expect(usb.suggestedAction == nil)
+        #expect(usb.suggestedAction?.contains("faster") != true)
     }
 
     @Test
@@ -55,7 +55,7 @@ struct SecondWaveValueTests {
         let intelOnly = try #require(valueExplanation(dataType: .legacySoftware, path: ["reason"], scalar: .string("reason_x86_only")))
         let forced = try #require(valueExplanation(dataType: .legacySoftware, path: ["reason"], scalar: .string("reason_x86_forced_environmental")))
 
-        #expect(intelOnly.detail?.contains("macOS 27") == true)
+        #expect(intelOnly.significance?.contains("macOS 27") == true)
         #expect(intelOnly.confidence == .documented)
         #expect(forced.confidence?.reasons.isEmpty == false)
     }
@@ -69,9 +69,10 @@ struct SecondWaveValueTests {
     }
 
     @Test
-    func accessibilityFeaturesAreExplainedOnlyWhenOn() {
+    func accessibilityFeaturesAreInfoWhenOnAndNormalWhenOff() {
         #expect(valueExplanation(dataType: .universalAccess, path: ["voiceover"], scalar: .string("on"))?.summary.contains("VoiceOver") == true)
-        #expect(valueExplanation(dataType: .universalAccess, path: ["voiceover"], scalar: .string("off")) == nil)
+        #expect(valueExplanation(dataType: .universalAccess, path: ["voiceover"], scalar: .string("on"))?.status == .informational)
+        #expect(valueExplanation(dataType: .universalAccess, path: ["voiceover"], scalar: .string("off"))?.status == .normal)
     }
 
     @Test

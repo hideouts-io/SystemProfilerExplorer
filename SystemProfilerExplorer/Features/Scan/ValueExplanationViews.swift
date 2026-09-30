@@ -60,86 +60,63 @@ struct ValueSummaryLine: View {
     }
 }
 
-/// The expanded "What this value means on your Mac" panel. The row already shows the
-/// one-line summary, so the panel adds only the detail, reasons, and next step.
+/// The first thing in an expanded row: what this value means, why it matters, and what
+/// to check. The row already shows the one-line summary, so the panel adds the rest.
 struct ValueMeaningView: View {
     let explanation: ValueExplanation
 
-    @Environment(\.explanationDetailMode) private var detailMode
-
     var body: some View {
-        if hasContent {
-            panel
+        let sections: [ValuePanelSection] = valuePanelSections(for: explanation)
+
+        if !sections.isEmpty {
+            VStack(alignment: .leading, spacing: 12) {
+                ForEach(sections) { section in
+                    ValueMeaningSection(section: section)
+                }
+
+                if let source = valueSourceLine(for: explanation) {
+                    Text(source)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .accessibilityIdentifier("value-source")
+                }
+            }
+            .textSelection(.enabled)
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(explanation.status.tint.opacity(0.07), in: RoundedRectangle(cornerRadius: 11))
+            .padding(.top, 8)
+            .accessibilityIdentifier("value-meaning")
         }
-    }
-
-    private var reasons: [String] {
-        explanation.confidence?.reasons ?? []
-    }
-
-    private var hasContent: Bool {
-        explanation.detail != nil
-            || !reasons.isEmpty
-            || explanation.suggestedAction != nil
-            || (detailMode == .developer && explanation.confidence != nil)
-    }
-
-    private var panel: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            if let detail = explanation.detail {
-                ValueMeaningSection(title: "What this value means on your Mac", symbolName: "text.magnifyingglass") {
-                    Text(detail)
-                        .font(.callout)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-
-            if !reasons.isEmpty {
-                ValueMeaningSection(title: "Why the app thinks so", symbolName: "list.bullet") {
-                    VStack(alignment: .leading, spacing: 4) {
-                        ForEach(reasons, id: \.self) { reason in
-                            Label(reason, systemImage: "circle.fill")
-                                .labelStyle(ReasonLabelStyle())
-                        }
-                    }
-                }
-            }
-
-            if let action = explanation.suggestedAction {
-                ValueMeaningSection(title: "What you can do", symbolName: "hand.point.right") {
-                    Text(action)
-                        .font(.callout)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-
-            if detailMode == .developer, let confidence = explanation.confidence {
-                Text("Explanation source: \(confidence.title)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .textSelection(.enabled)
-        .padding(14)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(explanation.status.tint.opacity(0.07), in: RoundedRectangle(cornerRadius: 11))
-        .padding(.top, 8)
-        .accessibilityIdentifier("value-meaning")
     }
 }
 
-private struct ValueMeaningSection<Content: View>: View {
-    let title: String
-    let symbolName: String
-    @ViewBuilder let content: () -> Content
+private struct ValueMeaningSection: View {
+    let section: ValuePanelSection
 
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
-            Label(title, systemImage: symbolName)
+            Label(section.title, systemImage: section.symbolName)
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(Color.accentColor)
-            content()
+
+            if section.kind == .reasons {
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(section.lines, id: \.self) { reason in
+                        Label(reason, systemImage: "circle.fill")
+                            .labelStyle(ReasonLabelStyle())
+                    }
+                }
+            } else {
+                ForEach(section.lines, id: \.self) { line in
+                    Text(line)
+                        .font(.callout)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
         }
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("value-section-\(section.kind.rawValue)")
     }
 }
 
@@ -154,6 +131,126 @@ private struct ReasonLabelStyle: LabelStyle {
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+}
+
+/// Text about the field in general, shown once per row in a small collapsed area so it
+/// never crowds out what the value means. It holds the explanation coverage note too.
+struct AboutThisFieldView: View {
+    let presentation: FieldPresentation
+    let openSourceLocation: (String) -> Void
+
+    @Environment(\.explanationDetailMode) private var detailMode
+    @State private var isExpanded: Bool
+
+    init(presentation: FieldPresentation, startsExpanded: Bool, openSourceLocation: @escaping (String) -> Void) {
+        self.presentation = presentation
+        self.openSourceLocation = openSourceLocation
+        _isExpanded = State(initialValue: startsExpanded)
+    }
+
+    var body: some View {
+        DisclosureGroup(isExpanded: $isExpanded) {
+            VStack(alignment: .leading, spacing: 10) {
+                if let explanation = presentation.explanation {
+                    FieldNote(title: "What the field records", text: explanation.meaning)
+                    FieldNote(title: "Why the field matters", text: explanation.significance)
+                    FieldNote(title: "Interpret carefully", text: explanation.interpretation)
+
+                    if let privacy = explanation.privacy {
+                        FieldNote(title: "Privacy", text: privacy)
+                    }
+                } else {
+                    FieldNote(
+                        title: "Unrecognized field",
+                        text: "The value is preserved exactly as system_profiler reported it. The app does not infer a meaning for an unrecognized field."
+                    )
+                }
+
+                CoverageNote(coverage: explanationCoverage(for: presentation))
+
+                if detailMode == .developer {
+                    FieldSourceDetails(presentation: presentation, openSourceLocation: openSourceLocation)
+                }
+            }
+            .textSelection(.enabled)
+            .padding(.top, 6)
+        } label: {
+            Label("About this field", systemImage: "info.circle")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+        }
+        .font(.caption)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 9))
+        .padding(.top, 8)
+        .accessibilityIdentifier("about-this-field")
+    }
+}
+
+private struct FieldNote: View {
+    let title: String
+    let text: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title)
+                .font(.caption.weight(.semibold))
+            Text(text)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// The explanation coverage note, such as "Curated explanation". It describes the app's
+/// catalog, not the Mac, so it sits with the field notes rather than on every row.
+private struct CoverageNote: View {
+    let coverage: ExplanationCoverage
+
+    var body: some View {
+        Label {
+            Text("\(Text(coverage.title).fontWeight(.semibold)). \(coverage.detail)")
+                .fixedSize(horizontal: false, vertical: true)
+        } icon: {
+            Image(systemName: coverage.symbolName)
+        }
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .accessibilityIdentifier("explanation-coverage")
+    }
+}
+
+private struct FieldSourceDetails: View {
+    let presentation: FieldPresentation
+    let openSourceLocation: (String) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Divider()
+
+            VStack(alignment: .leading, spacing: 4) {
+                LabeledContent("Source field", value: presentation.sourcePath)
+
+                if presentation.displayedValue != presentation.rawValue {
+                    LabeledContent("Raw value", value: presentation.rawValue)
+                }
+            }
+            .font(.caption)
+            .foregroundStyle(.secondary)
+
+            Button {
+                openSourceLocation(presentation.sourcePath)
+            } label: {
+                Label("Show Raw Source Location", systemImage: "arrow.turn.down.right")
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .accessibilityIdentifier("open-raw-source-\(presentation.sourcePath)")
         }
     }
 }
