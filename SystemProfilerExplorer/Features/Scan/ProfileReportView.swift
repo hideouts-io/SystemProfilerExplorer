@@ -710,6 +710,8 @@ private struct SkippedCollectionView: View {
                         Text(standardError)
                             .font(.caption.monospaced())
                             .textSelection(.enabled)
+
+                        DiagnosticNotes(standardError: standardError)
                     }
                 }
             }
@@ -1552,6 +1554,19 @@ private struct ScalarDeveloperDetails: View {
     }
 }
 
+/// Explains diagnostic messages macOS prints routinely, beneath the original text.
+private struct DiagnosticNotes: View {
+    let standardError: String
+
+    var body: some View {
+        ForEach(knownDiagnosticNotes(standardError), id: \.self) { note in
+            Label(note, systemImage: "info.circle")
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+}
+
 private struct ScanProvenanceView: View {
     let report: SystemProfilerReport
 
@@ -1569,6 +1584,7 @@ private struct ScanProvenanceView: View {
 
                 if !report.standardError.isEmpty {
                     LabeledContent("Standard error", value: report.standardError)
+                    DiagnosticNotes(standardError: report.standardError)
                 }
             }
             .font(.caption)

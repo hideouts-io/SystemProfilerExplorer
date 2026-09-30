@@ -72,6 +72,37 @@ let syncServicesValueRules: [ValueRule] = [
     }
 ]
 
+// MARK: - Sync Services summary
+
+let syncServicesSummaryValueRules: [ValueRule] = [
+    // A summary with text is a log excerpt; only the empty summary needs explaining.
+    ValueRule(.syncServices, field: "summary_of_sync_log", unrecognizedValues: .ignore) { context in
+        guard context.reportedValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return nil
+        }
+
+        return .normal(
+            "No sync log summary was recorded.",
+            detail: "That's expected on current macOS, which no longer uses Sync Services to sync contacts, calendars, and bookmarks; iCloud does that instead."
+        )
+    },
+
+    ValueRule(.syncServices, field: "summary_os_version", unrecognizedValues: .ignore) { context in
+        guard let major = leadingInteger(context.reportedValue), major < 11 else {
+            return nil
+        }
+
+        return .info(
+            "This is the Mac OS X version Sync Services was built for, not the macOS on this Mac.",
+            detail: "Apple introduced Sync Services in Mac OS X 10.4 and deprecated it in 10.7, so its reporter can show an old version even on current macOS.",
+            confidence: .likely(reasons: [
+                "Mac OS X \(context.reportedValue) is older than any macOS this app runs on.",
+                "The value names a Mac OS X release from the period when Sync Services was current."
+            ])
+        )
+    }
+]
+
 // MARK: - Language and region
 
 // Sources: text_direction_ltr, value_no, and US are seen in docs/value-inventory.md. The

@@ -4,6 +4,16 @@ import Testing
 
 struct CollectionCoverageTests {
     @Test
+    func knownMacOSDiagnosticMessagesAreExplained() {
+        let warning: String = "objc[100]: Class NoFlyZone is implemented in both /System/Library/Frameworks/SyncServices.framework/Versions/A/SyncServices (0x1) and /System/Library/SystemProfiler/SPSyncReporter.spreporter/Contents/MacOS/SPSyncReporter (0x2). This may cause spurious casting failures and mysterious crashes. One of the duplicates must be removed or renamed."
+
+        #expect(knownDiagnosticNotes(warning).count == 1)
+        #expect(knownDiagnosticNotes(warning).first?.contains("doesn't affect the results") == true)
+        #expect(knownDiagnosticNotes("system_profiler: operation not permitted").isEmpty)
+        #expect(knownDiagnosticNotes("").isEmpty)
+    }
+
+    @Test
     func liveCoverageDistinguishesCollectedEmptyAndSkippedDataTypes() {
         let report: SystemProfilerReport = SystemProfilerReport(
             sections: [
