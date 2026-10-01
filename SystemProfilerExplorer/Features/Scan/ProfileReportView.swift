@@ -26,6 +26,8 @@ struct ProfileReportView: View {
     @State private var isPreparingIndex: Bool = true
     @State private var isSearching: Bool = false
     @State private var indexingErrorMessage: String?
+    /// A failed search, shown with the results it couldn't update.
+    @State private var searchErrorMessage: String?
     @State private var queryTask: Task<Void, Never>?
     @State private var recentSearchTask: Task<Void, Never>?
     @State private var isShowingSkippedCollection: Bool = false
@@ -136,6 +138,12 @@ struct ProfileReportView: View {
                 applyRecentSearch: applyRecentSearch,
                 submitSearch: submitSearch
             )
+
+            if let searchErrorMessage {
+                SearchFailureNotice(message: searchErrorMessage) {
+                    scheduleQuery(query)
+                }
+            }
 
             if !bookmarkedSourcePaths.isEmpty {
                 FindingBookmarkBar(
@@ -350,6 +358,7 @@ struct ProfileReportView: View {
 
         queryTask?.cancel()
         isSearching = true
+        searchErrorMessage = nil
 
         queryTask = Task {
             do {
@@ -371,7 +380,7 @@ struct ProfileReportView: View {
             } catch is CancellationError {
                 return
             } catch {
-                indexingErrorMessage = "The report search failed. \(error.localizedDescription)"
+                searchErrorMessage = "The search couldn't be completed, so the results below are from the previous search. \(error.localizedDescription)"
                 isSearching = false
                 queryTask = nil
             }
@@ -467,6 +476,32 @@ struct ProfileReportView: View {
             .prefix(8)
             .map { $0 }
         storedRecentSearches = updatedSearches.joined(separator: "\n")
+    }
+}
+
+private struct SearchFailureNotice: View {
+    let message: String
+    let retry: () -> Void
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
+            Label {
+                Text(message)
+                    .fixedSize(horizontal: false, vertical: true)
+            } icon: {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.orange)
+            }
+
+            Spacer(minLength: 8)
+
+            Button("Try Again", action: retry)
+                .accessibilityIdentifier("retry-search")
+        }
+        .font(.callout)
+        .padding(12)
+        .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
+        .accessibilityIdentifier("search-failure")
     }
 }
 
