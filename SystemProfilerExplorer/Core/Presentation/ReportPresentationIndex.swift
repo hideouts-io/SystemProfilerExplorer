@@ -20,6 +20,10 @@ struct ReportPresentationIndex: Sendable, Equatable {
     let glance: [String]
     /// Every value worth a look, in report order.
     let worthReviewingItems: [WorthReviewingItem]
+    /// Facts from across the report that value explanations use, computed once.
+    let valueContext: ValueReportContext
+    /// Which requested data types were collected, computed once.
+    let coverage: CollectionCoverage
     fileprivate let sections: [IndexedReportSection]
     fileprivate let explanationSearchCorpora: [String]
 
@@ -232,6 +236,8 @@ func makeReportPresentationIndex(_ report: SystemProfilerReport) throws -> Repor
         worthReviewingFindingCount: worthReviewingFindingCount,
         glance: reportGlance(report),
         worthReviewingItems: worthReviewingItems,
+        valueContext: valueContext,
+        coverage: collectionCoverage(for: report),
         sections: indexedSections,
         explanationSearchCorpora: explanationInterner.values
     )

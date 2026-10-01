@@ -58,7 +58,7 @@ struct ProfileReportView: View {
                 ReportIndexingView()
             }
         }
-        .environment(\.valueReportContext, valueReportContext(for: report))
+        .environment(\.valueReportContext, presentationIndex?.valueContext ?? .empty)
         .task(id: report.completedAt) {
             await preparePresentationIndex()
         }
@@ -74,7 +74,7 @@ struct ProfileReportView: View {
         }
         .sheet(isPresented: $isShowingSkippedCollection) {
             SkippedCollectionView(
-                coverage: collectionCoverage(for: report),
+                coverage: presentationIndex?.coverage ?? collectionCoverage(for: report),
                 standardError: report.standardError
             )
         }
@@ -104,7 +104,7 @@ struct ProfileReportView: View {
             matchCount: matchCount
         )
 
-        let coverage: CollectionCoverage = collectionCoverage(for: report)
+        let coverage: CollectionCoverage = presentationIndex.coverage
 
         VStack(alignment: .leading, spacing: 16) {
             AtAGlanceCard(
