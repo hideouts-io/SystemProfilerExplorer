@@ -139,6 +139,7 @@ private struct ReasonLabelStyle: LabelStyle {
 /// never crowds out what the value means. It holds the explanation coverage note too.
 struct AboutThisFieldView: View {
     let presentation: FieldPresentation
+    let startsExpanded: Bool
     let openSourceLocation: (String) -> Void
 
     @Environment(\.explanationDetailMode) private var detailMode
@@ -146,6 +147,7 @@ struct AboutThisFieldView: View {
 
     init(presentation: FieldPresentation, startsExpanded: Bool, openSourceLocation: @escaping (String) -> Void) {
         self.presentation = presentation
+        self.startsExpanded = startsExpanded
         self.openSourceLocation = openSourceLocation
         _isExpanded = State(initialValue: startsExpanded)
     }
@@ -187,6 +189,14 @@ struct AboutThisFieldView: View {
         .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 9))
         .padding(.top, 8)
         .accessibilityIdentifier("about-this-field")
+        // After a rescan the row can show a different value, so it returns to the
+        // default for that value instead of keeping the old open or closed state.
+        .onChange(of: presentation.rawValue) { _ in
+            isExpanded = startsExpanded
+        }
+        .onChange(of: startsExpanded) { newValue in
+            isExpanded = newValue
+        }
     }
 }
 

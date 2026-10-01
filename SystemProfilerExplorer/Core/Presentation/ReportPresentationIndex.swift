@@ -20,6 +20,10 @@ struct ReportPresentationIndex: Sendable, Equatable {
     let glance: [String]
     /// Every value worth a look, in report order.
     let worthReviewingItems: [WorthReviewingItem]
+    /// Facts from across the report that value explanations use, computed once.
+    let valueContext: ValueReportContext
+    /// Which requested data types were collected, computed once.
+    let coverage: CollectionCoverage
     fileprivate let sections: [IndexedReportSection]
     fileprivate let explanationSearchCorpora: [String]
 
@@ -57,6 +61,7 @@ struct ReportPresentationIndex: Sendable, Equatable {
         }
 
         var findingCount: Int = 0
+        var visibleLocations: Set<String> = []
         var matchingRecordIndices: [SystemProfilerDataType: [Int]] = [:]
         var findingCountsByDataType: [SystemProfilerDataType: Int] = [:]
         var inspectedFindingCount: Int = 0
@@ -84,6 +89,7 @@ struct ReportPresentationIndex: Sendable, Equatable {
                     }
 
                     recordFindingCount += 1
+                    insertLocationAndGroups(finding.location, into: &visibleLocations)
                 }
 
                 guard recordFindingCount > 0 else {
@@ -103,8 +109,21 @@ struct ReportPresentationIndex: Sendable, Equatable {
             query: query,
             findingCount: findingCount,
             findingCountsByDataType: findingCountsByDataType,
-            matchingRecordIndices: matchingRecordIndices
+            matchingRecordIndices: matchingRecordIndices,
+            visibleLocations: visibleLocations
         )
+    }
+}
+
+/// Adds a matching value's location and the location of every group that contains it,
+/// so each group can tell which of its fields to show with one lookup.
+private func insertLocationAndGroups(_ location: String, into locations: inout Set<String>) {
+    locations.insert(location)
+    var group: Substring = Substring(location)
+
+    while let separator = group.lastIndex(of: ".") {
+        group = group[..<separator]
+        locations.insert(String(group))
     }
 }
 
@@ -113,6 +132,28 @@ struct ReportQueryResult: Sendable, Equatable {
     let findingCount: Int
     fileprivate let findingCountsByDataType: [SystemProfilerDataType: Int]
     fileprivate let matchingRecordIndices: [SystemProfilerDataType: [Int]]
+    /// Locations of matching values and the groups containing them, or nil when no
+    /// search or filter is active and everything is shown.
+    let visibleLocations: Set<String>?
+
+    fileprivate init(
+        query: FindingQuery,
+        findingCount: Int,
+        findingCountsByDataType: [SystemProfilerDataType: Int],
+        matchingRecordIndices: [SystemProfilerDataType: [Int]],
+        visibleLocations: Set<String>? = nil
+    ) {
+        self.query = query
+        self.findingCount = findingCount
+        self.findingCountsByDataType = findingCountsByDataType
+        self.matchingRecordIndices = matchingRecordIndices
+        self.visibleLocations = visibleLocations
+    }
+
+    /// Whether a field or group at this location has something to show.
+    func shows(_ location: String) -> Bool {
+        visibleLocations?.contains(location) ?? true
+    }
 
     func recordSelection(
         for dataType: SystemProfilerDataType,
@@ -195,6 +236,8 @@ func makeReportPresentationIndex(_ report: SystemProfilerReport) throws -> Repor
         worthReviewingFindingCount: worthReviewingFindingCount,
         glance: reportGlance(report),
         worthReviewingItems: worthReviewingItems,
+        valueContext: valueContext,
+        coverage: collectionCoverage(for: report),
         sections: indexedSections,
         explanationSearchCorpora: explanationInterner.values
     )
@@ -212,6 +255,8 @@ fileprivate struct IndexedReportRecord: Sendable, Equatable {
 }
 
 private struct IndexedFinding: Sendable, Equatable {
+    /// This value's position, such as `SPStorageDataType[1].physical_drive.medium_type`.
+    let location: String
     let directSearchCorpus: String
     let ancestorLabelSearchCorpus: String
     let explanationSearchCorpusIndex: Int?
@@ -427,8 +472,11 @@ private func appendIndexedFinding(
         .dropLast()
         .joined(separator: "\n")
 
+    let location: String = findingLocation(dataType: dataType, recordIndex: recordIndex, path: path, arrayIndices: arrayIndices)
+
     findings.append(
         IndexedFinding(
+            location: location,
             directSearchCorpus: directSearchCorpus,
             ancestorLabelSearchCorpus: ancestorLabelSearchCorpus,
             explanationSearchCorpusIndex: explanationIndex,
@@ -448,7 +496,7 @@ private func appendIndexedFinding(
                 fieldTitle: presentation.title,
                 summary: valueExplanation.summary,
                 sourcePath: presentation.sourcePath,
-                location: findingLocation(dataType: dataType, recordIndex: recordIndex, path: path, arrayIndices: arrayIndices)
+                location: location
             )
         )
     }

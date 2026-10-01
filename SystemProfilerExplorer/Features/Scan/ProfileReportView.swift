@@ -12,20 +12,27 @@ private func shouldAutomaticallyExpandResults(
     !query.normalizedText.isEmpty && matchCount <= automaticExpansionFindingLimit
 }
 
+/// The search and filter for one sidebar item's report. Each item keeps its own, so a
+/// search on one doesn't carry over to another.
+struct ReportSearch: Equatable {
+    var text: String = ""
+    var filter: FindingFilter = .all
+}
+
 struct ProfileReportView: View {
     let report: SystemProfilerReport
     /// The report's index when it was already built, so showing the report again
     /// doesn't rebuild it. The view builds its own when this is nil.
     var preparedIndex: ReportPresentationIndex?
-
-    @State private var searchText: String = ""
-    @State private var selectedFilter: FindingFilter = .all
+    @Binding var search: ReportSearch
     @State private var isShowingExportReview: Bool = false
     @State private var presentationIndex: ReportPresentationIndex?
     @State private var displayedQueryResult: ReportQueryResult?
     @State private var isPreparingIndex: Bool = true
     @State private var isSearching: Bool = false
     @State private var indexingErrorMessage: String?
+    /// A failed search, shown with the results it couldn't update.
+    @State private var searchErrorMessage: String?
     @State private var queryTask: Task<Void, Never>?
     @State private var recentSearchTask: Task<Void, Never>?
     @State private var isShowingSkippedCollection: Bool = false
@@ -58,7 +65,7 @@ struct ProfileReportView: View {
                 ReportIndexingView()
             }
         }
-        .environment(\.valueReportContext, valueReportContext(for: report))
+        .environment(\.valueReportContext, presentationIndex?.valueContext ?? .empty)
         .task(id: report.completedAt) {
             await preparePresentationIndex()
         }
@@ -74,7 +81,7 @@ struct ProfileReportView: View {
         }
         .sheet(isPresented: $isShowingSkippedCollection) {
             SkippedCollectionView(
-                coverage: collectionCoverage(for: report),
+                coverage: presentationIndex?.coverage ?? collectionCoverage(for: report),
                 standardError: report.standardError
             )
         }
@@ -104,7 +111,7 @@ struct ProfileReportView: View {
             matchCount: matchCount
         )
 
-        let coverage: CollectionCoverage = collectionCoverage(for: report)
+        let coverage: CollectionCoverage = presentationIndex.coverage
 
         VStack(alignment: .leading, spacing: 16) {
             AtAGlanceCard(
@@ -129,13 +136,19 @@ struct ProfileReportView: View {
             }
 
             FindingControls(
-                searchText: $searchText,
-                selectedFilter: $selectedFilter,
+                searchText: $search.text,
+                selectedFilter: $search.filter,
                 isSearching: isSearching,
                 recentSearches: recentSearches,
                 applyRecentSearch: applyRecentSearch,
                 submitSearch: submitSearch
             )
+
+            if let searchErrorMessage {
+                SearchFailureNotice(message: searchErrorMessage) {
+                    scheduleQuery(query)
+                }
+            }
 
             if !bookmarkedSourcePaths.isEmpty {
                 FindingBookmarkBar(
@@ -269,19 +282,19 @@ struct ProfileReportView: View {
 
     /// Shows only the values worth a look, with the chosen one highlighted.
     private func showWorthReviewingItem(_ item: WorthReviewingItem) {
-        searchText = ""
-        selectedFilter = .worthALook
+        search.text = ""
+        search.filter = .worthALook
         highlightedLocation = item.location
     }
 
     private func showAllWorthReviewing() {
-        searchText = ""
-        selectedFilter = .worthALook
+        search.text = ""
+        search.filter = .worthALook
         highlightedLocation = nil
     }
 
     private var query: FindingQuery {
-        FindingQuery(text: searchText, filter: selectedFilter)
+        FindingQuery(text: search.text, filter: search.filter)
     }
 
     private func preparePresentationIndex() async {
@@ -350,6 +363,7 @@ struct ProfileReportView: View {
 
         queryTask?.cancel()
         isSearching = true
+        searchErrorMessage = nil
 
         queryTask = Task {
             do {
@@ -371,7 +385,7 @@ struct ProfileReportView: View {
             } catch is CancellationError {
                 return
             } catch {
-                indexingErrorMessage = "The report search failed. \(error.localizedDescription)"
+                searchErrorMessage = "The search couldn't be completed, so the results below are from the previous search. \(error.localizedDescription)"
                 isSearching = false
                 queryTask = nil
             }
@@ -391,8 +405,8 @@ struct ProfileReportView: View {
     }
 
     private func clearQuery() {
-        searchText = ""
-        selectedFilter = .all
+        search.text = ""
+        search.filter = .all
         highlightedLocation = nil
     }
 
@@ -425,14 +439,14 @@ struct ProfileReportView: View {
 
     /// Shows a value: searches for its field and highlights the exact row.
     private func openSourceLocation(_ location: String) {
-        selectedFilter = .all
+        search.filter = .all
         highlightedLocation = location
-        searchText = sourcePath(fromLocation: location)
+        search.text = sourcePath(fromLocation: location)
     }
 
-    private func applyRecentSearch(_ search: String) {
+    private func applyRecentSearch(_ recentSearch: String) {
         highlightedLocation = nil
-        searchText = search
+        search.text = recentSearch
     }
 
     /// Saves a search once it has been left unchanged for a moment, so partly typed
@@ -467,6 +481,32 @@ struct ProfileReportView: View {
             .prefix(8)
             .map { $0 }
         storedRecentSearches = updatedSearches.joined(separator: "\n")
+    }
+}
+
+private struct SearchFailureNotice: View {
+    let message: String
+    let retry: () -> Void
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
+            Label {
+                Text(message)
+                    .fixedSize(horizontal: false, vertical: true)
+            } icon: {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.orange)
+            }
+
+            Spacer(minLength: 8)
+
+            Button("Try Again", action: retry)
+                .accessibilityIdentifier("retry-search")
+        }
+        .font(.callout)
+        .padding(12)
+        .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
+        .accessibilityIdentifier("search-failure")
     }
 }
 
@@ -1021,6 +1061,7 @@ private struct ProfileSectionView: View {
                             dataType: section.dataType,
                             path: [],
                             query: queryResult.query,
+                            visibleLocations: queryResult.visibleLocations,
                             automaticallyExpandResults: automaticallyExpandResults,
                             bookmarkedSourcePaths: bookmarkedSourcePaths,
                             toggleBookmark: toggleBookmark,
@@ -1110,6 +1151,8 @@ private struct ProfileValueDisclosure: View {
     let dataType: SystemProfilerDataType
     let path: [String]
     let query: FindingQuery
+    /// Where matching values and their groups are, from the search index; nil shows everything.
+    let visibleLocations: Set<String>?
     let automaticallyExpandResults: Bool
     let bookmarkedSourcePaths: Set<String>
     let toggleBookmark: (String) -> Void
@@ -1143,6 +1186,7 @@ private struct ProfileValueDisclosure: View {
                             dataType: dataType,
                             path: path + [field.key],
                             query: descendantQuery,
+                            visibleLocations: visibleLocations,
                             automaticallyExpandResults: automaticallyExpandResults,
                             bookmarkedSourcePaths: bookmarkedSourcePaths,
                             toggleBookmark: toggleBookmark,
@@ -1181,6 +1225,7 @@ private struct ProfileValueDisclosure: View {
                             dataType: dataType,
                             path: path + ["[]"],
                             query: descendantQuery,
+                            visibleLocations: visibleLocations,
                             automaticallyExpandResults: automaticallyExpandResults,
                             bookmarkedSourcePaths: bookmarkedSourcePaths,
                             toggleBookmark: toggleBookmark,
@@ -1287,44 +1332,28 @@ private struct ProfileValueDisclosure: View {
         )
     }
 
+    /// The search index already knows which values match, so each group shows the fields
+    /// on a path to a match without searching its own subtree again.
     private func filteredObjectFields(_ object: [String: ProfileValue]) -> [ProfileField] {
         let fields: [ProfileField] = visibleObjectFields(object)
 
-        guard descendantQuery.isActive else {
+        guard let visibleLocations else {
             return fields
         }
 
         return fields.filter { field in
-            profileValueMatches(
-                field.value,
-                label: displayName(for: field.key),
-                dataType: dataType,
-                path: path + [field.key],
-                query: descendantQuery,
-                siblings: object,
-                report: valueReportContext
+            visibleLocations.contains(
+                findingLocation(dataType: dataType, recordIndex: recordIndex, path: path + [field.key], arrayIndices: arrayIndices)
             )
         }
     }
 
     private func filteredArrayItems(_ values: [ProfileValue]) -> [ProfileArrayItem] {
-        guard descendantQuery.isActive else {
-            return values.enumerated().map { index, value in
-                ProfileArrayItem(index: index, value: value)
-            }
-        }
-
-        return values.enumerated().compactMap { index, value in
-            let itemLabel: String = recordDisplayLabel(value, fallback: "Item \(index + 1)")
-
-            guard profileValueMatches(
-                value,
-                label: itemLabel,
-                dataType: dataType,
-                path: path + ["[]"],
-                query: descendantQuery,
-                report: valueReportContext
-            ) else {
+        values.enumerated().compactMap { index, value in
+            if let visibleLocations,
+               !visibleLocations.contains(
+                   findingLocation(dataType: dataType, recordIndex: recordIndex, path: path + ["[]"], arrayIndices: arrayIndices + [index])
+               ) {
                 return nil
             }
 
@@ -1340,6 +1369,7 @@ private struct ProfileFieldRow: View {
     let dataType: SystemProfilerDataType
     let path: [String]
     let query: FindingQuery
+    let visibleLocations: Set<String>?
     let automaticallyExpandResults: Bool
     let bookmarkedSourcePaths: Set<String>
     let toggleBookmark: (String) -> Void
@@ -1357,6 +1387,7 @@ private struct ProfileFieldRow: View {
             dataType: dataType,
             path: path,
             query: query,
+            visibleLocations: visibleLocations,
             automaticallyExpandResults: automaticallyExpandResults,
             bookmarkedSourcePaths: bookmarkedSourcePaths,
             toggleBookmark: toggleBookmark,
