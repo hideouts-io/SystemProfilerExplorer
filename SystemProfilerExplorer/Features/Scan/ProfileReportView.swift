@@ -12,14 +12,19 @@ private func shouldAutomaticallyExpandResults(
     !query.normalizedText.isEmpty && matchCount <= automaticExpansionFindingLimit
 }
 
+/// The search and filter for one sidebar item's report. Each item keeps its own, so a
+/// search on one doesn't carry over to another.
+struct ReportSearch: Equatable {
+    var text: String = ""
+    var filter: FindingFilter = .all
+}
+
 struct ProfileReportView: View {
     let report: SystemProfilerReport
     /// The report's index when it was already built, so showing the report again
     /// doesn't rebuild it. The view builds its own when this is nil.
     var preparedIndex: ReportPresentationIndex?
-
-    @State private var searchText: String = ""
-    @State private var selectedFilter: FindingFilter = .all
+    @Binding var search: ReportSearch
     @State private var isShowingExportReview: Bool = false
     @State private var presentationIndex: ReportPresentationIndex?
     @State private var displayedQueryResult: ReportQueryResult?
@@ -131,8 +136,8 @@ struct ProfileReportView: View {
             }
 
             FindingControls(
-                searchText: $searchText,
-                selectedFilter: $selectedFilter,
+                searchText: $search.text,
+                selectedFilter: $search.filter,
                 isSearching: isSearching,
                 recentSearches: recentSearches,
                 applyRecentSearch: applyRecentSearch,
@@ -277,19 +282,19 @@ struct ProfileReportView: View {
 
     /// Shows only the values worth a look, with the chosen one highlighted.
     private func showWorthReviewingItem(_ item: WorthReviewingItem) {
-        searchText = ""
-        selectedFilter = .worthALook
+        search.text = ""
+        search.filter = .worthALook
         highlightedLocation = item.location
     }
 
     private func showAllWorthReviewing() {
-        searchText = ""
-        selectedFilter = .worthALook
+        search.text = ""
+        search.filter = .worthALook
         highlightedLocation = nil
     }
 
     private var query: FindingQuery {
-        FindingQuery(text: searchText, filter: selectedFilter)
+        FindingQuery(text: search.text, filter: search.filter)
     }
 
     private func preparePresentationIndex() async {
@@ -400,8 +405,8 @@ struct ProfileReportView: View {
     }
 
     private func clearQuery() {
-        searchText = ""
-        selectedFilter = .all
+        search.text = ""
+        search.filter = .all
         highlightedLocation = nil
     }
 
@@ -434,14 +439,14 @@ struct ProfileReportView: View {
 
     /// Shows a value: searches for its field and highlights the exact row.
     private func openSourceLocation(_ location: String) {
-        selectedFilter = .all
+        search.filter = .all
         highlightedLocation = location
-        searchText = sourcePath(fromLocation: location)
+        search.text = sourcePath(fromLocation: location)
     }
 
-    private func applyRecentSearch(_ search: String) {
+    private func applyRecentSearch(_ recentSearch: String) {
         highlightedLocation = nil
-        searchText = search
+        search.text = recentSearch
     }
 
     /// Saves a search once it has been left unchanged for a moment, so partly typed

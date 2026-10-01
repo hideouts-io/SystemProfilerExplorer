@@ -10,6 +10,8 @@ struct AppShellView: View {
     /// Each report's search index, built once when the report arrives so switching
     /// between sidebar items doesn't rebuild it.
     @State private var presentationIndexes: [ProfilerSubject: ReportPresentationIndex] = [:]
+    /// Each sidebar item's search and filter, kept while switching between items.
+    @State private var reportSearches: [ProfilerSubject: ReportSearch] = [:]
     @State private var collectionHealth: [ProfilerSubject: CollectionAttemptHealth] = [:]
     @State private var scanState: ScanState = .idle
     @State private var scanTask: Task<Void, Never>?
@@ -239,6 +241,13 @@ struct AppShellView: View {
         }
     }
 
+    private func searchBinding(for subject: ProfilerSubject) -> Binding<ReportSearch> {
+        Binding(
+            get: { reportSearches[subject] ?? ReportSearch() },
+            set: { reportSearches[subject] = $0 }
+        )
+    }
+
     private var selectedSubject: ProfilerSubject? {
         guard case let .subject(subject) = selectedWorkspace else {
             return nil
@@ -255,6 +264,7 @@ struct AppShellView: View {
                 subject: subject,
                 report: reports[subject],
                 presentationIndex: presentationIndexes[subject],
+                search: searchBinding(for: subject),
                 scanState: scanState,
                 activityStartedAt: activityStartedAt,
                 collectionHealth: collectionHealth[subject] ?? .notCollected,
@@ -489,6 +499,7 @@ private struct SubjectWorkspace: View {
     let subject: ProfilerSubject
     let report: SystemProfilerReport?
     let presentationIndex: ReportPresentationIndex?
+    @Binding var search: ReportSearch
     let scanState: ScanState
     let activityStartedAt: Date
     let collectionHealth: CollectionAttemptHealth
@@ -512,10 +523,14 @@ private struct SubjectWorkspace: View {
 
                     // A failed rescan doesn't hide the report from the last one that worked.
                     if let report {
-                        ProfileReportView(report: report, preparedIndex: presentationIndex)
+                        ProfileReportView(report: report, preparedIndex: presentationIndex, search: $search)
+                            // Each sidebar item gets its own view, so highlights, expanded
+                            // groups, and paging don't carry over from another item.
+                            .id(subject)
                     }
                 } else if let report {
-                    ProfileReportView(report: report, preparedIndex: presentationIndex)
+                    ProfileReportView(report: report, preparedIndex: presentationIndex, search: $search)
+                        .id(subject)
                 } else {
                     ReadinessCard(
                         subject: subject,
