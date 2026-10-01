@@ -1021,6 +1021,7 @@ private struct ProfileSectionView: View {
                             dataType: section.dataType,
                             path: [],
                             query: queryResult.query,
+                            visibleLocations: queryResult.visibleLocations,
                             automaticallyExpandResults: automaticallyExpandResults,
                             bookmarkedSourcePaths: bookmarkedSourcePaths,
                             toggleBookmark: toggleBookmark,
@@ -1110,6 +1111,8 @@ private struct ProfileValueDisclosure: View {
     let dataType: SystemProfilerDataType
     let path: [String]
     let query: FindingQuery
+    /// Where matching values and their groups are, from the search index; nil shows everything.
+    let visibleLocations: Set<String>?
     let automaticallyExpandResults: Bool
     let bookmarkedSourcePaths: Set<String>
     let toggleBookmark: (String) -> Void
@@ -1143,6 +1146,7 @@ private struct ProfileValueDisclosure: View {
                             dataType: dataType,
                             path: path + [field.key],
                             query: descendantQuery,
+                            visibleLocations: visibleLocations,
                             automaticallyExpandResults: automaticallyExpandResults,
                             bookmarkedSourcePaths: bookmarkedSourcePaths,
                             toggleBookmark: toggleBookmark,
@@ -1181,6 +1185,7 @@ private struct ProfileValueDisclosure: View {
                             dataType: dataType,
                             path: path + ["[]"],
                             query: descendantQuery,
+                            visibleLocations: visibleLocations,
                             automaticallyExpandResults: automaticallyExpandResults,
                             bookmarkedSourcePaths: bookmarkedSourcePaths,
                             toggleBookmark: toggleBookmark,
@@ -1287,44 +1292,28 @@ private struct ProfileValueDisclosure: View {
         )
     }
 
+    /// The search index already knows which values match, so each group shows the fields
+    /// on a path to a match without searching its own subtree again.
     private func filteredObjectFields(_ object: [String: ProfileValue]) -> [ProfileField] {
         let fields: [ProfileField] = visibleObjectFields(object)
 
-        guard descendantQuery.isActive else {
+        guard let visibleLocations else {
             return fields
         }
 
         return fields.filter { field in
-            profileValueMatches(
-                field.value,
-                label: displayName(for: field.key),
-                dataType: dataType,
-                path: path + [field.key],
-                query: descendantQuery,
-                siblings: object,
-                report: valueReportContext
+            visibleLocations.contains(
+                findingLocation(dataType: dataType, recordIndex: recordIndex, path: path + [field.key], arrayIndices: arrayIndices)
             )
         }
     }
 
     private func filteredArrayItems(_ values: [ProfileValue]) -> [ProfileArrayItem] {
-        guard descendantQuery.isActive else {
-            return values.enumerated().map { index, value in
-                ProfileArrayItem(index: index, value: value)
-            }
-        }
-
-        return values.enumerated().compactMap { index, value in
-            let itemLabel: String = recordDisplayLabel(value, fallback: "Item \(index + 1)")
-
-            guard profileValueMatches(
-                value,
-                label: itemLabel,
-                dataType: dataType,
-                path: path + ["[]"],
-                query: descendantQuery,
-                report: valueReportContext
-            ) else {
+        values.enumerated().compactMap { index, value in
+            if let visibleLocations,
+               !visibleLocations.contains(
+                   findingLocation(dataType: dataType, recordIndex: recordIndex, path: path + ["[]"], arrayIndices: arrayIndices + [index])
+               ) {
                 return nil
             }
 
@@ -1340,6 +1329,7 @@ private struct ProfileFieldRow: View {
     let dataType: SystemProfilerDataType
     let path: [String]
     let query: FindingQuery
+    let visibleLocations: Set<String>?
     let automaticallyExpandResults: Bool
     let bookmarkedSourcePaths: Set<String>
     let toggleBookmark: (String) -> Void
@@ -1357,6 +1347,7 @@ private struct ProfileFieldRow: View {
             dataType: dataType,
             path: path,
             query: query,
+            visibleLocations: visibleLocations,
             automaticallyExpandResults: automaticallyExpandResults,
             bookmarkedSourcePaths: bookmarkedSourcePaths,
             toggleBookmark: toggleBookmark,

@@ -7,6 +7,42 @@ private let performanceFixturePath: String? = ProcessInfo.processInfo.environmen
 ]
 
 struct ReportPresentationIndexTests {
+    /// Groups show a field when the index says a match is on its path. That must agree with
+    /// searching the field's subtree directly, which is what the groups used to do.
+    @Test
+    func visibleLocationsMatchSearchingEachField() throws {
+        let report: SystemProfilerReport = representativeReport()
+        let index: ReportPresentationIndex = try makeReportPresentationIndex(report)
+        let queries: [FindingQuery] = [
+            FindingQuery(text: "unified memory", filter: .all),
+            FindingQuery(text: "Mac Studio", filter: .explained),
+            FindingQuery(text: "String Values", filter: .all),
+            FindingQuery(text: "Item 1", filter: .all),
+            FindingQuery(text: "", filter: .privacy)
+        ]
+
+        #expect(try index.queryResult(for: FindingQuery(text: "", filter: .all)).visibleLocations == nil)
+
+        for query in queries {
+            let result: ReportQueryResult = try index.queryResult(for: query)
+
+            for section in report.sections {
+                for (recordIndex, record) in section.items.enumerated() {
+                    expectFieldsAgree(
+                        record,
+                        label: recordDisplayLabel(record, fallback: "Record \(recordIndex + 1)"),
+                        dataType: section.dataType,
+                        path: [],
+                        recordIndex: recordIndex,
+                        arrayIndices: [],
+                        query: query,
+                        result: result
+                    )
+                }
+            }
+        }
+    }
+
     @Test
     func indexedSummaryAndQueriesMatchRecursiveBehavior() throws {
         let report: SystemProfilerReport = representativeReport()
@@ -238,4 +274,50 @@ private func largeSyntheticReport(
         startedAt: Date(timeIntervalSince1970: 2_000),
         completedAt: Date(timeIntervalSince1970: 2_001)
     )
+}
+
+/// Checks every field and array item below `value`: the index shows it exactly when its
+/// own subtree matches the query a parent group passes down.
+private func expectFieldsAgree(
+    _ value: ProfileValue,
+    label: String,
+    dataType: SystemProfilerDataType,
+    path: [String],
+    recordIndex: Int,
+    arrayIndices: [Int],
+    query: FindingQuery,
+    result: ReportQueryResult
+) {
+    let childQuery: FindingQuery = queryForDescendants(parentLabel: label, query: query)
+
+    switch value {
+    case let .object(object):
+        for (key, fieldValue) in object where key != "_name" {
+            let fieldLabel: String = displayName(for: key)
+            let location: String = findingLocation(dataType: dataType, recordIndex: recordIndex, path: path + [key], arrayIndices: arrayIndices)
+            let matches: Bool = profileValueMatches(fieldValue, label: fieldLabel, dataType: dataType, path: path + [key], query: childQuery, siblings: object)
+
+            #expect(result.shows(location) == matches, "\(query) \(location)")
+
+            if matches {
+                expectFieldsAgree(fieldValue, label: fieldLabel, dataType: dataType, path: path + [key], recordIndex: recordIndex, arrayIndices: arrayIndices, query: childQuery, result: result)
+            }
+        }
+
+    case let .array(values):
+        for (offset, item) in values.enumerated() {
+            let itemLabel: String = recordDisplayLabel(item, fallback: "Item \(offset + 1)")
+            let location: String = findingLocation(dataType: dataType, recordIndex: recordIndex, path: path + ["[]"], arrayIndices: arrayIndices + [offset])
+            let matches: Bool = profileValueMatches(item, label: itemLabel, dataType: dataType, path: path + ["[]"], query: childQuery)
+
+            #expect(result.shows(location) == matches, "\(query) \(location)")
+
+            if matches {
+                expectFieldsAgree(item, label: itemLabel, dataType: dataType, path: path + ["[]"], recordIndex: recordIndex, arrayIndices: arrayIndices + [offset], query: childQuery, result: result)
+            }
+        }
+
+    case .string, .integer, .decimal, .boolean, .null:
+        break
+    }
 }
