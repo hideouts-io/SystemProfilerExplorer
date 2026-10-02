@@ -36,7 +36,7 @@ exists. This branch moves that list into the docs.
 3. [x] Serial ATA: medium type, physical interconnect, negotiated and port
    link speed, Native Command Queuing, and the PCI Express link of Apple's SSD
    controller.
-4. [ ] Disc burning: support level, media in the drive, DVD reading,
+4. [x] Disc burning: support level, media in the drive, DVD reading,
    interconnect, writable CD and DVD formats, and burn strategies.
 5. [ ] Bluetooth accessories: accessory type, battery levels (main, left,
    right, case), and supported services for accessories and the controller.

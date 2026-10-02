@@ -326,7 +326,7 @@ private let valueRuleIndex: [ValueRuleKey: [ValueRule]] = {
         + displayValueRules + audioValueRules + thunderboltValueRules
         + legacySoftwareValueRules + syncServicesValueRules + syncServicesSummaryValueRules + internationalValueRules + accessibilityValueRules
         + nvmeValueRules + configurationProfileValueRules + printerValueRules + extensionValueRules
-        + vendorIdentifierValueRules + thirdWaveValueRules + serialATAValueRules
+        + vendorIdentifierValueRules + thirdWaveValueRules + serialATAValueRules + discBurningValueRules
     var index: [ValueRuleKey: [ValueRule]] = [:]
 
     for rule in rules {
@@ -432,6 +432,21 @@ func tokenSuffix(_ value: String, after marker: String) -> String? {
 func leadingInteger(_ value: String) -> Int? {
     let digits: String = String(value.trimmingCharacters(in: .whitespaces).prefix { $0 == "-" || $0.isNumber })
     return Int(digits)
+}
+
+/// Joins items as an English list: “a”, “a and b”, or “a, b, and c”. Explanations are
+/// written in English, so the list doesn't follow the system language.
+func englishList(_ items: [String]) -> String {
+    switch items.count {
+    case 0:
+        return ""
+    case 1:
+        return items[0]
+    case 2:
+        return "\(items[0]) and \(items[1])"
+    default:
+        return items.dropLast().joined(separator: ", ") + ", and " + (items.last ?? "")
+    }
 }
 
 func formattedByteCount(_ bytes: Int64) -> String {

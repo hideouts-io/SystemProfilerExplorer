@@ -51,7 +51,7 @@ let intelReport: ValueReportContext = ValueReportContext(usbDeviceNames: nil, pr
 let explainedValueSamples: [ValueSample] = applicationValueSamples + fontValueSamples + extensionValueSamples
     + networkValueSamples + softwareHistoryAndFirewallValueSamples + wifiValueSamples
     + powerValueSamples + storageValueSamples + startupAndOverviewValueSamples
-    + hardwareValueSamples + settingsValueSamples + driveAndCardValueSamples
+    + hardwareValueSamples + settingsValueSamples + driveAndCardValueSamples + discDriveValueSamples
 
 /// Each value is checked with no Hardware section, on Apple silicon, and on an Intel Mac,
 /// because what an architecture means depends on the Mac.
@@ -376,6 +376,21 @@ private let driveAndCardValueSamples: [ValueSample] = {
     samples += ["2.5 GT/s", "5.0 GT/s", "8.0 GT/s"].map { ValueSample(.serialATA, ["spsata_linkspeed"], $0) }
     samples += ["x1", "x2", "x4"].map { ValueSample(.serialATA, ["spsata_linkwidth"], $0) }
 
+    return samples
+}()
+
+private let discDriveValueSamples: [ValueSample] = {
+    var samples: [ValueSample] = [
+        "DRDeviceSupportLevelAppleShipping", "DRDeviceSupportLevelAppleSupported", "DRDeviceSupportLevelVendorSupported",
+        "DRDeviceSupportLevelUnsupported", "DRDeviceSupportLevelNone"
+    ].map { ValueSample(.discBurning, ["burn_support"], $0) }
+
+    samples.append(ValueSample(.discBurning, ["device_media"], "media_none"))
+    samples += ["yes", "no"].map { ValueSample(.discBurning, ["device_readdvd"], $0) }
+    samples += ["ATAPI", "USB", "FireWire", "SCSI"].map { ValueSample(.discBurning, ["interconnect"], $0) }
+    samples += ["-R, -RW", "-R"].map { ValueSample(.discBurning, ["device_cdwrite"], $0) }
+    samples += ["-R, -R DL, -RW, +R, +R DL, +RW", "-R, -RAM"].map { ValueSample(.discBurning, ["device_dvdwrite"], $0) }
+    samples += ["CD-TAO, CD-SAO, CD-Raw, DVD-DAO", "CD-TAO"].map { ValueSample(.discBurning, ["device_strategies"], $0) }
     return samples
 }()
 
@@ -790,6 +805,31 @@ struct DriveAndAccessoryValueTests {
         #expect(valueExplanation(dataType: .serialATA, path: ["spsata_linkspeed"], scalar: .string("5.0 GT/s"))?.summary.contains("PCI Express 2") == true)
         #expect(valueExplanation(dataType: .serialATA, path: ["spsata_linkwidth"], scalar: .string("x2"))?.summary.contains("2 PCI Express lanes") == true)
         #expect(valueExplanation(dataType: .serialATA, path: ["spsata_linkwidth"], scalar: .string("wide"))?.status == .unknown)
+    }
+
+    // MARK: - Disc drives
+
+    @Test
+    func discFormatListsAreSpelledOut() throws {
+        let dvd = try #require(valueExplanation(dataType: .discBurning, path: ["device_dvdwrite"], scalar: .string("-R, -R DL, +RW")))
+        let cd = try #require(valueExplanation(dataType: .discBurning, path: ["device_cdwrite"], scalar: .string("-R, -RW")))
+
+        #expect(dvd.summary == "The drive can write DVD-R, DVD-R DL, and DVD+RW.")
+        #expect(cd.summary == "The drive can write CD-R and CD-RW.")
+        #expect(valueExplanation(dataType: .discBurning, path: ["device_dvdwrite"], scalar: .string("-R, +HD"))?.status == .unknown)
+        #expect(valueExplanation(dataType: .discBurning, path: ["device_strategies"], scalar: .string("CD-TAO, HD-DAO"))?.status == .unknown)
+    }
+
+    @Test
+    func aDriveMacOSCantBurnWithIsInformation() {
+        func status(_ value: String) -> ValueStatus? {
+            valueExplanation(dataType: .discBurning, path: ["burn_support"], scalar: .string(value))?.status
+        }
+
+        #expect(status("DRDeviceSupportLevelAppleShipping") == .normal)
+        #expect(status("DRDeviceSupportLevelUnsupported") == .informational)
+        #expect(status("DRDeviceSupportLevelSomethingElse") == .unknown)
+        #expect(valueExplanation(dataType: .discBurning, path: ["device_media"], scalar: .string("media_cdr"))?.status == .unknown)
     }
 
     @Test
