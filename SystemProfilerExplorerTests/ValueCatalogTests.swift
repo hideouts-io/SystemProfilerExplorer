@@ -52,6 +52,7 @@ let explainedValueSamples: [ValueSample] = applicationValueSamples + fontValueSa
     + networkValueSamples + softwareHistoryAndFirewallValueSamples + wifiValueSamples
     + powerValueSamples + storageValueSamples + startupAndOverviewValueSamples
     + hardwareValueSamples + settingsValueSamples + driveAndCardValueSamples + discDriveValueSamples
+    + bluetoothAccessoryValueSamples
 
 /// Each value is checked with no Hardware section, on Apple silicon, and on an Intel Mac,
 /// because what an architecture means depends on the Mac.
@@ -391,6 +392,27 @@ private let discDriveValueSamples: [ValueSample] = {
     samples += ["-R, -RW", "-R"].map { ValueSample(.discBurning, ["device_cdwrite"], $0) }
     samples += ["-R, -R DL, -RW, +R, +R DL, +RW", "-R, -RAM"].map { ValueSample(.discBurning, ["device_dvdwrite"], $0) }
     samples += ["CD-TAO, CD-SAO, CD-Raw, DVD-DAO", "CD-TAO"].map { ValueSample(.discBurning, ["device_strategies"], $0) }
+    return samples
+}()
+
+private let bluetoothAccessoryValueSamples: [ValueSample] = {
+    let accessory: [String] = ["device_connected", "[]", "Example Accessory"]
+    var samples: [ValueSample] = ["Headphones", "Headset", "Keyboard", "Mouse", "Trackpad", "Speaker", "Gamepad"].map {
+        ValueSample(.bluetooth, accessory + ["device_minorType"], $0)
+    }
+
+    for field in ["device_batteryLevelMain", "device_batteryLevelLeft", "device_batteryLevelRight", "device_batteryLevelCase"] {
+        samples += ["100%", "15%", "5%", "0%"].map { ValueSample(.bluetooth, accessory + [field], $0) }
+    }
+
+    samples += ["0x400000 < BLE >", "0x980019 < HFP AVRCP A2DP AACP GATT >"].map {
+        ValueSample(.bluetooth, accessory + ["device_services"], $0)
+    }
+    samples.append(ValueSample(
+        .bluetooth,
+        ["controller_properties", "controller_supportedServices"],
+        "0x382039 < HFP AVRCP A2DP HID Braille AACP GATT SerialPort >"
+    ))
     return samples
 }()
 
@@ -830,6 +852,44 @@ struct DriveAndAccessoryValueTests {
         #expect(status("DRDeviceSupportLevelUnsupported") == .informational)
         #expect(status("DRDeviceSupportLevelSomethingElse") == .unknown)
         #expect(valueExplanation(dataType: .discBurning, path: ["device_media"], scalar: .string("media_cdr"))?.status == .unknown)
+    }
+
+    // MARK: - Bluetooth accessories
+
+    @Test
+    func aNearlyEmptyAccessoryBatteryIsWorthALook() {
+        func explain(_ field: String, _ value: String) -> ValueExplanation? {
+            valueExplanation(dataType: .bluetooth, path: ["device_connected", "[]", "Example Earbuds", field], scalar: .string(value))
+        }
+
+        #expect(explain("device_batteryLevelLeft", "8%")?.status == .worthReviewing)
+        #expect(explain("device_batteryLevelLeft", "8%")?.summary.contains("left earbud") == true)
+        #expect(explain("device_batteryLevelCase", "18%")?.status == .informational)
+        #expect(explain("device_batteryLevelMain", "85%")?.status == .normal)
+        #expect(explain("device_batteryLevelMain", "85")?.status == .unknown)
+        #expect(explain("device_batteryLevelMain", "140%")?.status == .unknown)
+    }
+
+    @Test
+    func accessoryTypesAreNotGuessed() {
+        let path: [String] = ["device_not_connected", "[]", "Example Accessory", "device_minorType"]
+
+        #expect(valueExplanation(dataType: .bluetooth, path: path, scalar: .string("Keyboard"))?.summary == "A keyboard.")
+        #expect(valueExplanation(dataType: .bluetooth, path: path, scalar: .string("Toaster"))?.status == .unknown)
+    }
+
+    @Test
+    func serviceListsNameWhatTheAppDoesntRecognize() throws {
+        let path: [String] = ["device_connected", "[]", "Example Accessory", "device_services"]
+        let mixed = try #require(valueExplanation(dataType: .bluetooth, path: path, scalar: .string("0x1 < A2DP XYZ >")))
+        let apple = try #require(valueExplanation(dataType: .bluetooth, path: path, scalar: .string("0x2 < AACP GATT >")))
+
+        #expect(mixed.summary == "This accessory supports stereo audio (A2DP).")
+        #expect(mixed.detail?.contains("XYZ") == true)
+        #expect(mixed.confidence == .observed)
+        #expect(apple.confidence?.reasons.isEmpty == false)
+        #expect(valueExplanation(dataType: .bluetooth, path: path, scalar: .string("0x3 < XYZ >"))?.status == .unknown)
+        #expect(valueExplanation(dataType: .bluetooth, path: path, scalar: .string("none"))?.status == .unknown)
     }
 
     @Test

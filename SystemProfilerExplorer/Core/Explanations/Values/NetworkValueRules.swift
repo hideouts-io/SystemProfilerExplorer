@@ -1126,6 +1126,193 @@ private func bluetoothVendorExplanation(_ value: String) -> ValueExplanation? {
     return vendorExplanation(value, kind: .bluetooth, reportedName: reportedName)
 }
 
+// MARK: - Bluetooth accessories
+
+// Sources: system_profiler lists accessories under device_connected and
+// device_not_connected, each with device_minorType, and connected ones with
+// device_batteryLevelMain, _Left, _Right, and _Case as percentages such as "85%". Code
+// that reads `system_profiler SPBluetoothDataType -json` shows these keys and the types
+// Keyboard, Mouse, Headphones, Speaker, and Gamepad (the Toothpick extension in
+// https://github.com/raycast/extensions, extensions/toothpick/src/core/devices) and
+// Headset (https://github.com/yigegongjiang/jj-ice); Trackpad appears in older
+// system_profiler output read by https://github.com/matryer/xbar-plugins
+// (System/Battery/trackpad-system_profiler.1m.rb). A published accessory reports
+// device_services as "0x400000 < BLE >" (https://github.com/raycast/extensions/issues/5860).
+// The other service names are standard Bluetooth profile abbreviations; AACP is Apple's
+// own and isn't documented.
+
+let bluetoothAccessoryValueRules: [ValueRule] = [
+    ValueRule(.bluetooth, field: "device_minorType") { context in
+        bluetoothAccessoryTypeExplanation(context.reportedValue)
+    }
+] + bluetoothBatteryParts.map { part -> ValueRule in
+    ValueRule(.bluetooth, field: part.field) { context in
+        bluetoothBatteryExplanation(context.reportedValue, part: part.name)
+    }
+} + [
+    ValueRule(.bluetooth, field: "device_services") { context in
+        bluetoothServicesExplanation(context.reportedValue, owner: "This accessory supports")
+    },
+
+    ValueRule(.bluetooth, field: "controller_supportedServices") { context in
+        bluetoothServicesExplanation(context.reportedValue, owner: "This Mac's Bluetooth supports")
+    }
+]
+
+private let bluetoothBatteryParts: [(field: String, name: String)] = [
+    ("device_batteryLevelMain", "The accessory's battery"),
+    ("device_batteryLevelLeft", "The left earbud's battery"),
+    ("device_batteryLevelRight", "The right earbud's battery"),
+    ("device_batteryLevelCase", "The charging case's battery")
+]
+
+private let lowAccessoryBatteryPercent: Int = 20
+
+private func bluetoothAccessoryTypeExplanation(_ value: String) -> ValueExplanation? {
+    let summary: String
+    let why: String
+
+    switch value.lowercased() {
+    case "headphones":
+        summary = "Headphones or earbuds, such as AirPods."
+        why = "They can play this Mac's sound, and those with a microphone can be used for calls."
+    case "headset":
+        summary = "A headset with a microphone, for calls and audio."
+        why = "It can play this Mac's sound and be used as its microphone."
+    case "keyboard":
+        summary = "A keyboard."
+        why = "It can type on this Mac whenever it's connected."
+    case "mouse":
+        summary = "A mouse."
+        why = "It can move the pointer and click on this Mac whenever it's connected."
+    case "trackpad":
+        summary = "A trackpad, such as a Magic Trackpad."
+        why = "It can move the pointer and click on this Mac whenever it's connected."
+    case "speaker":
+        summary = "A speaker."
+        why = "It can play this Mac's sound."
+    case "gamepad":
+        summary = "A game controller."
+        why = "Games and apps that support controllers can use it."
+    default:
+        return nil
+    }
+
+    return .info(
+        summary,
+        detail: "This is the kind of device the accessory says it is when it pairs.",
+        why: why,
+        action: "Nothing to do. If you don't recognize the accessory, remove it in System Settings › Bluetooth.",
+        confidence: .observed
+    )
+}
+
+private func bluetoothBatteryExplanation(_ value: String, part: String) -> ValueExplanation? {
+    let trimmed: String = value.trimmingCharacters(in: .whitespaces)
+
+    guard trimmed.hasSuffix("%"),
+          let percent = leadingInteger(trimmed),
+          (0...100).contains(percent) else {
+        return nil
+    }
+
+    let detail: String = "This is the level the accessory reported while it was connected to this Mac."
+    let why: String = "When the battery runs out, the accessory stops working until it's charged."
+
+    if percent <= lowBatteryPercent {
+        return .review(
+            "\(part) is at \(percent)%, nearly empty.",
+            detail: detail,
+            why: why,
+            action: "Charge it soon.",
+            confidence: .observed
+        )
+    }
+
+    if percent <= lowAccessoryBatteryPercent {
+        return .info(
+            "\(part) is low, at \(percent)%.",
+            detail: detail,
+            why: why,
+            action: "Charge it when it's convenient.",
+            confidence: .observed
+        )
+    }
+
+    return .normal(
+        "\(part) is at \(percent)%.",
+        detail: detail,
+        why: why,
+        action: "Nothing to do.",
+        confidence: .observed
+    )
+}
+
+private let bluetoothServiceNames: [String: String] = [
+    "A2DP": "stereo audio (A2DP)",
+    "AVRCP": "play and volume controls (AVRCP)",
+    "HFP": "hands-free calls (HFP)",
+    "HSP": "headset audio (HSP)",
+    "HID": "keyboards, mice, and game controllers (HID)",
+    "BRAILLE": "braille displays",
+    "GATT": "Bluetooth Low Energy data such as battery level (GATT)",
+    "BLE": "Bluetooth Low Energy (BLE)",
+    "SERIALPORT": "serial connections (Serial Port)",
+    "SERIAL": "serial connections (Serial Port)",
+    "PAN": "network sharing (PAN)",
+    "AACP": "Apple accessory features (AACP)"
+]
+
+/// Explains a service list such as `0x400000 < BLE >`. Services the app doesn't know are
+/// named as such, and a list with none it knows is left unexplained.
+private func bluetoothServicesExplanation(_ value: String, owner: String) -> ValueExplanation? {
+    guard let open = value.firstIndex(of: "<"),
+          let close = value.lastIndex(of: ">"),
+          open < close else {
+        return nil
+    }
+
+    let tokens: [String] = value[value.index(after: open)..<close]
+        .split(separator: " ")
+        .map(String.init)
+    var known: [String] = []
+    var unknown: [String] = []
+
+    for token in tokens {
+        if let name = bluetoothServiceNames[token.uppercased()] {
+            if !known.contains(name) {
+                known.append(name)
+            }
+        } else {
+            unknown.append(token)
+        }
+    }
+
+    guard !known.isEmpty else {
+        return nil
+    }
+
+    var detail: String = "Each service is a Bluetooth profile, a standard way of doing one job."
+
+    if !unknown.isEmpty {
+        detail += " The app doesn't recognize \(englishList(unknown)), so it isn't described here."
+    }
+
+    let confidence: ValueConfidence = tokens.contains { $0.uppercased() == "AACP" }
+        ? .likely(reasons: [
+            "Apple doesn't document AACP. The app reads it as Apple's own accessory protocol, which Apple accessories such as AirPods list."
+        ])
+        : .observed
+
+    return .info(
+        "\(owner) \(englishList(known)).",
+        detail: detail,
+        why: "It shows what can work over Bluetooth. A listed service isn't necessarily in use.",
+        action: "Nothing to do.",
+        confidence: confidence
+    )
+}
+
 // MARK: - Proxies and VPN On Demand
 
 // Sources: proxy, VPN On Demand, PPP, AirPort join mode, and VPN authentication keys and

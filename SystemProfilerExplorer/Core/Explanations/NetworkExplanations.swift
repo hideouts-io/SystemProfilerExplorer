@@ -306,6 +306,22 @@ func bluetoothExplanation(path: [String], reportedValue: String) -> FieldExplana
             interpretation: "A recorded address shows the accessory was paired at some point. It doesn't show when it last connected, and privacy features can make the address it uses over the air differ.",
             privacy: "This address can persistently identify the accessory and link it to its owner. Redact it from public reports."
         )
+    case "device_batteryLevelMain", "device_batteryLevelLeft", "device_batteryLevelRight", "device_batteryLevelCase":
+        FieldExplanation(
+            title: "Accessory Battery",
+            meaning: "This is the battery level a connected accessory reported, for the accessory itself or for one earbud or the charging case.",
+            significance: "It shows which part needs charging before it stops working.",
+            interpretation: "The level is a snapshot from when the scan ran. Accessories that aren't connected don't report one.",
+            privacy: nil
+        )
+    case "device_services":
+        FieldExplanation(
+            title: "Accessory Services",
+            meaning: "These are the Bluetooth services (profiles) the accessory supports, such as stereo audio or keyboard input.",
+            significance: "They show what the accessory can do with this Mac.",
+            interpretation: "A listed service is supported, not necessarily in use.",
+            privacy: nil
+        )
     case "device_caseVersion":
         FieldExplanation(
             title: "Charging Case Firmware",

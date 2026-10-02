@@ -38,7 +38,7 @@ exists. This branch moves that list into the docs.
    controller.
 4. [x] Disc burning: support level, media in the drive, DVD reading,
    interconnect, writable CD and DVD formats, and burn strategies.
-5. [ ] Bluetooth accessories: accessory type, battery levels (main, left,
+5. [x] Bluetooth accessories: accessory type, battery levels (main, left,
    right, case), and supported services for accessories and the controller.
 6. [ ] Docs: list every new value in `docs/value-explanations.md` with its
    source and spelling, mark the spellings the published samples confirm, and

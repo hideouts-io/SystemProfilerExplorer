@@ -327,6 +327,7 @@ private let valueRuleIndex: [ValueRuleKey: [ValueRule]] = {
         + legacySoftwareValueRules + syncServicesValueRules + syncServicesSummaryValueRules + internationalValueRules + accessibilityValueRules
         + nvmeValueRules + configurationProfileValueRules + printerValueRules + extensionValueRules
         + vendorIdentifierValueRules + thirdWaveValueRules + serialATAValueRules + discBurningValueRules
+        + bluetoothAccessoryValueRules
     var index: [ValueRuleKey: [ValueRule]] = [:]
 
     for rule in rules {
