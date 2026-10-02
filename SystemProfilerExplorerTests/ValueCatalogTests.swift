@@ -366,6 +366,16 @@ private let driveAndCardValueSamples: [ValueSample] = {
         }
     }
 
+    let port: [String: ProfileValue] = ["spsata_portspeed": .string("6 Gigabit")]
+    samples += ["Rotational", "Solid State"].map { ValueSample(.serialATA, drive + ["spsata_medium_type"], $0) }
+    samples += ["Yes", "No"].map { ValueSample(.serialATA, drive + ["spsata_ncq"], $0) }
+    samples += ["SATA", "PCI"].map { ValueSample(.serialATA, ["spsata_physical_interconnect"], $0) }
+    samples += ["1.5 Gigabit", "3 Gigabit", "6 Gigabit", "1,5 Gigabit"].map { ValueSample(.serialATA, ["spsata_portspeed"], $0) }
+    samples += ["3 Gigabit", "6 Gigabit"].map { ValueSample(.serialATA, ["spsata_negotiatedlinkspeed"], $0, siblings: port) }
+    samples.append(ValueSample(.serialATA, ["spsata_negotiatedlinkspeed"], "3 Gigabit"))
+    samples += ["2.5 GT/s", "5.0 GT/s", "8.0 GT/s"].map { ValueSample(.serialATA, ["spsata_linkspeed"], $0) }
+    samples += ["x1", "x2", "x4"].map { ValueSample(.serialATA, ["spsata_linkwidth"], $0) }
+
     return samples
 }()
 
@@ -755,6 +765,31 @@ struct DriveAndAccessoryValueTests {
 
         #expect(valueExplanation(dataType: .serialATA, path: drive + ["smart_status"], scalar: .string("Failing"))?.status == .worthReviewing)
         #expect(valueExplanation(dataType: .serialATA, path: drive + ["smart_status"], scalar: .string("Verified"))?.status == .normal)
+    }
+
+    @Test
+    func aSATALinkSlowerThanItsPortIsPointedOut() throws {
+        func explain(_ negotiated: String, port: String?) -> ValueExplanation? {
+            let siblings: [String: ProfileValue] = port.map { ["spsata_portspeed": ProfileValue.string($0)] } ?? [:]
+            return valueExplanation(dataType: .serialATA, path: ["spsata_negotiatedlinkspeed"], scalar: .string(negotiated), siblings: siblings)
+        }
+
+        let slower = try #require(explain("3 Gigabit", port: "6 Gigabit"))
+        #expect(slower.status == .informational)
+        #expect(slower.summary.contains("slower"))
+        #expect(explain("3 Gigabit", port: "3 Gigabit")?.status == .normal)
+        #expect(explain("6 Gigabit", port: nil)?.summary.contains("SATA III") == true)
+        #expect(explain("12 Gigabit", port: nil)?.status == .unknown)
+    }
+
+    @Test
+    func applesPCIExpressSSDControllerIsMarkedAsAnInference() throws {
+        let pci = try #require(valueExplanation(dataType: .serialATA, path: ["spsata_physical_interconnect"], scalar: .string("PCI")))
+
+        #expect(pci.confidence?.reasons.isEmpty == false)
+        #expect(valueExplanation(dataType: .serialATA, path: ["spsata_linkspeed"], scalar: .string("5.0 GT/s"))?.summary.contains("PCI Express 2") == true)
+        #expect(valueExplanation(dataType: .serialATA, path: ["spsata_linkwidth"], scalar: .string("x2"))?.summary.contains("2 PCI Express lanes") == true)
+        #expect(valueExplanation(dataType: .serialATA, path: ["spsata_linkwidth"], scalar: .string("wide"))?.status == .unknown)
     }
 
     @Test

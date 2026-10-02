@@ -30,10 +30,12 @@ exists. This branch moves that list into the docs.
 
 1. [x] Write this plan.
 2. [x] Apply the drive and volume rules (SMART, partition map, file system,
-   writable, free space, partition content, removable and detachable) to Serial
-   ATA drives and to cards in a card reader, and explain `Windows_FAT_32`.
-3. [ ] Serial ATA: medium type, physical interconnect, negotiated and port
-   link speed, and Native Command Queuing.
+   writable, partition content, removable and detachable) to Serial ATA drives
+   and to cards in a card reader, and explain `Windows_FAT_32`. Free space
+   stays on the Storage section, so a shortage isn't reported twice.
+3. [x] Serial ATA: medium type, physical interconnect, negotiated and port
+   link speed, Native Command Queuing, and the PCI Express link of Apple's SSD
+   controller.
 4. [ ] Disc burning: support level, media in the drive, DVD reading,
    interconnect, writable CD and DVD formats, and burn strategies.
 5. [ ] Bluetooth accessories: accessory type, battery levels (main, left,
