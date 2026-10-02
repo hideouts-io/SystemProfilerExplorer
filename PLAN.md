@@ -29,7 +29,7 @@ exists. This branch moves that list into the docs.
 ## Steps
 
 1. [x] Write this plan.
-2. [ ] Apply the drive and volume rules (SMART, partition map, file system,
+2. [x] Apply the drive and volume rules (SMART, partition map, file system,
    writable, free space, partition content, removable and detachable) to Serial
    ATA drives and to cards in a card reader, and explain `Windows_FAT_32`.
 3. [ ] Serial ATA: medium type, physical interconnect, negotiated and port

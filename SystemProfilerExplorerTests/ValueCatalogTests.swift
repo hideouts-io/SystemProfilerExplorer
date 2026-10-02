@@ -51,7 +51,7 @@ let intelReport: ValueReportContext = ValueReportContext(usbDeviceNames: nil, pr
 let explainedValueSamples: [ValueSample] = applicationValueSamples + fontValueSamples + extensionValueSamples
     + networkValueSamples + softwareHistoryAndFirewallValueSamples + wifiValueSamples
     + powerValueSamples + storageValueSamples + startupAndOverviewValueSamples
-    + hardwareValueSamples + settingsValueSamples
+    + hardwareValueSamples + settingsValueSamples + driveAndCardValueSamples
 
 /// Each value is checked with no Hardware section, on Apple silicon, and on an Intel Mac,
 /// because what an architecture means depends on the Mac.
@@ -339,6 +339,32 @@ private let storageValueSamples: [ValueSample] = {
     samples += [
         "Apple_APFS", "Apple_APFS_ISC", "Apple_APFS_Recovery", "EFI", "Apple_HFS", "Apple_Boot", "Apple_CoreStorage", "Microsoft Basic Data"
     ].map { ValueSample(.nvme, ["_items", "[]", "volumes", "[]", "iocontent"], $0) }
+
+    return samples
+}()
+
+/// Serial ATA drives and cards in a card reader report the same drive and volume
+/// fields as NVMe drives and the Storage section. The values are the ones in the
+/// published macOS samples listed in docs/value-explanations.md.
+private let driveAndCardValueSamples: [ValueSample] = {
+    let drive: [String] = ["_items", "[]"]
+    let volume: [String] = drive + ["volumes", "[]"]
+    var samples: [ValueSample] = []
+
+    for dataType in [SystemProfilerDataType.serialATA, .cardReader] {
+        samples += ["Verified", "Failing", "Not Supported"].map { ValueSample(dataType, drive + ["smart_status"], $0) }
+        samples += ["guid_partition_map_type", "master_boot_record_partition_map_type"].map {
+            ValueSample(dataType, drive + ["partition_map_type"], $0)
+        }
+        for field in ["removable_media", "detachable_drive"] {
+            samples += ["yes", "no"].map { ValueSample(dataType, drive + [field], $0) }
+        }
+        samples += ["Journaled HFS+", "MS-DOS FAT32", "ExFAT", "APFS"].map { ValueSample(dataType, volume + ["file_system"], $0) }
+        samples += ["yes", "no"].map { ValueSample(dataType, volume + ["writable"], $0) }
+        samples += ["Apple_APFS", "EFI", "Apple_HFS", "Apple_Boot", "Apple_CoreStorage", "Windows_FAT_32"].map {
+            ValueSample(dataType, volume + ["iocontent"], $0)
+        }
+    }
 
     return samples
 }()
@@ -700,5 +726,41 @@ struct ValueCatalogTests {
         #expect(processorFamily(inHardwareItems: appleSilicon) == .appleSilicon)
         #expect(processorFamily(inHardwareItems: intel) == .intel)
         #expect(processorFamily(inHardwareItems: [.object(["_name": .string("hardware_overview")])]) == nil)
+    }
+}
+
+/// Values from drives, cards, disc drives, and Bluetooth accessories that the
+/// inventory Mac didn't have.
+struct DriveAndAccessoryValueTests {
+    // MARK: - Serial ATA drives and cards
+
+    @Test
+    func aMemoryCardIsExplainedLikeAnyOtherDrive() throws {
+        let card: [String] = ["_items", "[]"]
+        let volume: [String] = card + ["volumes", "[]"]
+
+        let smart = try #require(valueExplanation(dataType: .cardReader, path: card + ["smart_status"], scalar: .string("Not Supported")))
+        let content = try #require(valueExplanation(dataType: .cardReader, path: volume + ["iocontent"], scalar: .string("Windows_FAT_32")))
+        let format = try #require(valueExplanation(dataType: .cardReader, path: volume + ["file_system"], scalar: .string("MS-DOS FAT32")))
+
+        #expect(smart.status == .informational)
+        #expect(content.summary.contains("FAT32"))
+        #expect(format.summary.contains("4 GB"))
+        #expect(valueExplanation(dataType: .cardReader, path: card + ["removable_media"], scalar: .string("yes"))?.summary.contains("memory card") == true)
+    }
+
+    @Test
+    func aFailingSerialATADriveIsWorthALook() {
+        let drive: [String] = ["_items", "[]"]
+
+        #expect(valueExplanation(dataType: .serialATA, path: drive + ["smart_status"], scalar: .string("Failing"))?.status == .worthReviewing)
+        #expect(valueExplanation(dataType: .serialATA, path: drive + ["smart_status"], scalar: .string("Verified"))?.status == .normal)
+    }
+
+    @Test
+    func anUnknownPartitionTypeOnASerialATADriveIsNotGuessed() {
+        let volume: [String] = ["_items", "[]", "volumes", "[]"]
+
+        #expect(valueExplanation(dataType: .serialATA, path: volume + ["iocontent"], scalar: .string("Linux_Swap"))?.status == .unknown)
     }
 }

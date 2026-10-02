@@ -560,15 +560,21 @@ private func scheduledPowerEventExplanation(_ value: String) -> ValueExplanation
 // system facts come from the Disk Utility User Guide
 // (https://support.apple.com/guide/disk-utility/dsku19ed921c) and the Signed System
 // Volume from https://support.apple.com/guide/security/secd698747c9.
+//
+// Serial ATA drives and cards in a card reader report the same drive and volume fields.
+// The macOS samples in https://github.com/glpi-project/glpi-agent
+// (resources/macos/system_profiler) show a Serial ATA drive as Verified with
+// guid_partition_map_type and Journaled HFS+ and MS-DOS FAT32 volumes, and an SD card as
+// Not Supported with master_boot_record_partition_map_type and an MS-DOS FAT32 volume.
 
 let lowFreeSpaceFraction: Double = 0.10
 
 let storageValueRules: [ValueRule] = [
-    ValueRule(.storage, .nvme, .serialATA, field: "smart_status") { context in
+    ValueRule(.storage, .nvme, .serialATA, .cardReader, field: "smart_status") { context in
         smartStatusExplanation(context.reportedValue)
     },
 
-    ValueRule(.storage, field: "writable") { context in
+    ValueRule(.storage, .serialATA, .cardReader, field: "writable") { context in
         switch decodeBooleanLike(context.reportedValue) {
         case true?:
             return .normal(
@@ -679,11 +685,11 @@ let storageValueRules: [ValueRule] = [
         }
     },
 
-    ValueRule(.storage, field: "file_system") { context in
+    ValueRule(.storage, .serialATA, .cardReader, field: "file_system") { context in
         fileSystemExplanation(context.reportedValue)
     },
 
-    ValueRule(.storage, .nvme, field: "partition_map_type") { context in
+    ValueRule(.storage, .nvme, .serialATA, .cardReader, field: "partition_map_type") { context in
         partitionMapExplanation(context.reportedValue)
     }
 ]
@@ -847,7 +853,7 @@ let storageConnectionValueRules: [ValueRule] = [
         }
     },
 
-    ValueRule(.nvme, field: "removable_media") { context in
+    ValueRule(.nvme, .serialATA, .cardReader, field: "removable_media") { context in
         switch decodeBooleanLike(context.reportedValue) {
         case true?:
             .info(
@@ -870,7 +876,7 @@ let storageConnectionValueRules: [ValueRule] = [
         }
     },
 
-    ValueRule(.nvme, field: "detachable_drive") { context in
+    ValueRule(.nvme, .serialATA, .cardReader, field: "detachable_drive") { context in
         switch decodeBooleanLike(context.reportedValue) {
         case true?:
             .info(
