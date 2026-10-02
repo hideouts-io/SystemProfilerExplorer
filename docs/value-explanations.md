@@ -31,10 +31,15 @@ current one); the table says so.
   `Apple_System_Profiler.lg` and `SP*Reporter.lg`). These glossaries come from
   an older macOS release, so a key there is a spelling Apple used, not proof
   that current macOS still reports it.
-- **published**: in system_profiler output published online.
+- **published**: in system_profiler output published online, or in code that
+  reads `system_profiler -json`. The macOS samples in
+  <https://github.com/glpi-project/glpi-agent> (`resources/macos/system_profiler`)
+  are XML output from older macOS releases; XML and JSON use the same keys and
+  values.
 - **unconfirmed**: no source shows this spelling. It's matched so the value is
-  explained if it appears, and it's listed under "Values that need a scan" in
-  `PLAN.md`.
+  explained if it appears, and it's listed under
+  [Values that need a scan](#values-that-need-a-scan-on-a-real-mac) at the end of
+  this file.
 
 ## Applications and frameworks
 
@@ -268,9 +273,10 @@ modes: the `pmset` man page.
 
 ## Storage and NVMe
 
-Sources: the values seen in `docs/value-inventory.md`, and the keys in Apple's
+Sources: the values seen in `docs/value-inventory.md`, the keys in Apple's
 `SPStorageReporter`, `SPNVMeReporter`, `SPSerialATAReporter` and `SPSupport`
-strings. File systems: "File system formats available in Disk Utility on Mac"
+strings, and the glpi-agent samples, which show a Serial ATA drive with Journaled
+HFS+ and MS-DOS FAT32 volumes and an SD card in a card reader. File systems: "File system formats available in Disk Utility on Mac"
 (<https://support.apple.com/guide/disk-utility/dsku19ed921c>). The sealed system
 volume: "Signed system volume security"
 (<https://support.apple.com/guide/security/secd698747c9>).
@@ -279,14 +285,16 @@ volume: "Signed system volume security"
 |---|---|---|---|---|
 | `smart_status` | `Verified` | Normal | Apple | seen |
 | `smart_status` | `Failing` | Worth a look | Apple | Apple key |
-| `smart_status` | `Not Supported` | Info | Apple | Apple key |
+| `smart_status` | `Not Supported` | Info | Apple | Apple key, published |
 | `medium_type` | `ssd` | Info | Apple | seen |
 | `medium_type` | `rotational` | Info | Apple | Apple key |
 | `file_system` | `APFS` | Normal | Apple | seen |
 | `file_system` | `Journaled HFS+`, `Case-sensitive Journaled HFS+` | Info | Apple | Apple key |
-| `file_system` | `ExFAT`, `MS-DOS FAT32`, `NTFS` | Info | Apple | unconfirmed (matched by name) |
+| `file_system` | `MS-DOS FAT32` | Info | Apple | published |
+| `file_system` | `ExFAT`, `NTFS` | Info | Apple | unconfirmed (matched by name) |
 | `partition_map_type` | `guid_partition_map_type` | Normal | Apple | seen |
-| `partition_map_type` | `master_boot_record_partition_map_type`, `apple_partition_map_type` | Info | Apple | Apple key |
+| `partition_map_type` | `master_boot_record_partition_map_type` | Info | Apple | Apple key, published |
+| `partition_map_type` | `apple_partition_map_type` | Info | Apple | Apple key |
 | `partition_map_type` | `unknown_partition_map_type` | Info | Inferred | seen |
 | `writable` | `yes`; `no` on the system volume, a disk image, or another volume | Normal, Info | Apple | seen |
 | `free_space_in_bytes` | a byte count (under 10% free is Worth a look) | Normal, Info, Worth a look | Standard | seen |
@@ -298,7 +306,62 @@ volume: "Signed system volume security"
 | `removable_media`, `detachable_drive` | `yes`, `no` | Info | Apple | seen (`no`) |
 | `spnvme_trim_support`, `spsata_trim_support` | `Yes`, `No` | Normal, Info | Apple | seen (`Yes`), Apple key (field) |
 | `iocontent` | `Apple_APFS`, `Apple_APFS_ISC`, `Apple_APFS_Recovery` | Info | Apple | seen |
-| `iocontent` | `EFI`, `Apple_HFS`, `Apple_Boot`, `Apple_CoreStorage`, `Microsoft Basic Data` | Info | Standard | unconfirmed (names `diskutil list` shows) |
+| `iocontent` | `EFI`, `Apple_HFS`, `Apple_Boot`, `Apple_CoreStorage` | Info | Standard | published (Serial ATA volumes) |
+| `iocontent` | `Windows_FAT_32` | Info | Standard | published (a card in a card reader) |
+| `iocontent` | `Microsoft Basic Data` | Info | Standard | unconfirmed (the name `diskutil list` shows) |
+
+Serial ATA drives and cards in a card reader report the same drive and volume
+fields, and get the same explanations: `smart_status`, `partition_map_type`,
+`removable_media`, `detachable_drive`, and each volume's `file_system`,
+`writable`, and `iocontent`. Free space is explained only in the Storage
+section, which lists the same volumes, so a shortage isn't reported twice.
+
+## Serial ATA
+
+Sources: the glpi-agent samples (an Intel SATA controller, Apple's SSD
+controller, and a virtual machine). SATA generations follow the SATA-IO
+specifications and PCI Express rates the PCI-SIG specifications.
+
+| field | value | status | source | spelling |
+|---|---|---|---|---|
+| `spsata_medium_type` | `Rotational`, `Solid State` | Info | Standard | published |
+| `spsata_physical_interconnect` | `SATA` | Info | Standard | published |
+| `spsata_physical_interconnect` | `PCI` (Apple's SSD controller) | Info | Inferred | published |
+| `spsata_portspeed` | `1.5 Gigabit`, `3 Gigabit`, `6 Gigabit` | Info | Standard | published (`3 Gigabit`); others unconfirmed |
+| `spsata_negotiatedlinkspeed` | the same speeds; slower than `spsata_portspeed` is Info | Normal, Info | Standard | published (`3 Gigabit`); others unconfirmed |
+| `spsata_ncq` | `Yes`, `No` | Normal, Info | Standard | published |
+| `spsata_linkspeed` | `2.5`, `5.0`, `8.0`, `16.0`, `32.0 GT/s` | Info | Standard | published (`5.0 GT/s`); others unconfirmed |
+| `spsata_linkwidth` | `x1`, `x2`, `x4`, `x8`, `x16` | Info | Standard | published (`x2`); others unconfirmed |
+
+Speeds written with a decimal comma, such as `1,5 Gigabit`, are read too, since
+the samples show sizes written that way in some languages. `spsata_power_off`
+and `spsata_async_notify` (both `No` in the samples) have no rule, because no
+source says what they report.
+
+## Disc burning
+
+Sources: the glpi-agent samples, and the support levels and interconnects of
+Apple's Disc Recording framework (`DRDeviceSupportLevel…` and
+`DRDevicePhysicalInterconnect…`, listed in
+<https://developer.apple.com/library/archive/releasenotes/General/APIDiffsMacOSX10_10_3/modules/DiscRecording.html>).
+
+| field | value | status | source | spelling |
+|---|---|---|---|---|
+| `burn_support` | `DRDeviceSupportLevelAppleShipping` | Normal | Apple | published |
+| `burn_support` | `DRDeviceSupportLevelAppleSupported` | Normal | Apple | Apple constant |
+| `burn_support` | `DRDeviceSupportLevelVendorSupported`, `DRDeviceSupportLevelUnsupported`, `DRDeviceSupportLevelNone` | Info | Apple | Apple constant |
+| `device_media` | `media_none` | Info | Standard | published |
+| `device_readdvd` | `yes`, `no` | Info | Standard | published (`yes`) |
+| `interconnect` | `ATAPI` | Info | Apple | published |
+| `interconnect` | `USB`, `FireWire`, `SCSI` | Info | Apple | Apple constant |
+| `device_cdwrite`, `device_dvdwrite` | lists of `-R`, `-RW`, `+R`, `+RW`, `-R DL`, `+R DL` | Info | Standard | published |
+| `device_cdwrite`, `device_dvdwrite` | lists that include `-RAM` or `+RW DL` | Info | Standard | unconfirmed |
+| `device_strategies` | lists of `CD-TAO`, `CD-SAO`, `CD-Raw`, `DVD-DAO` | Info | Apple | published |
+| `device_strategies` | lists that include `BD-DAO` | Info | Apple | unconfirmed (Apple constant) |
+
+A list with an entry the app doesn't know is shown as not yet explained, rather
+than partly explained. `device_media` values other than `media_none` (a disc in
+the drive) are not explained yet.
 
 ## Startup security, software overview, and hardware
 
@@ -380,6 +443,33 @@ Bluetooth visibility: <https://support.apple.com/guide/mac-help/blth1004>.
 | `spethernet_max_link_speed` | `ethernet_speed_N` | Info | Apple | seen |
 | `spethernet_usb_device_speed` | `low_speed` … `super_speed_plus_by_2` | Info | Apple | seen (`high_speed`); others unconfirmed |
 
+## Bluetooth accessories
+
+Sources: the inventory Mac had no connected accessories, so these spellings come
+from code that reads `system_profiler SPBluetoothDataType -json`: the Toothpick
+extension in <https://github.com/raycast/extensions>
+(`extensions/toothpick/src/core/devices`), which reads `device_minorType` and the
+four battery levels; <https://github.com/yigegongjiang/jj-ice>, which reads
+`Headphones` and `Headset`; and a published accessory in
+<https://github.com/raycast/extensions/issues/5860> (`Mouse`, `0x400000 < BLE >`).
+`Trackpad` is from older text output read by
+<https://github.com/matryer/xbar-plugins>
+(`System/Battery/trackpad-system_profiler.1m.rb`). Service names are standard
+Bluetooth profile abbreviations.
+
+| field | value | status | source | spelling |
+|---|---|---|---|---|
+| `device_minorType` | `Headphones`, `Headset`, `Keyboard`, `Mouse`, `Speaker`, `Gamepad` | Info | Standard | published |
+| `device_minorType` | `Trackpad` | Info | Standard | published (older text output) |
+| `device_batteryLevelMain`, `_Left`, `_Right`, `_Case` | a percentage such as `85%`: over 20% Normal, 11–20% Info, 10% or less Worth a look | Normal, Info, Worth a look | Standard | published (keys and `%` format) |
+| `device_services`, `controller_supportedServices` | `< BLE >` | Info | Standard | published |
+| `device_services`, `controller_supportedServices` | lists of `A2DP`, `AVRCP`, `HFP`, `HID`, `GATT`, `Braille`, `SerialPort`, `Serial`, `HSP`, `PAN` | Info | Standard | unconfirmed in this form |
+| `device_services`, `controller_supportedServices` | lists that include `AACP` | Info | Inferred | unconfirmed |
+
+A service list names any service the app doesn't know, and a list with none it
+knows is shown as not yet explained. The accessory types other than these are
+not explained yet.
+
 ## Settings and profiles
 
 Sources: the values seen in `docs/value-inventory.md`, and the keys in Apple's
@@ -419,3 +509,66 @@ CUPS printer states.
 | `description` (sync services) | other `…_log_description` names | Info | Inferred | unconfirmed |
 | `se_in_restricted_mode` | `No`, `Yes` | Normal, Info | Inferred | seen (`No`), Apple key |
 | `se_prod_signed` | `Yes`, `No` | Normal, Info | Inferred | Apple key (withheld in the inventory) |
+
+## Values that need a scan on a real Mac
+
+Each of these is explained, but no public source confirms the exact spelling
+current macOS reports, or the inventory withheld the field's values. A scan with
+the matching hardware or setting would confirm them (or show a spelling to add).
+Until then, a different spelling is shown as "not yet explained".
+
+**Fields whose value format is unknown** (no rule, or the rule may never match):
+
+- `contrast` (Accessibility): no rule; its values were withheld.
+- `ibridge_extra_boot_policies` (Apple Bridge): no rule; its values were withheld.
+- `UserVisible` (scheduled power events): no rule; its values were withheld.
+- `ibridge_external_boot` (Macs with the T2 Security Chip): Apple's strings name
+  `External Drive`, `Network`, `Internal`, `Disallowed`, and `BootCamp`, but which
+  field reports which isn't clear without a scan of a T2 Mac, so it has no rule.
+- `link_status_key` (Thunderbolt): the rule matches Apple's `trained_link_status`
+  family, but current macOS may report a number such as `0x2`.
+- `printersharing`, `scanner`, `shared`, `default`, and `status` (Printers):
+  needs a Mac with a printer set up.
+- `spsata_power_off` and `spsata_async_notify` (Serial ATA): no rule; no source
+  says what they report.
+
+**Spellings to confirm, by section:**
+
+- Applications: `arch_ppc`, `ios_app_store`; and whether current macOS still
+  reports the older Apple keys `arch_i32`, `arch_i32_i64`, `app_store`.
+- Extensions: whether current macOS still reports `spext_runtime_environment`,
+  `spext_obtained_from`, and `spext_notarized`.
+- Network: `PPP (PPPoE)`, `PPP (L2TP)`, `PPP (PPTP)`; Ethernet media speeds
+  other than `100baseTX` and `1000baseT`; `spethernet_pcie`,
+  `spethernet_builtin`; USB link speeds other than `high_speed` (needs a USB
+  Ethernet adapter on a faster port).
+- Firewall: `spfirewall_globalstate_off` (turn the firewall off and scan).
+- Wi-Fi: `spairport_status_disconnected`, `_not_associated`; security modes
+  `wpa3_enterprise`, `wpa2_wpa3_enterprise`, `owe`, `wpa_personal_mixed`;
+  locale `MKK` (needs networks of those kinds nearby, or a Mac in Japan).
+- Battery: `Normal`, `Service Recommended` and the other System Settings
+  names (needs a notebook whose battery isn't `Good`).
+- Storage: file systems `ExFAT` and `NTFS`; protocols `USB`, `Thunderbolt`,
+  `SATA`, `PCI-Express`, `NVMe`, `Secure Digital`; partition type
+  `Microsoft Basic Data` (needs external drives formatted each way).
+- Serial ATA: link speeds other than `3 Gigabit`, PCI Express rates other than
+  `5.0 GT/s`, and whether current macOS reports the same keys as the older
+  samples (needs an Intel Mac with a SATA drive).
+- Disc burning: the support levels other than `AppleShipping`, interconnects
+  `USB`, `FireWire`, and `SCSI`, the `-RAM` and `+RW DL` formats, `BD-DAO`, and
+  `device_media` with a disc inserted (needs a Mac with an optical drive, such
+  as a USB SuperDrive).
+- Bluetooth accessories: the service list spellings other than `BLE`, accessory
+  types other than the published ones, and whether `Trackpad` is still the type
+  current macOS reports (needs a scan with a trackpad, headphones, and a game
+  controller connected).
+- Startup security: `Reduced Security`, `Permissive Security`; `Disabled` for
+  the `ibridge_sb_*` protections; `Custom Configuration`; `Yes` for
+  `ibridge_sb_other_kext` and the MDM fields (needs a Mac with a lowered
+  security policy).
+- Displays and audio: `spdisplays_external`, `spdisplays_pcie`; audio
+  transports `bluetoothle` and `aggregate`; Thunderbolt 5 speeds.
+- Bluetooth controller: transports `USB` and `UART` (older Macs).
+- Settings: zoom styles `zoom_picture_in_picture` and `zoom_pip`; profile
+  states `verified`, `invalid`, `unverified` and MDM install sources; managed
+  preference states `often` and `once`; other sync log names.
