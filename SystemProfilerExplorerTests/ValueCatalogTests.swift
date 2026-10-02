@@ -374,8 +374,8 @@ private let driveAndCardValueSamples: [ValueSample] = {
     samples += ["1.5 Gigabit", "3 Gigabit", "6 Gigabit", "1,5 Gigabit"].map { ValueSample(.serialATA, ["spsata_portspeed"], $0) }
     samples += ["3 Gigabit", "6 Gigabit"].map { ValueSample(.serialATA, ["spsata_negotiatedlinkspeed"], $0, siblings: port) }
     samples.append(ValueSample(.serialATA, ["spsata_negotiatedlinkspeed"], "3 Gigabit"))
-    samples += ["2.5 GT/s", "5.0 GT/s", "8.0 GT/s"].map { ValueSample(.serialATA, ["spsata_linkspeed"], $0) }
-    samples += ["x1", "x2", "x4"].map { ValueSample(.serialATA, ["spsata_linkwidth"], $0) }
+    samples += ["2.5 GT/s", "5.0 GT/s", "8.0 GT/s", "16.0 GT/s", "32.0 GT/s"].map { ValueSample(.serialATA, ["spsata_linkspeed"], $0) }
+    samples += ["x1", "x2", "x4", "x8", "x16"].map { ValueSample(.serialATA, ["spsata_linkwidth"], $0) }
 
     return samples
 }()
@@ -390,8 +390,8 @@ private let discDriveValueSamples: [ValueSample] = {
     samples += ["yes", "no"].map { ValueSample(.discBurning, ["device_readdvd"], $0) }
     samples += ["ATAPI", "USB", "FireWire", "SCSI"].map { ValueSample(.discBurning, ["interconnect"], $0) }
     samples += ["-R, -RW", "-R"].map { ValueSample(.discBurning, ["device_cdwrite"], $0) }
-    samples += ["-R, -R DL, -RW, +R, +R DL, +RW", "-R, -RAM"].map { ValueSample(.discBurning, ["device_dvdwrite"], $0) }
-    samples += ["CD-TAO, CD-SAO, CD-Raw, DVD-DAO", "CD-TAO"].map { ValueSample(.discBurning, ["device_strategies"], $0) }
+    samples += ["-R, -R DL, -RW, +R, +R DL, +RW", "-R, -RAM", "+RW DL"].map { ValueSample(.discBurning, ["device_dvdwrite"], $0) }
+    samples += ["CD-TAO, CD-SAO, CD-Raw, DVD-DAO", "CD-TAO", "BD-DAO"].map { ValueSample(.discBurning, ["device_strategies"], $0) }
     return samples
 }()
 
@@ -405,7 +405,7 @@ private let bluetoothAccessoryValueSamples: [ValueSample] = {
         samples += ["100%", "15%", "5%", "0%"].map { ValueSample(.bluetooth, accessory + [field], $0) }
     }
 
-    samples += ["0x400000 < BLE >", "0x980019 < HFP AVRCP A2DP AACP GATT >"].map {
+    samples += ["0x400000 < BLE >", "0x980019 < HFP AVRCP A2DP AACP GATT >", "0x1 < HSP PAN Serial >"].map {
         ValueSample(.bluetooth, accessory + ["device_services"], $0)
     }
     samples.append(ValueSample(
