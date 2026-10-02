@@ -24,6 +24,8 @@ Among the fields this inventory classes as enumeration or boolean-like, these ha
 - **Enumerations whose values the inventory withheld and whose format no public source shows**: `contrast` (Accessibility), `ibridge_extra_boot_policies` (Apple Bridge), and `UserVisible` (scheduled power events). `link_status_key` (Thunderbolt) and `printersharing` and `scanner` (Printers) now have rules for the spellings Apple's strings or the usual yes/no forms use, but the format this Mac reports still needs a sample; an unmatched value is shown as not yet explained.
 - **Audio device names and manufacturers** (`coreaudio_input_source`, `coreaudio_output_source`, `coreaudio_device_manufacturer`), which are free text.
 
+Sections this Mac had no data for, or no connected devices in, now have value rules too, with spellings from published output: Serial ATA drives, cards in a card reader, disc drives, and connected Bluetooth accessories (type, battery levels, and services). `docs/value-explanations.md` lists them, and its last section lists the values that still need a scan on a real Mac.
+
 ## Wi-Fi (`SPAirPortDataType`)
 
 | field | class | values seen | distinct | explained | value-aware | example values |

@@ -51,7 +51,8 @@ let intelReport: ValueReportContext = ValueReportContext(usbDeviceNames: nil, pr
 let explainedValueSamples: [ValueSample] = applicationValueSamples + fontValueSamples + extensionValueSamples
     + networkValueSamples + softwareHistoryAndFirewallValueSamples + wifiValueSamples
     + powerValueSamples + storageValueSamples + startupAndOverviewValueSamples
-    + hardwareValueSamples + settingsValueSamples
+    + hardwareValueSamples + settingsValueSamples + driveAndCardValueSamples + discDriveValueSamples
+    + bluetoothAccessoryValueSamples
 
 /// Each value is checked with no Hardware section, on Apple silicon, and on an Intel Mac,
 /// because what an architecture means depends on the Mac.
@@ -340,6 +341,78 @@ private let storageValueSamples: [ValueSample] = {
         "Apple_APFS", "Apple_APFS_ISC", "Apple_APFS_Recovery", "EFI", "Apple_HFS", "Apple_Boot", "Apple_CoreStorage", "Microsoft Basic Data"
     ].map { ValueSample(.nvme, ["_items", "[]", "volumes", "[]", "iocontent"], $0) }
 
+    return samples
+}()
+
+/// Serial ATA drives and cards in a card reader report the same drive and volume
+/// fields as NVMe drives and the Storage section. The values are the ones in the
+/// published macOS samples listed in docs/value-explanations.md.
+private let driveAndCardValueSamples: [ValueSample] = {
+    let drive: [String] = ["_items", "[]"]
+    let volume: [String] = drive + ["volumes", "[]"]
+    var samples: [ValueSample] = []
+
+    for dataType in [SystemProfilerDataType.serialATA, .cardReader] {
+        samples += ["Verified", "Failing", "Not Supported"].map { ValueSample(dataType, drive + ["smart_status"], $0) }
+        samples += ["guid_partition_map_type", "master_boot_record_partition_map_type"].map {
+            ValueSample(dataType, drive + ["partition_map_type"], $0)
+        }
+        for field in ["removable_media", "detachable_drive"] {
+            samples += ["yes", "no"].map { ValueSample(dataType, drive + [field], $0) }
+        }
+        samples += ["Journaled HFS+", "MS-DOS FAT32", "ExFAT", "APFS"].map { ValueSample(dataType, volume + ["file_system"], $0) }
+        samples += ["yes", "no"].map { ValueSample(dataType, volume + ["writable"], $0) }
+        samples += ["Apple_APFS", "EFI", "Apple_HFS", "Apple_Boot", "Apple_CoreStorage", "Windows_FAT_32"].map {
+            ValueSample(dataType, volume + ["iocontent"], $0)
+        }
+    }
+
+    let port: [String: ProfileValue] = ["spsata_portspeed": .string("6 Gigabit")]
+    samples += ["Rotational", "Solid State"].map { ValueSample(.serialATA, drive + ["spsata_medium_type"], $0) }
+    samples += ["Yes", "No"].map { ValueSample(.serialATA, drive + ["spsata_ncq"], $0) }
+    samples += ["SATA", "PCI"].map { ValueSample(.serialATA, ["spsata_physical_interconnect"], $0) }
+    samples += ["1.5 Gigabit", "3 Gigabit", "6 Gigabit", "1,5 Gigabit"].map { ValueSample(.serialATA, ["spsata_portspeed"], $0) }
+    samples += ["3 Gigabit", "6 Gigabit"].map { ValueSample(.serialATA, ["spsata_negotiatedlinkspeed"], $0, siblings: port) }
+    samples.append(ValueSample(.serialATA, ["spsata_negotiatedlinkspeed"], "3 Gigabit"))
+    samples += ["2.5 GT/s", "5.0 GT/s", "8.0 GT/s", "16.0 GT/s", "32.0 GT/s"].map { ValueSample(.serialATA, ["spsata_linkspeed"], $0) }
+    samples += ["x1", "x2", "x4", "x8", "x16"].map { ValueSample(.serialATA, ["spsata_linkwidth"], $0) }
+
+    return samples
+}()
+
+private let discDriveValueSamples: [ValueSample] = {
+    var samples: [ValueSample] = [
+        "DRDeviceSupportLevelAppleShipping", "DRDeviceSupportLevelAppleSupported", "DRDeviceSupportLevelVendorSupported",
+        "DRDeviceSupportLevelUnsupported", "DRDeviceSupportLevelNone"
+    ].map { ValueSample(.discBurning, ["burn_support"], $0) }
+
+    samples.append(ValueSample(.discBurning, ["device_media"], "media_none"))
+    samples += ["yes", "no"].map { ValueSample(.discBurning, ["device_readdvd"], $0) }
+    samples += ["ATAPI", "USB", "FireWire", "SCSI"].map { ValueSample(.discBurning, ["interconnect"], $0) }
+    samples += ["-R, -RW", "-R"].map { ValueSample(.discBurning, ["device_cdwrite"], $0) }
+    samples += ["-R, -R DL, -RW, +R, +R DL, +RW", "-R, -RAM", "+RW DL"].map { ValueSample(.discBurning, ["device_dvdwrite"], $0) }
+    samples += ["CD-TAO, CD-SAO, CD-Raw, DVD-DAO", "CD-TAO", "BD-DAO"].map { ValueSample(.discBurning, ["device_strategies"], $0) }
+    return samples
+}()
+
+private let bluetoothAccessoryValueSamples: [ValueSample] = {
+    let accessory: [String] = ["device_connected", "[]", "Example Accessory"]
+    var samples: [ValueSample] = ["Headphones", "Headset", "Keyboard", "Mouse", "Trackpad", "Speaker", "Gamepad"].map {
+        ValueSample(.bluetooth, accessory + ["device_minorType"], $0)
+    }
+
+    for field in ["device_batteryLevelMain", "device_batteryLevelLeft", "device_batteryLevelRight", "device_batteryLevelCase"] {
+        samples += ["100%", "15%", "5%", "0%"].map { ValueSample(.bluetooth, accessory + [field], $0) }
+    }
+
+    samples += ["0x400000 < BLE >", "0x980019 < HFP AVRCP A2DP AACP GATT >", "0x1 < HSP PAN Serial >"].map {
+        ValueSample(.bluetooth, accessory + ["device_services"], $0)
+    }
+    samples.append(ValueSample(
+        .bluetooth,
+        ["controller_properties", "controller_supportedServices"],
+        "0x382039 < HFP AVRCP A2DP HID Braille AACP GATT SerialPort >"
+    ))
     return samples
 }()
 
@@ -700,5 +773,129 @@ struct ValueCatalogTests {
         #expect(processorFamily(inHardwareItems: appleSilicon) == .appleSilicon)
         #expect(processorFamily(inHardwareItems: intel) == .intel)
         #expect(processorFamily(inHardwareItems: [.object(["_name": .string("hardware_overview")])]) == nil)
+    }
+}
+
+/// Values from drives, cards, disc drives, and Bluetooth accessories that the
+/// inventory Mac didn't have.
+struct DriveAndAccessoryValueTests {
+    // MARK: - Serial ATA drives and cards
+
+    @Test
+    func aMemoryCardIsExplainedLikeAnyOtherDrive() throws {
+        let card: [String] = ["_items", "[]"]
+        let volume: [String] = card + ["volumes", "[]"]
+
+        let smart = try #require(valueExplanation(dataType: .cardReader, path: card + ["smart_status"], scalar: .string("Not Supported")))
+        let content = try #require(valueExplanation(dataType: .cardReader, path: volume + ["iocontent"], scalar: .string("Windows_FAT_32")))
+        let format = try #require(valueExplanation(dataType: .cardReader, path: volume + ["file_system"], scalar: .string("MS-DOS FAT32")))
+
+        #expect(smart.status == .informational)
+        #expect(content.summary.contains("FAT32"))
+        #expect(format.summary.contains("4 GB"))
+        #expect(valueExplanation(dataType: .cardReader, path: card + ["removable_media"], scalar: .string("yes"))?.summary.contains("memory card") == true)
+    }
+
+    @Test
+    func aFailingSerialATADriveIsWorthALook() {
+        let drive: [String] = ["_items", "[]"]
+
+        #expect(valueExplanation(dataType: .serialATA, path: drive + ["smart_status"], scalar: .string("Failing"))?.status == .worthReviewing)
+        #expect(valueExplanation(dataType: .serialATA, path: drive + ["smart_status"], scalar: .string("Verified"))?.status == .normal)
+    }
+
+    @Test
+    func aSATALinkSlowerThanItsPortIsPointedOut() throws {
+        func explain(_ negotiated: String, port: String?) -> ValueExplanation? {
+            let siblings: [String: ProfileValue] = port.map { ["spsata_portspeed": ProfileValue.string($0)] } ?? [:]
+            return valueExplanation(dataType: .serialATA, path: ["spsata_negotiatedlinkspeed"], scalar: .string(negotiated), siblings: siblings)
+        }
+
+        let slower = try #require(explain("3 Gigabit", port: "6 Gigabit"))
+        #expect(slower.status == .informational)
+        #expect(slower.summary.contains("slower"))
+        #expect(explain("3 Gigabit", port: "3 Gigabit")?.status == .normal)
+        #expect(explain("6 Gigabit", port: nil)?.summary.contains("SATA III") == true)
+        #expect(explain("12 Gigabit", port: nil)?.status == .unknown)
+    }
+
+    @Test
+    func applesPCIExpressSSDControllerIsMarkedAsAnInference() throws {
+        let pci = try #require(valueExplanation(dataType: .serialATA, path: ["spsata_physical_interconnect"], scalar: .string("PCI")))
+
+        #expect(pci.confidence?.reasons.isEmpty == false)
+        #expect(valueExplanation(dataType: .serialATA, path: ["spsata_linkspeed"], scalar: .string("5.0 GT/s"))?.summary.contains("PCI Express 2") == true)
+        #expect(valueExplanation(dataType: .serialATA, path: ["spsata_linkwidth"], scalar: .string("x2"))?.summary.contains("2 PCI Express lanes") == true)
+        #expect(valueExplanation(dataType: .serialATA, path: ["spsata_linkwidth"], scalar: .string("wide"))?.status == .unknown)
+    }
+
+    // MARK: - Disc drives
+
+    @Test
+    func discFormatListsAreSpelledOut() throws {
+        let dvd = try #require(valueExplanation(dataType: .discBurning, path: ["device_dvdwrite"], scalar: .string("-R, -R DL, +RW")))
+        let cd = try #require(valueExplanation(dataType: .discBurning, path: ["device_cdwrite"], scalar: .string("-R, -RW")))
+
+        #expect(dvd.summary == "The drive can write DVD-R, DVD-R DL, and DVD+RW.")
+        #expect(cd.summary == "The drive can write CD-R and CD-RW.")
+        #expect(valueExplanation(dataType: .discBurning, path: ["device_dvdwrite"], scalar: .string("-R, +HD"))?.status == .unknown)
+        #expect(valueExplanation(dataType: .discBurning, path: ["device_strategies"], scalar: .string("CD-TAO, HD-DAO"))?.status == .unknown)
+    }
+
+    @Test
+    func aDriveMacOSCantBurnWithIsInformation() {
+        func status(_ value: String) -> ValueStatus? {
+            valueExplanation(dataType: .discBurning, path: ["burn_support"], scalar: .string(value))?.status
+        }
+
+        #expect(status("DRDeviceSupportLevelAppleShipping") == .normal)
+        #expect(status("DRDeviceSupportLevelUnsupported") == .informational)
+        #expect(status("DRDeviceSupportLevelSomethingElse") == .unknown)
+        #expect(valueExplanation(dataType: .discBurning, path: ["device_media"], scalar: .string("media_cdr"))?.status == .unknown)
+    }
+
+    // MARK: - Bluetooth accessories
+
+    @Test
+    func aNearlyEmptyAccessoryBatteryIsWorthALook() {
+        func explain(_ field: String, _ value: String) -> ValueExplanation? {
+            valueExplanation(dataType: .bluetooth, path: ["device_connected", "[]", "Example Earbuds", field], scalar: .string(value))
+        }
+
+        #expect(explain("device_batteryLevelLeft", "8%")?.status == .worthReviewing)
+        #expect(explain("device_batteryLevelLeft", "8%")?.summary.contains("left earbud") == true)
+        #expect(explain("device_batteryLevelCase", "18%")?.status == .informational)
+        #expect(explain("device_batteryLevelMain", "85%")?.status == .normal)
+        #expect(explain("device_batteryLevelMain", "85")?.status == .unknown)
+        #expect(explain("device_batteryLevelMain", "140%")?.status == .unknown)
+    }
+
+    @Test
+    func accessoryTypesAreNotGuessed() {
+        let path: [String] = ["device_not_connected", "[]", "Example Accessory", "device_minorType"]
+
+        #expect(valueExplanation(dataType: .bluetooth, path: path, scalar: .string("Keyboard"))?.summary == "A keyboard.")
+        #expect(valueExplanation(dataType: .bluetooth, path: path, scalar: .string("Toaster"))?.status == .unknown)
+    }
+
+    @Test
+    func serviceListsNameWhatTheAppDoesntRecognize() throws {
+        let path: [String] = ["device_connected", "[]", "Example Accessory", "device_services"]
+        let mixed = try #require(valueExplanation(dataType: .bluetooth, path: path, scalar: .string("0x1 < A2DP XYZ >")))
+        let apple = try #require(valueExplanation(dataType: .bluetooth, path: path, scalar: .string("0x2 < AACP GATT >")))
+
+        #expect(mixed.summary == "This accessory supports stereo audio (A2DP).")
+        #expect(mixed.detail?.contains("XYZ") == true)
+        #expect(mixed.confidence == .observed)
+        #expect(apple.confidence?.reasons.isEmpty == false)
+        #expect(valueExplanation(dataType: .bluetooth, path: path, scalar: .string("0x3 < XYZ >"))?.status == .unknown)
+        #expect(valueExplanation(dataType: .bluetooth, path: path, scalar: .string("none"))?.status == .unknown)
+    }
+
+    @Test
+    func anUnknownPartitionTypeOnASerialATADriveIsNotGuessed() {
+        let volume: [String] = ["_items", "[]", "volumes", "[]"]
+
+        #expect(valueExplanation(dataType: .serialATA, path: volume + ["iocontent"], scalar: .string("Linux_Swap"))?.status == .unknown)
     }
 }

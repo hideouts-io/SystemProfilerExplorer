@@ -560,15 +560,21 @@ private func scheduledPowerEventExplanation(_ value: String) -> ValueExplanation
 // system facts come from the Disk Utility User Guide
 // (https://support.apple.com/guide/disk-utility/dsku19ed921c) and the Signed System
 // Volume from https://support.apple.com/guide/security/secd698747c9.
+//
+// Serial ATA drives and cards in a card reader report the same drive and volume fields.
+// The macOS samples in https://github.com/glpi-project/glpi-agent
+// (resources/macos/system_profiler) show a Serial ATA drive as Verified with
+// guid_partition_map_type and Journaled HFS+ and MS-DOS FAT32 volumes, and an SD card as
+// Not Supported with master_boot_record_partition_map_type and an MS-DOS FAT32 volume.
 
 let lowFreeSpaceFraction: Double = 0.10
 
 let storageValueRules: [ValueRule] = [
-    ValueRule(.storage, .nvme, .serialATA, field: "smart_status") { context in
+    ValueRule(.storage, .nvme, .serialATA, .cardReader, field: "smart_status") { context in
         smartStatusExplanation(context.reportedValue)
     },
 
-    ValueRule(.storage, field: "writable") { context in
+    ValueRule(.storage, .serialATA, .cardReader, field: "writable") { context in
         switch decodeBooleanLike(context.reportedValue) {
         case true?:
             return .normal(
@@ -679,11 +685,11 @@ let storageValueRules: [ValueRule] = [
         }
     },
 
-    ValueRule(.storage, field: "file_system") { context in
+    ValueRule(.storage, .serialATA, .cardReader, field: "file_system") { context in
         fileSystemExplanation(context.reportedValue)
     },
 
-    ValueRule(.storage, .nvme, field: "partition_map_type") { context in
+    ValueRule(.storage, .nvme, .serialATA, .cardReader, field: "partition_map_type") { context in
         partitionMapExplanation(context.reportedValue)
     }
 ]
@@ -847,7 +853,7 @@ let storageConnectionValueRules: [ValueRule] = [
         }
     },
 
-    ValueRule(.nvme, field: "removable_media") { context in
+    ValueRule(.nvme, .serialATA, .cardReader, field: "removable_media") { context in
         switch decodeBooleanLike(context.reportedValue) {
         case true?:
             .info(
@@ -870,7 +876,7 @@ let storageConnectionValueRules: [ValueRule] = [
         }
     },
 
-    ValueRule(.nvme, field: "detachable_drive") { context in
+    ValueRule(.nvme, .serialATA, .cardReader, field: "detachable_drive") { context in
         switch decodeBooleanLike(context.reportedValue) {
         case true?:
             .info(
@@ -893,6 +899,211 @@ let storageConnectionValueRules: [ValueRule] = [
         }
     }
 ]
+
+// MARK: - Serial ATA
+
+// Sources: the macOS samples in https://github.com/glpi-project/glpi-agent
+// (resources/macos/system_profiler) show spsata_medium_type (Rotational, Solid State),
+// spsata_physical_interconnect (SATA, PCI), spsata_negotiatedlinkspeed and
+// spsata_portspeed (3 Gigabit), spsata_ncq (Yes, No), and, for Apple's SSD controller,
+// spsata_linkspeed (5.0 GT/s) and spsata_linkwidth (x2). 1.5 and 6 Gigabit, the other
+// SATA generations, and the other PCI Express rates are unconfirmed in system_profiler
+// output. Speeds follow the SATA-IO and PCI-SIG specifications.
+
+let serialATAValueRules: [ValueRule] = [
+    ValueRule(.serialATA, field: "spsata_medium_type") { context in
+        switch context.reportedValue.lowercased() {
+        case "solid state":
+            .info(
+                "A solid-state drive (flash storage, no moving parts).",
+                detail: "The drive stores data on flash memory chips.",
+                why: "SSDs are much faster than hard drives, and they have no moving parts to wear out.",
+                action: "Nothing to do.",
+                confidence: .observed
+            )
+        case "rotational":
+            .info(
+                "A spinning hard drive.",
+                detail: "The drive stores data on spinning magnetic disks, as the internal drives of many older iMacs and Mac minis do.",
+                why: "Hard drives are much slower than SSDs, and their moving parts wear out over time.",
+                action: "Nothing to do. Keep backups current, especially as the drive ages.",
+                confidence: .observed
+            )
+        default:
+            nil
+        }
+    },
+
+    ValueRule(.serialATA, field: "spsata_physical_interconnect") { context in
+        switch context.reportedValue.uppercased() {
+        case "SATA":
+            .info(
+                "The controller connects its drives over Serial ATA (SATA).",
+                detail: "SATA is the connection the internal hard drives, SSDs, and optical drives of Intel Macs use.",
+                why: "SATA tops out at 6 Gb/s, slower than the PCI Express and NVMe storage in newer Macs.",
+                action: "Nothing to do.",
+                confidence: .observed
+            )
+        case "PCI":
+            .info(
+                "The controller connects over PCI Express, as the built-in flash storage of some Intel Macs does.",
+                detail: "The SSD uses the same commands as a SATA drive (AHCI), but it's wired to the Mac over PCI Express instead of a SATA cable.",
+                why: "That's why a fast SSD appears under Serial ATA. It isn't limited to SATA speeds.",
+                action: "Nothing to do.",
+                confidence: .likely(reasons: [
+                    "In a published sample, Apple's SSD Controller reports PCI here, together with a PCI Express link speed and width.",
+                    "Its port description names AHCI, the standard interface for SATA controllers."
+                ])
+            )
+        default:
+            nil
+        }
+    },
+
+    ValueRule(.serialATA, field: "spsata_portspeed") { context in
+        sataLinkSpeed(context.reportedValue).map { speed in
+            .info(
+                "This port supports up to \(speed.label) (\(speed.generation)).",
+                detail: "It's the fastest speed the port can run. The drive decides whether it runs that fast.",
+                why: "A drive can't be faster than its port. Hard drives rarely need more than 3 Gb/s, but SSDs can use 6 Gb/s.",
+                action: "Nothing to do.",
+                confidence: .observed
+            )
+        }
+    },
+
+    ValueRule(.serialATA, field: "spsata_negotiatedlinkspeed") { context in
+        guard let negotiated = sataLinkSpeed(context.reportedValue) else {
+            return nil
+        }
+
+        if let port = context.sibling("spsata_portspeed").flatMap(sataLinkSpeed), negotiated.gigabits < port.gigabits {
+            return .info(
+                "The link runs at \(negotiated.label), slower than the \(port.label) the port supports.",
+                detail: "The drive and port agreed on the slower speed. Older drives and optical drives often support only that speed, and a worn cable can force it too.",
+                why: "An SSD on a slower link can't reach its full speed. Hard drives and optical drives are rarely held back by it.",
+                action: "Nothing to do for a hard drive or optical drive. For an SSD, check that it supports \(port.label).",
+                confidence: .observed
+            )
+        }
+
+        return .normal(
+            "The link runs at \(negotiated.label) (\(negotiated.generation)).",
+            detail: "This is the speed the drive and port agreed on when the drive connected.",
+            why: "It's the most the connection can carry. The drive itself may be slower.",
+            action: "Nothing to do.",
+            confidence: .observed
+        )
+    },
+
+    ValueRule(.serialATA, field: "spsata_ncq") { context in
+        switch decodeBooleanLike(context.reportedValue) {
+        case true?:
+            .normal(
+                "The drive supports Native Command Queuing (NCQ).",
+                detail: "The drive can accept several requests at once and reorder them to finish sooner.",
+                why: "It helps the drive keep up when apps read and write many small files.",
+                action: "Nothing to do.",
+                confidence: .observed
+            )
+        case false?:
+            .info(
+                "The drive doesn't use Native Command Queuing (NCQ).",
+                detail: "The drive handles one request at a time. That's usual for optical drives, some older drives, and virtual machine disks.",
+                why: "Busy workloads can be a little slower without it. It doesn't mean anything is wrong.",
+                action: "Nothing to do.",
+                confidence: .observed
+            )
+        case nil:
+            nil
+        }
+    },
+
+    ValueRule(.serialATA, field: "spsata_linkspeed") { context in
+        pciExpressGeneration(context.reportedValue).map { generation in
+            .info(
+                "The controller's PCI Express link runs at \(context.reportedValue) per lane (\(generation)).",
+                detail: "This is the speed of each lane between the storage controller and the Mac.",
+                why: "Together with the number of lanes, it sets the most the storage can transfer.",
+                action: "Nothing to do.",
+                confidence: .observed
+            )
+        }
+    },
+
+    ValueRule(.serialATA, field: "spsata_linkwidth") { context in
+        pciExpressLaneCount(context.reportedValue).map { lanes in
+            .info(
+                lanes == 1
+                    ? "The controller uses one PCI Express lane."
+                    : "The controller uses \(lanes) PCI Express lanes.",
+                detail: "Each lane carries data separately, so more lanes allow faster transfers.",
+                why: "Together with the link speed, it sets the most the storage can transfer.",
+                action: "Nothing to do.",
+                confidence: .observed
+            )
+        }
+    }
+]
+
+private struct SATALinkSpeed {
+    let gigabits: Double
+    let label: String
+    let generation: String
+}
+
+/// Reads speeds such as `3 Gigabit`. Some locales write `1,5 Gigabit`.
+private func sataLinkSpeed(_ value: String) -> SATALinkSpeed? {
+    let parts: [Substring] = value.split(separator: " ")
+
+    guard parts.count == 2,
+          parts[1].lowercased() == "gigabit",
+          let gigabits = Double(parts[0].replacingOccurrences(of: ",", with: ".")) else {
+        return nil
+    }
+
+    switch gigabits {
+    case 1.5:
+        return SATALinkSpeed(gigabits: gigabits, label: "1.5 Gb/s", generation: "SATA I")
+    case 3:
+        return SATALinkSpeed(gigabits: gigabits, label: "3 Gb/s", generation: "SATA II")
+    case 6:
+        return SATALinkSpeed(gigabits: gigabits, label: "6 Gb/s", generation: "SATA III")
+    default:
+        return nil
+    }
+}
+
+/// Names the PCI Express generation of a per-lane rate such as `5.0 GT/s`.
+func pciExpressGeneration(_ value: String) -> String? {
+    let parts: [Substring] = value.split(separator: " ")
+
+    guard parts.count == 2,
+          parts[1] == "GT/s",
+          let rate = Double(parts[0].replacingOccurrences(of: ",", with: ".")) else {
+        return nil
+    }
+
+    switch rate {
+    case 2.5: return "PCI Express 1"
+    case 5: return "PCI Express 2"
+    case 8: return "PCI Express 3"
+    case 16: return "PCI Express 4"
+    case 32: return "PCI Express 5"
+    default: return nil
+    }
+}
+
+/// Reads a lane count such as `x2`.
+func pciExpressLaneCount(_ value: String) -> Int? {
+    let trimmed: String = value.trimmingCharacters(in: .whitespaces).lowercased()
+
+    guard trimmed.hasPrefix("x"), let lanes = Int(trimmed.dropFirst()), [1, 2, 4, 8, 16].contains(lanes) else {
+        return nil
+    }
+
+    return lanes
+}
 
 /// Explains the connection a storage device reports, such as `Apple Fabric` or `USB`.
 func storageProtocolExplanation(_ value: String) -> ValueExplanation? {
