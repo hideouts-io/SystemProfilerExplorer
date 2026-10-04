@@ -1,0 +1,26 @@
+{
+  "mode": "built-in image_gen",
+  "reference": "branding/open-layers/sources/approved-concept.png",
+  "jobs": [
+    {
+      "key": "mark",
+      "transparent": true,
+      "prompt": "Use case: logo-brand. Asset type: standalone production transparent logo mark for System Profiler Explorer. Image 1 is the APPROVED Open Layers reference concept, not the old logo. Rebuild ONLY the large symbol from its LEFT light panel as a clean isolated production mark, centered in a square image with 12% clear padding. Invariants: exactly three offset parallel rounded information cards, same perspective and proportions as the reference; back card deep blue #07517C; middle card teal #08BDBD; front card dark navy #073753 with exactly two wide capsule-shaped TRANSPARENT cutout lines, top longer and bottom shorter. Keep broad open separation between cards. Clean vector-like flat geometry with extremely restrained tonal shading. No text, no labels, no concept board, no repeated icons, no surrounding badge or device. Actual transparent background and actual transparent slots, no checkerboard pixels, no opaque white field. Do not add anything. Do not reference any older logo in the conversation. Crisp large-format reusable logo, preserving approved geometry."
+    },
+    {
+      "key": "hero-landscape",
+      "transparent": false,
+      "prompt": "Use case: stylized-concept. Asset type: original wide atmospheric hero background for the native macOS System Profiler Explorer, to receive exact vector logo and typeset copy later. Image 1: approved identity reference ONLY for the teal, navy, mint palette and gently isometric rounded-card forms. Primary request: polished editorial software-brand artwork with a quiet charcoal navy #0A151D background, a very subtle sparse technical grid, and a sculptural cluster of three generous parallel rounded information panels in the right third, staggered like organized report layers. Panels are charcoal glass with restrained teal edge light and a few broad abstract blank data slots, no text. Express exploration, organized findings, and clearer system explanations, not threat hunting. Composition: extra-wide 3:1, keep left TWO THIRDS almost empty dark negative space for a logo, title and description, panel cluster fully visible at right with broad margins. Style: refined matte 3D illustration, restrained teal reflections and soft studio glow, lots of breathing room, no busy circuits or particles. No logos, no text, no words, no numbers, no fake app interface, no real system inventory, no computers, no magnifying glass, no red, no Apple symbols, no locks, no shields, no watermark."
+    },
+    {
+      "key": "hero-portrait",
+      "transparent": false,
+      "prompt": "Use case: stylized-concept. Asset type: portrait mobile project-hero background for System Profiler Explorer. Image 1: approved Open Layers identity, reference ONLY for teal/mint/navy palette and stacked rounded panels. Create professional portrait 9:16 atmospheric artwork. Upper 65% is quiet deep charcoal navy #0A151D negative space reserved for a logo and typeset title added later. In the lower third, an elegant cluster of three broad gently isometric rounded information panels, staggered like the approved layered records, with soft teal edge illumination and a few abstract broad blank data slots. Keep the cluster fully within safe margins. Background subtle sparse technical grid, low contrast teal haze. Refined matte 3D software-brand illustration. Organized findings and explanation layers, not cybersecurity threat detection. No logos, no text, no numbers, no fake UI, no devices, no real system data, no circuits clutter, no red, no shields, no magnifiers, no Apple symbols, no watermark. Match the landscape hero palette and visual restraint."
+    },
+    {
+      "key": "welcome",
+      "transparent": true,
+      "prompt": "Use case: stylized-concept. Asset type: transparent welcome/About illustration for System Profiler Explorer. Image 1: approved Open Layers concept as palette/rounded-card style reference, not an edit target. Create an elegant simple wide 2:1 illustration of three separated rounded information tiles connected by two short subtle curved teal paths. First tile: simple abstract nested rows (structured report). Second tile: two broad disclosure rows with open spacing (readable explanations). Third tile: two overlaid small rectangles and one short connecting line (snapshot comparison). No words or labels. Use navy #073753, teal #08BDBD, mint #BFF5E6. Crisp modern mildly isometric editorial illustration, light dimensional shading, strong silhouettes, generous padding, actual transparent background. Do not reproduce the exact logo itself; this is complementary purpose-based artwork. Only three information tiles, no enclosing circles or badges, no computer, no magnifier, no shields/checkmarks, no cloud, no Apple symbols, no text, no fake screenshots or inventory, no watermark. The artwork should work on both native light and dark macOS surfaces."
+    }
+  ]
+}

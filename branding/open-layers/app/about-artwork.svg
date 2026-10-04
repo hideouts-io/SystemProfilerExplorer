@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="600" viewBox="0 0 1200 600"><rect width="1200" height="600" rx="32" fill="#07121b"/><g transform="translate(370 12) scale(0.44)"><defs>
+    <mask id="about-rear" maskUnits="userSpaceOnUse" x="0" y="0" width="1000" height="1000">
+      <rect width="1000" height="1000" fill="white"/>
+      <g fill="black" stroke="black" stroke-width="34"><g transform="translate(270 265) matrix(1 .33 0 1 0 0)"><rect width="460" height="300" rx="48"/></g></g>
+    </mask>
+    <mask id="about-middle" maskUnits="userSpaceOnUse" x="0" y="0" width="1000" height="1000">
+      <rect width="1000" height="1000" fill="white"/>
+      <g fill="black" stroke="black" stroke-width="34"><g transform="translate(150 390) matrix(1 .33 0 1 0 0)"><rect width="460" height="300" rx="48"/></g></g>
+    </mask>
+    <mask id="about-front" maskUnits="userSpaceOnUse" x="0" y="0" width="1000" height="1000">
+      <rect width="1000" height="1000" fill="white"/>
+      <g transform="translate(150 390) matrix(1 .33 0 1 0 0)" fill="black">
+        <rect x="78" y="88" width="265" height="42" rx="21"/>
+        <rect x="78" y="177" width="176" height="42" rx="21"/>
+      </g>
+    </mask>
+  </defs>
+  <g fill="#009b99" mask="url(#about-rear)"><g transform="translate(390 140) matrix(1 .33 0 1 0 0)"><rect width="460" height="300" rx="48"/></g></g>
+  <g fill="#00d5cd" mask="url(#about-middle)"><g transform="translate(270 265) matrix(1 .33 0 1 0 0)"><rect width="460" height="300" rx="48"/></g></g>
+  <g fill="#c2fae5" mask="url(#about-front)"><g transform="translate(150 390) matrix(1 .33 0 1 0 0)"><rect width="460" height="300" rx="48"/></g></g></g><text x="286" y="425" font-family="Helvetica Neue,Arial,sans-serif" font-size="48" font-weight="650" fill="#f4f9fa">System Profiler Explorer</text><text x="362" y="481" font-family="Helvetica Neue,Arial,sans-serif" font-size="27" font-weight="400" fill="#b4cbd4">System information, made clear.</text><text x="235" y="543" font-family="Helvetica Neue,Arial,sans-serif" font-size="22" font-weight="450" fill="#b4cbd4">Organized findings · Clear explanations · Local-first</text></svg>

@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="500" viewBox="0 0 1600 500"><rect width="1600" height="500" rx="26" fill="#f7f9fb"/><g transform="translate(32 -4) scale(0.5)"><defs>
+    <mask id="header-rear" maskUnits="userSpaceOnUse" x="0" y="0" width="1000" height="1000">
+      <rect width="1000" height="1000" fill="white"/>
+      <g fill="black" stroke="black" stroke-width="34"><g transform="translate(270 265) matrix(1 .33 0 1 0 0)"><rect width="460" height="300" rx="48"/></g></g>
+    </mask>
+    <mask id="header-middle" maskUnits="userSpaceOnUse" x="0" y="0" width="1000" height="1000">
+      <rect width="1000" height="1000" fill="white"/>
+      <g fill="black" stroke="black" stroke-width="34"><g transform="translate(150 390) matrix(1 .33 0 1 0 0)"><rect width="460" height="300" rx="48"/></g></g>
+    </mask>
+    <mask id="header-front" maskUnits="userSpaceOnUse" x="0" y="0" width="1000" height="1000">
+      <rect width="1000" height="1000" fill="white"/>
+      <g transform="translate(150 390) matrix(1 .33 0 1 0 0)" fill="black">
+        <rect x="78" y="88" width="265" height="42" rx="21"/>
+        <rect x="78" y="177" width="176" height="42" rx="21"/>
+      </g>
+    </mask>
+  </defs>
+  <g fill="#08608c" mask="url(#header-rear)"><g transform="translate(390 140) matrix(1 .33 0 1 0 0)"><rect width="460" height="300" rx="48"/></g></g>
+  <g fill="#00bfc0" mask="url(#header-middle)"><g transform="translate(270 265) matrix(1 .33 0 1 0 0)"><rect width="460" height="300" rx="48"/></g></g>
+  <g fill="#073754" mask="url(#header-front)"><g transform="translate(150 390) matrix(1 .33 0 1 0 0)"><rect width="460" height="300" rx="48"/></g></g></g><text x="560" y="190" font-family="Helvetica Neue,Arial,sans-serif" font-size="72" font-weight="650" fill="#073754">System Profiler</text><text x="560" y="279" font-family="Helvetica Neue,Arial,sans-serif" font-size="72" font-weight="350" fill="#073754">Explorer</text><text x="562" y="351" font-family="Helvetica Neue,Arial,sans-serif" font-size="28" font-weight="400" fill="#526675">System information, made clear.</text><text x="562" y="408" font-family="Helvetica Neue,Arial,sans-serif" font-size="20" font-weight="450" fill="#526675">Organized findings · Clear explanations · Local-first</text></svg>

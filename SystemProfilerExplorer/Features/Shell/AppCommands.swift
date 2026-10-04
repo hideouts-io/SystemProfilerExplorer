@@ -24,8 +24,16 @@ extension FocusedValues {
 
 struct AppCommands: Commands {
     @FocusedValue(\.appCommandActions) private var actions
+    @Environment(\.openWindow) private var openWindow
 
     var body: some Commands {
+        CommandGroup(replacing: .appInfo) {
+            Button("About System Profiler Explorer") {
+                openWindow(id: "about-system-profiler-explorer")
+            }
+            .accessibilityIdentifier("open-about")
+        }
+
         CommandMenu("Scan") {
             Button(actions?.scanTitle ?? "Scan") {
                 actions?.scan()

@@ -1,7 +1,11 @@
 # System Profiler Explorer
 
 <p align="center">
-  <img src="docs/images/system-profiler-explorer-logo.png" width="300" alt="System Profiler Explorer logo">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="branding/open-layers/github/readme-header-dark.png">
+    <source media="(prefers-color-scheme: light)" srcset="branding/open-layers/github/readme-header-light.png">
+    <img src="branding/open-layers/github/readme-header.png" width="1000" alt="System Profiler Explorer — System information, made clear. Open Layers identity.">
+  </picture>
 </p>
 
 <p align="center">
@@ -11,7 +15,7 @@
 <p align="center">
   <img alt="Platform: macOS 13 or later" src="https://img.shields.io/badge/macOS-13%2B-1f6feb?logo=apple">
   <img alt="Architectures: Apple silicon and Intel" src="https://img.shields.io/badge/architecture-arm64%20%7C%20x86__64-6f42c1">
-  <img alt="Release: v0.1.1" src="https://img.shields.io/badge/release-v0.1.1-2da44e">
+  <img alt="Release: v0.1.2" src="https://img.shields.io/badge/release-v0.1.2-2da44e">
   <img alt="Privacy: local only" src="https://img.shields.io/badge/privacy-local--only-0f766e">
   <img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-f59e0b">
 </p>
@@ -25,7 +29,7 @@
 - [Screenshots](#screenshots)
 - [Coverage](#coverage)
 - [How it works](#how-it-works)
-- [Download v0.1.1](#download-v011)
+- [Download v0.1.2](#download-v012)
 - [Install and run](#install-and-run)
 - [Open the app safely when Gatekeeper intervenes](#open-the-app-safely-when-gatekeeper-intervenes)
 - [Use the app](#use-the-app)
@@ -47,9 +51,9 @@ The app can scan this Mac directly or import an existing raw JSON report. Proces
 
 ### Current source features
 
-The features below describe the current source on `main`. The downloadable v0.1.1 release predates the collection-health, comparison dashboard, snapshot, review-summary, and diagnostic-log improvements; build from source to use them until a newer release is published.
+The features below are included in v0.1.2 and the current source on `main`, including collection health, the comparison dashboard, snapshots, review summaries, and diagnostic-log explanations.
 
-- All 51 `system_profiler` data types represented by the app’s current macOS toolchain
+- All supported `system_profiler` data types represented by the app’s current macOS toolchain
 - A sidebar with eight subjects (Overview, Hardware, Storage, Network, Software, Security, Power, and Reports) and the What Changed? tool
 - Complete Reports scan plus focused, faster subject scans
 - Collapsible records and explanations with source provenance
@@ -107,7 +111,7 @@ For every live scan, each requested data type is marked as **Collected**, **No r
 | Software | macOS/software overview, applications, frameworks, extensions, fonts, install history, tools, profiles, and related inventories. |
 | Security | Security-related profiler sections and fields, including firewall, secure element, smart cards, configuration profiles, and relevant system state. |
 | Power | Battery, charger, power settings, and power-condition findings. |
-| Reports | Complete scan across all 50 supported `system_profiler` data types, including legacy or hardware-dependent sections. |
+| Reports | Complete scan across all supported `system_profiler` data types, including legacy or hardware-dependent sections. |
 
 The exact sections and fields returned vary by macOS version, Mac model, attached hardware, permissions, and installed software. An empty section means only that the command returned no records for that section during that collection.
 
@@ -136,22 +140,22 @@ Live scan on this Mac                     Existing JSON report
 
 The parser preserves structured values instead of flattening away their source context. Exact field explanations are used where the schema is known; careful data-type context is used for changing or hardware-specific schemas. Unknown fields remain visible and are labeled as unrecognized rather than assigned an invented meaning.
 
-## Download v0.1.1
+## Download v0.1.2
 
-Download the universal macOS build from [Releases v0.1.1](https://github.com/hideouts-io/SystemProfilerExplorer/releases/tag/v0.1.1):
+Download the universal macOS build from [Releases v0.1.2](https://github.com/hideouts-io/SystemProfilerExplorer/releases/tag/v0.1.2):
 
-- [SystemProfilerExplorer-0.1.1-macOS-universal.zip](https://github.com/hideouts-io/SystemProfilerExplorer/releases/download/v0.1.1/SystemProfilerExplorer-0.1.1-macOS-universal.zip)
-- [SHA-256 checksum](https://github.com/hideouts-io/SystemProfilerExplorer/releases/download/v0.1.1/SystemProfilerExplorer-0.1.1-macOS-universal.zip.sha256)
+- [SystemProfilerExplorer-0.1.2-macOS-universal.zip](https://github.com/hideouts-io/SystemProfilerExplorer/releases/download/v0.1.2/SystemProfilerExplorer-0.1.2-macOS-universal.zip)
+- [SHA-256 checksum](https://github.com/hideouts-io/SystemProfilerExplorer/releases/download/v0.1.2/SystemProfilerExplorer-0.1.2-macOS-universal.zip.sha256)
 
-The bundle supports macOS 13 or later on Apple silicon and Intel Macs. Version 0.1.1 is ad hoc signed and is not Apple-notarized, so Gatekeeper may require a one-time approval after download.
+The bundle supports macOS 13 or later on Apple silicon and Intel Macs. Version 0.1.2 adds the Open Layers identity, welcome artwork, and a dedicated About window. It is ad hoc signed and is not Apple-notarized, so Gatekeeper may require a one-time approval after download.
 
 ## Install and run
 
-1. Download both the ZIP and checksum file from the v0.1.1 release.
+1. Download both the ZIP and checksum file from the v0.1.2 release.
 2. In Terminal, change to the download directory and verify the archive:
 
    ```sh
-   shasum -a 256 -c SystemProfilerExplorer-0.1.1-macOS-universal.zip.sha256
+   shasum -a 256 -c SystemProfilerExplorer-0.1.2-macOS-universal.zip.sha256
    ```
 
    Continue only if the result ends with `OK`.
@@ -163,7 +167,7 @@ No administrator password is required to run the app. Some profiler sections can
 
 ## Open the app safely when Gatekeeper intervenes
 
-Because v0.1.1 is not notarized, macOS may say that Apple cannot check it for malicious software or that the developer cannot be verified. First verify the SHA-256 checksum above. Then use one of Apple’s one-app approval paths:
+Because v0.1.2 is not notarized, macOS may say that Apple cannot check it for malicious software or that the developer cannot be verified. First verify the SHA-256 checksum above. Then use one of Apple’s one-app approval paths:
 
 - In Finder, Control-click `SystemProfilerExplorer.app`, choose **Open**, then confirm **Open**; or
 - Try to open the app once, open **System Settings → Privacy & Security**, and choose **Open Anyway** for System Profiler Explorer.
@@ -258,7 +262,7 @@ xcodebuild -project SystemProfilerExplorer.xcodeproj \
   build test
 ```
 
-Build the same universal ZIP and checksum layout used by the v0.1.1 release:
+Build the same universal ZIP and checksum layout used by the v0.1.2 release:
 
 ```sh
 ./scripts/build-release.sh
