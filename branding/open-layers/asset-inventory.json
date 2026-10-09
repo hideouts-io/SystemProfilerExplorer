@@ -1,0 +1,845 @@
+{
+  "identity": "Open Layers",
+  "tagline": "System information, made clear.",
+  "vectorSource": "sources/mark-light.svg",
+  "editableFont": "Helvetica Neue, Arial, sans-serif",
+  "assets": [
+    {
+      "path": "README.md",
+      "width": null,
+      "height": null,
+      "transparent": null,
+      "bytes": 4053,
+      "sha256": "692f4816ddc1f2e47a8f355eb3a6a3d8349c328e978c955bc03179fec1d1268a",
+      "use": "Local visual validation and review"
+    },
+    {
+      "path": "app/about-artwork.png",
+      "width": 1200,
+      "height": 600,
+      "transparent": true,
+      "bytes": 34585,
+      "sha256": "889a0ea9b3d4577ba9b3c1ffd10e8a8fde5d8f10a9d7be8f88ef91d6e4d71750",
+      "use": "Welcome, About, or supporting feature graphic"
+    },
+    {
+      "path": "app/about-artwork.svg",
+      "width": 1200,
+      "height": 600,
+      "transparent": true,
+      "bytes": 2157,
+      "sha256": "d9cb34befbcded0838dea9f345b66096fa6ec30d03ca7999ccc6fe4bcdea6b03",
+      "use": "Welcome, About, or supporting feature graphic"
+    },
+    {
+      "path": "app/feature-compare-dark.png",
+      "width": 256,
+      "height": 256,
+      "transparent": true,
+      "bytes": 2944,
+      "sha256": "dd55a45aa2842492ad3b1232686a4bbe8761ccf9b92f3f1163faf4b838cbdde5",
+      "use": "Welcome, About, or supporting feature graphic"
+    },
+    {
+      "path": "app/feature-compare-dark.svg",
+      "width": 256,
+      "height": 256,
+      "transparent": true,
+      "bytes": 370,
+      "sha256": "14e1cc44f7d6244e4d1058620da3d27a228a9ced547c764e315f7023a9c8834f",
+      "use": "Welcome, About, or supporting feature graphic"
+    },
+    {
+      "path": "app/feature-compare-light.png",
+      "width": 256,
+      "height": 256,
+      "transparent": true,
+      "bytes": 2936,
+      "sha256": "4f45ddb1b78cefa07d0b94b2d41b3e2a0f477517217fe7bcc6c1017f299dab1c",
+      "use": "Welcome, About, or supporting feature graphic"
+    },
+    {
+      "path": "app/feature-compare-light.svg",
+      "width": 256,
+      "height": 256,
+      "transparent": true,
+      "bytes": 370,
+      "sha256": "a6541955908d79db3ecd5760453fd295ef8f67eec6d6b2c8b6c1f7f1463121c6",
+      "use": "Welcome, About, or supporting feature graphic"
+    },
+    {
+      "path": "app/feature-explain-dark.png",
+      "width": 256,
+      "height": 256,
+      "transparent": true,
+      "bytes": 3678,
+      "sha256": "e40a57609d30ce6e465f2bd2bf7c90bbcb04951bdfa23c6a39eebb19048db3b7",
+      "use": "Welcome, About, or supporting feature graphic"
+    },
+    {
+      "path": "app/feature-explain-dark.svg",
+      "width": 256,
+      "height": 256,
+      "transparent": true,
+      "bytes": 390,
+      "sha256": "10b136a0684be8d26b92ca1927e065f2b903ef8ff116fc907ed92e4d25443566",
+      "use": "Welcome, About, or supporting feature graphic"
+    },
+    {
+      "path": "app/feature-explain-light.png",
+      "width": 256,
+      "height": 256,
+      "transparent": true,
+      "bytes": 3651,
+      "sha256": "437ce65b191fc9b8b71e445fb89a2abec1f960e6e44175c4976562a3ed600460",
+      "use": "Welcome, About, or supporting feature graphic"
+    },
+    {
+      "path": "app/feature-explain-light.svg",
+      "width": 256,
+      "height": 256,
+      "transparent": true,
+      "bytes": 390,
+      "sha256": "11e5eaf5e715993b3315d03a151dd8ac5aba049462ad756dd5169eee20b25f8c",
+      "use": "Welcome, About, or supporting feature graphic"
+    },
+    {
+      "path": "app/feature-report-dark.png",
+      "width": 256,
+      "height": 256,
+      "transparent": true,
+      "bytes": 3048,
+      "sha256": "6dc52b64c3ef9e7c9bd109d7b77942312c1dc7fbf438d40e3ecf8d521b87016a",
+      "use": "Welcome, About, or supporting feature graphic"
+    },
+    {
+      "path": "app/feature-report-dark.svg",
+      "width": 256,
+      "height": 256,
+      "transparent": true,
+      "bytes": 289,
+      "sha256": "a0b674a036b5caeb79db91d75f33cd93177ca5240474066ab0ad8b536e7a1d64",
+      "use": "Welcome, About, or supporting feature graphic"
+    },
+    {
+      "path": "app/feature-report-light.png",
+      "width": 256,
+      "height": 256,
+      "transparent": true,
+      "bytes": 3075,
+      "sha256": "c8dbe3f177e4ed0df501d0f4e5beac2cecc38fa222f5a59fb533fc10b445eb72",
+      "use": "Welcome, About, or supporting feature graphic"
+    },
+    {
+      "path": "app/feature-report-light.svg",
+      "width": 256,
+      "height": 256,
+      "transparent": true,
+      "bytes": 289,
+      "sha256": "e14b5c4ae92de667cfc2e8d7b9164e9bdd0f000b6d4897a15ba2da3aef0b5466",
+      "use": "Welcome, About, or supporting feature graphic"
+    },
+    {
+      "path": "app/welcome-artwork.png",
+      "width": 1024,
+      "height": 512,
+      "transparent": true,
+      "bytes": 350380,
+      "sha256": "c8b4e2d78c2a596909ce208ef182f9b0f7ab65a6c0807d83e7dc5945e2e9f7ae",
+      "use": "Welcome, About, or supporting feature graphic"
+    },
+    {
+      "path": "github/features-overview.png",
+      "width": 1600,
+      "height": 900,
+      "transparent": true,
+      "bytes": 664521,
+      "sha256": "0d6aa74552ae08c22ed08c3b5505fbde0b46cf9ee8088c2cba39cdb9cc46c4f7",
+      "use": "README branding or manually uploaded GitHub social preview"
+    },
+    {
+      "path": "github/readme-header-dark.png",
+      "width": 1600,
+      "height": 500,
+      "transparent": true,
+      "bytes": 41026,
+      "sha256": "df621df3b0144674778db56a1ab5658771e086a3d1c637b12fdbe58e0ce6a3a7",
+      "use": "README branding or manually uploaded GitHub social preview"
+    },
+    {
+      "path": "github/readme-header-dark.svg",
+      "width": 1600,
+      "height": 500,
+      "transparent": true,
+      "bytes": 2283,
+      "sha256": "93759ae29f83c3fb5dc1bf088e5f46ccd615d84b6c592f54f6e91a11de4c0a39",
+      "use": "README branding or manually uploaded GitHub social preview"
+    },
+    {
+      "path": "github/readme-header-light.png",
+      "width": 1600,
+      "height": 500,
+      "transparent": true,
+      "bytes": 40717,
+      "sha256": "9693c429e28d74532db07eb0043d7d006921d30afecc4ac1e538927e99bfbecb",
+      "use": "README branding or manually uploaded GitHub social preview"
+    },
+    {
+      "path": "github/readme-header-light.svg",
+      "width": 1600,
+      "height": 500,
+      "transparent": true,
+      "bytes": 2283,
+      "sha256": "959bc761694d285c9b6d397315f99d4fbf4d02ae2bd1847531f91a56996c3a84",
+      "use": "README branding or manually uploaded GitHub social preview"
+    },
+    {
+      "path": "github/readme-header.png",
+      "width": 1600,
+      "height": 500,
+      "transparent": true,
+      "bytes": 41026,
+      "sha256": "df621df3b0144674778db56a1ab5658771e086a3d1c637b12fdbe58e0ce6a3a7",
+      "use": "README branding or manually uploaded GitHub social preview"
+    },
+    {
+      "path": "github/social-preview.png",
+      "width": 1280,
+      "height": 640,
+      "transparent": false,
+      "bytes": 539187,
+      "sha256": "addc35c1db18104761f0a7f20c7b8994469bf072913c90df6db96f62f900f2ed",
+      "use": "README branding or manually uploaded GitHub social preview"
+    },
+    {
+      "path": "icons/AppIcon.icns",
+      "width": null,
+      "height": null,
+      "transparent": null,
+      "bytes": 329121,
+      "sha256": "9ebb8372450cee8b7ca1dd35f3350976dd59196ba860d158d03bcf6c2bb9f34f",
+      "use": "macOS application icon and portable icon packaging"
+    },
+    {
+      "path": "icons/AppIcon.iconset/icon_128x128.png",
+      "width": 128,
+      "height": 128,
+      "transparent": true,
+      "bytes": 4753,
+      "sha256": "48665b0ce42defc965f913ecccbbffaee2fb44b7b0150d7999f093cdbdebbf26",
+      "use": "macOS application icon and portable icon packaging"
+    },
+    {
+      "path": "icons/AppIcon.iconset/icon_128x128@2x.png",
+      "width": 256,
+      "height": 256,
+      "transparent": true,
+      "bytes": 9906,
+      "sha256": "ab6f22c12c8b14754ff6614c3b8058bb45bbc17dad6714e7ecee770393cf5011",
+      "use": "macOS application icon and portable icon packaging"
+    },
+    {
+      "path": "icons/AppIcon.iconset/icon_16x16.png",
+      "width": 16,
+      "height": 16,
+      "transparent": true,
+      "bytes": 700,
+      "sha256": "328717bdd5838839e2f7661b83221ea6d317adcfb2dedf107ca917974448731f",
+      "use": "macOS application icon and portable icon packaging"
+    },
+    {
+      "path": "icons/AppIcon.iconset/icon_16x16@2x.png",
+      "width": 32,
+      "height": 32,
+      "transparent": true,
+      "bytes": 1345,
+      "sha256": "41f99465d0c41fa550565591ffff53e3856abf484ab7db4bcbf10413e02ce5dc",
+      "use": "macOS application icon and portable icon packaging"
+    },
+    {
+      "path": "icons/AppIcon.iconset/icon_256x256.png",
+      "width": 256,
+      "height": 256,
+      "transparent": true,
+      "bytes": 9906,
+      "sha256": "ab6f22c12c8b14754ff6614c3b8058bb45bbc17dad6714e7ecee770393cf5011",
+      "use": "macOS application icon and portable icon packaging"
+    },
+    {
+      "path": "icons/AppIcon.iconset/icon_256x256@2x.png",
+      "width": 512,
+      "height": 512,
+      "transparent": true,
+      "bytes": 22482,
+      "sha256": "2992b4a3fff43c9fa7ae03ade974275582b1e418705c733f18988ea2f9e872f3",
+      "use": "macOS application icon and portable icon packaging"
+    },
+    {
+      "path": "icons/AppIcon.iconset/icon_32x32.png",
+      "width": 32,
+      "height": 32,
+      "transparent": true,
+      "bytes": 1345,
+      "sha256": "41f99465d0c41fa550565591ffff53e3856abf484ab7db4bcbf10413e02ce5dc",
+      "use": "macOS application icon and portable icon packaging"
+    },
+    {
+      "path": "icons/AppIcon.iconset/icon_32x32@2x.png",
+      "width": 64,
+      "height": 64,
+      "transparent": true,
+      "bytes": 2433,
+      "sha256": "4c4a5b4b44800089ce722244956b34bc2ac31fd66f65c81f90574a7cf1dc44f7",
+      "use": "macOS application icon and portable icon packaging"
+    },
+    {
+      "path": "icons/AppIcon.iconset/icon_512x512.png",
+      "width": 512,
+      "height": 512,
+      "transparent": true,
+      "bytes": 22482,
+      "sha256": "2992b4a3fff43c9fa7ae03ade974275582b1e418705c733f18988ea2f9e872f3",
+      "use": "macOS application icon and portable icon packaging"
+    },
+    {
+      "path": "icons/AppIcon.iconset/icon_512x512@2x.png",
+      "width": 1024,
+      "height": 1024,
+      "transparent": true,
+      "bytes": 55932,
+      "sha256": "b698c185592a7a43e8bcc763ed5d22cf5f55f904ad19dcb749a4a15f3299cf6e",
+      "use": "macOS application icon and portable icon packaging"
+    },
+    {
+      "path": "icons/app-icon-1024.png",
+      "width": 1024,
+      "height": 1024,
+      "transparent": true,
+      "bytes": 55932,
+      "sha256": "b698c185592a7a43e8bcc763ed5d22cf5f55f904ad19dcb749a4a15f3299cf6e",
+      "use": "macOS application icon and portable icon packaging"
+    },
+    {
+      "path": "icons/app-icon-128.png",
+      "width": 128,
+      "height": 128,
+      "transparent": true,
+      "bytes": 4753,
+      "sha256": "48665b0ce42defc965f913ecccbbffaee2fb44b7b0150d7999f093cdbdebbf26",
+      "use": "macOS application icon and portable icon packaging"
+    },
+    {
+      "path": "icons/app-icon-16.png",
+      "width": 16,
+      "height": 16,
+      "transparent": true,
+      "bytes": 700,
+      "sha256": "328717bdd5838839e2f7661b83221ea6d317adcfb2dedf107ca917974448731f",
+      "use": "macOS application icon and portable icon packaging"
+    },
+    {
+      "path": "icons/app-icon-256.png",
+      "width": 256,
+      "height": 256,
+      "transparent": true,
+      "bytes": 9906,
+      "sha256": "ab6f22c12c8b14754ff6614c3b8058bb45bbc17dad6714e7ecee770393cf5011",
+      "use": "macOS application icon and portable icon packaging"
+    },
+    {
+      "path": "icons/app-icon-32.png",
+      "width": 32,
+      "height": 32,
+      "transparent": true,
+      "bytes": 1345,
+      "sha256": "41f99465d0c41fa550565591ffff53e3856abf484ab7db4bcbf10413e02ce5dc",
+      "use": "macOS application icon and portable icon packaging"
+    },
+    {
+      "path": "icons/app-icon-512.png",
+      "width": 512,
+      "height": 512,
+      "transparent": true,
+      "bytes": 22482,
+      "sha256": "2992b4a3fff43c9fa7ae03ade974275582b1e418705c733f18988ea2f9e872f3",
+      "use": "macOS application icon and portable icon packaging"
+    },
+    {
+      "path": "icons/app-icon-64.png",
+      "width": 64,
+      "height": 64,
+      "transparent": true,
+      "bytes": 2433,
+      "sha256": "4c4a5b4b44800089ce722244956b34bc2ac31fd66f65c81f90574a7cf1dc44f7",
+      "use": "macOS application icon and portable icon packaging"
+    },
+    {
+      "path": "icons/app-icon.png",
+      "width": 1024,
+      "height": 1024,
+      "transparent": true,
+      "bytes": 55932,
+      "sha256": "b698c185592a7a43e8bcc763ed5d22cf5f55f904ad19dcb749a4a15f3299cf6e",
+      "use": "macOS application icon and portable icon packaging"
+    },
+    {
+      "path": "icons/app-icon.svg",
+      "width": 1024,
+      "height": 1024,
+      "transparent": true,
+      "bytes": 2137,
+      "sha256": "6da33e3b485a8d65cfddffe34a2ebf04bc60c9a72dd1ee86611228cdb700a85a",
+      "use": "macOS application icon and portable icon packaging"
+    },
+    {
+      "path": "logos/logo-dark.png",
+      "width": 1024,
+      "height": 1024,
+      "transparent": true,
+      "bytes": 25118,
+      "sha256": "adab5f159be92edbecbbf386ed1cefec732dc7e3ca213cf3554645e7fe435c1b",
+      "use": "Transparent standalone logo or editable wordmark"
+    },
+    {
+      "path": "logos/logo-dark.svg",
+      "width": 1000,
+      "height": 1000,
+      "transparent": true,
+      "bytes": 1569,
+      "sha256": "33bfdc3bbcdc03d5b94afcd845206059bd565ee1de46db9da832437466285ca3",
+      "use": "Transparent standalone logo or editable wordmark"
+    },
+    {
+      "path": "logos/logo-light.png",
+      "width": 1024,
+      "height": 1024,
+      "transparent": true,
+      "bytes": 25199,
+      "sha256": "372d7f48f97a184a81ab0ae3564edbf0c245b7347a1e687492c03fb6aa717159",
+      "use": "Transparent standalone logo or editable wordmark"
+    },
+    {
+      "path": "logos/logo-light.svg",
+      "width": 1000,
+      "height": 1000,
+      "transparent": true,
+      "bytes": 1569,
+      "sha256": "54d682ef4cccc6e43b2c6526e878a0eb6700829d2a555307544195bc2a2f8185",
+      "use": "Transparent standalone logo or editable wordmark"
+    },
+    {
+      "path": "logos/logo-mono-ink.png",
+      "width": 1024,
+      "height": 1024,
+      "transparent": true,
+      "bytes": 24581,
+      "sha256": "d6cfd2232416e03224f3ffb21b457667c3b73ff94f0dabe7b4c3fd7949c47d1d",
+      "use": "Transparent standalone logo or editable wordmark"
+    },
+    {
+      "path": "logos/logo-mono-ink.svg",
+      "width": 1000,
+      "height": 1000,
+      "transparent": true,
+      "bytes": 1569,
+      "sha256": "5a03f5d2bda7ee76e779a56705082662d570de15d574d036829dc493d8a43d36",
+      "use": "Transparent standalone logo or editable wordmark"
+    },
+    {
+      "path": "logos/logo-mono-white.png",
+      "width": 1024,
+      "height": 1024,
+      "transparent": true,
+      "bytes": 18910,
+      "sha256": "4b00ac707d96ddf26c317fd6c36627a0646ef3a1b64114b1fcb019761f78eee2",
+      "use": "Transparent standalone logo or editable wordmark"
+    },
+    {
+      "path": "logos/logo-mono-white.svg",
+      "width": 1000,
+      "height": 1000,
+      "transparent": true,
+      "bytes": 1569,
+      "sha256": "00fd800bcf23659afc2dd164b1921474c76c9a8d29680472d04ba2d846343283",
+      "use": "Transparent standalone logo or editable wordmark"
+    },
+    {
+      "path": "logos/wordmark-dark.png",
+      "width": 1800,
+      "height": 420,
+      "transparent": true,
+      "bytes": 34359,
+      "sha256": "33fb08e7384dcfa6aad748026956c4e107282a6b6de73f794585cbad6ad406cb",
+      "use": "Transparent standalone logo or editable wordmark"
+    },
+    {
+      "path": "logos/wordmark-dark.svg",
+      "width": 1800,
+      "height": 420,
+      "transparent": true,
+      "bytes": 1901,
+      "sha256": "6f97334fa7ffd390ce6f312108eccd2328e933d91e8169249db0869b82c00509",
+      "use": "Transparent standalone logo or editable wordmark"
+    },
+    {
+      "path": "logos/wordmark-light.png",
+      "width": 1800,
+      "height": 420,
+      "transparent": true,
+      "bytes": 34426,
+      "sha256": "fe57556221616c48dfa151d04bee4c0d002a781ee1af6298bc95a900b0acff9a",
+      "use": "Transparent standalone logo or editable wordmark"
+    },
+    {
+      "path": "logos/wordmark-light.svg",
+      "width": 1800,
+      "height": 420,
+      "transparent": true,
+      "bytes": 1901,
+      "sha256": "ed9aa793d725202c0e91e817d095f9cc5ce8de840e56384da9fe938cb011293d",
+      "use": "Transparent standalone logo or editable wordmark"
+    },
+    {
+      "path": "previews/contact-sheet.png",
+      "width": 1500,
+      "height": 950,
+      "transparent": false,
+      "bytes": 492092,
+      "sha256": "751f693ce21a63bbc44133802f98fc195d899aeb56a804739cbf99baf8285eb0",
+      "use": "Local visual validation and review"
+    },
+    {
+      "path": "previews/icon-small-sizes.png",
+      "width": 1200,
+      "height": 270,
+      "transparent": false,
+      "bytes": 27494,
+      "sha256": "6f3471ad52e2936d3b588f08f92fc70190739827ea10a5547941d463187b7df6",
+      "use": "Local visual validation and review"
+    },
+    {
+      "path": "previews/logo-light-dark.png",
+      "width": 1200,
+      "height": 570,
+      "transparent": false,
+      "bytes": 27313,
+      "sha256": "88fea6eaa22d4e5b42151ec856e9b570a8da8638df4f9969e7963cdb4bb56c28",
+      "use": "Local visual validation and review"
+    },
+    {
+      "path": "previews/welcome-light-dark.png",
+      "width": 800,
+      "height": 240,
+      "transparent": false,
+      "bytes": 99955,
+      "sha256": "c86c3e61472dbaa40f4e7c454d33a8986b8786f181fe3ff1386113a80b8e5ad8",
+      "use": "Local visual validation and review"
+    },
+    {
+      "path": "sources/approved-concept.png",
+      "width": 1536,
+      "height": 1024,
+      "transparent": false,
+      "bytes": 1261996,
+      "sha256": "65d1d70288edaf6ddab513ed079ce6cd71f0ead4a16ebbff1ee6f25b00953317",
+      "use": "Editable vector master or retained original imagegen source"
+    },
+    {
+      "path": "sources/generation-prompts.json",
+      "width": null,
+      "height": null,
+      "transparent": null,
+      "bytes": 5035,
+      "sha256": "53e8d3e765ca58e01452b2aaefa6260279298d8b2bb84a64558b60384abd1fa5",
+      "use": "Editable vector master or retained original imagegen source"
+    },
+    {
+      "path": "sources/imagegen-hero-landscape.png",
+      "width": 2172,
+      "height": 724,
+      "transparent": false,
+      "bytes": 1262203,
+      "sha256": "42ebc54a6a8f7838d20a98f172cd7715ceb3b2531ea0a9964b7b3932650600cb",
+      "use": "Editable vector master or retained original imagegen source"
+    },
+    {
+      "path": "sources/imagegen-hero-portrait.png",
+      "width": 941,
+      "height": 1672,
+      "transparent": false,
+      "bytes": 1259909,
+      "sha256": "f9e9856ae2a772404af9e79e662e89004629714adec9f714cf9ccd6a2375a7bd",
+      "use": "Editable vector master or retained original imagegen source"
+    },
+    {
+      "path": "sources/imagegen-mark-reference.png",
+      "width": 1254,
+      "height": 1254,
+      "transparent": true,
+      "bytes": 543025,
+      "sha256": "c866ed889da4c9ee35c25972c972a512d2a3d3b1204c06fe82671a316cbd91c2",
+      "use": "Editable vector master or retained original imagegen source"
+    },
+    {
+      "path": "sources/imagegen-welcome.png",
+      "width": 1774,
+      "height": 887,
+      "transparent": true,
+      "bytes": 763869,
+      "sha256": "aa563821df2ade47c9ea9db36401045827822a1cba9e13d366e33a1c1816749d",
+      "use": "Editable vector master or retained original imagegen source"
+    },
+    {
+      "path": "sources/mark-dark.svg",
+      "width": 1000,
+      "height": 1000,
+      "transparent": true,
+      "bytes": 1569,
+      "sha256": "33bfdc3bbcdc03d5b94afcd845206059bd565ee1de46db9da832437466285ca3",
+      "use": "Editable vector master or retained original imagegen source"
+    },
+    {
+      "path": "sources/mark-light.svg",
+      "width": 1000,
+      "height": 1000,
+      "transparent": true,
+      "bytes": 1569,
+      "sha256": "54d682ef4cccc6e43b2c6526e878a0eb6700829d2a555307544195bc2a2f8185",
+      "use": "Editable vector master or retained original imagegen source"
+    },
+    {
+      "path": "sources/mark-mono-ink.svg",
+      "width": 1000,
+      "height": 1000,
+      "transparent": true,
+      "bytes": 1569,
+      "sha256": "5a03f5d2bda7ee76e779a56705082662d570de15d574d036829dc493d8a43d36",
+      "use": "Editable vector master or retained original imagegen source"
+    },
+    {
+      "path": "sources/mark-mono-white.svg",
+      "width": 1000,
+      "height": 1000,
+      "transparent": true,
+      "bytes": 1569,
+      "sha256": "00fd800bcf23659afc2dd164b1921474c76c9a8d29680472d04ba2d846343283",
+      "use": "Editable vector master or retained original imagegen source"
+    },
+    {
+      "path": "website/app-icon.png",
+      "width": 1024,
+      "height": 1024,
+      "transparent": true,
+      "bytes": 55932,
+      "sha256": "b698c185592a7a43e8bcc763ed5d22cf5f55f904ad19dcb749a4a15f3299cf6e",
+      "use": "hideouts.io project presentation, responsive hero, or web icon"
+    },
+    {
+      "path": "website/apple-touch-icon.png",
+      "width": 180,
+      "height": 180,
+      "transparent": true,
+      "bytes": 6727,
+      "sha256": "86a69df8654d0881c3fb4395ab0ec3d4730c0c8885d0956706e8c78b4de3cc6c",
+      "use": "hideouts.io project presentation, responsive hero, or web icon"
+    },
+    {
+      "path": "website/favicon-32.png",
+      "width": 32,
+      "height": 32,
+      "transparent": true,
+      "bytes": 1345,
+      "sha256": "41f99465d0c41fa550565591ffff53e3856abf484ab7db4bcbf10413e02ce5dc",
+      "use": "hideouts.io project presentation, responsive hero, or web icon"
+    },
+    {
+      "path": "website/favicon.ico",
+      "width": null,
+      "height": null,
+      "transparent": null,
+      "bytes": 2083,
+      "sha256": "b7bbd526499fd8883eb39ce345d8c71c87b62e755078edfd72dc2e6f0c89e4d2",
+      "use": "hideouts.io project presentation, responsive hero, or web icon"
+    },
+    {
+      "path": "website/favicon.svg",
+      "width": 1024,
+      "height": 1024,
+      "transparent": true,
+      "bytes": 2137,
+      "sha256": "6da33e3b485a8d65cfddffe34a2ebf04bc60c9a72dd1ee86611228cdb700a85a",
+      "use": "hideouts.io project presentation, responsive hero, or web icon"
+    },
+    {
+      "path": "website/features-overview.png",
+      "width": 1600,
+      "height": 900,
+      "transparent": true,
+      "bytes": 664521,
+      "sha256": "0d6aa74552ae08c22ed08c3b5505fbde0b46cf9ee8088c2cba39cdb9cc46c4f7",
+      "use": "hideouts.io project presentation, responsive hero, or web icon"
+    },
+    {
+      "path": "website/features-overview.webp",
+      "width": 1600,
+      "height": 900,
+      "transparent": true,
+      "bytes": 83964,
+      "sha256": "bd04f794fb3c891c76d91b8ae310a14e423566be1389f7a7f8a27e2fccbac52d",
+      "use": "hideouts.io project presentation, responsive hero, or web icon"
+    },
+    {
+      "path": "website/hero-desktop.png",
+      "width": 2000,
+      "height": 667,
+      "transparent": false,
+      "bytes": 1521042,
+      "sha256": "08af0970cae87d571b45be320ad92511973b9db1d9821d47edc51c2ef0023221",
+      "use": "hideouts.io project presentation, responsive hero, or web icon"
+    },
+    {
+      "path": "website/hero-desktop.webp",
+      "width": 2000,
+      "height": 667,
+      "transparent": false,
+      "bytes": 78750,
+      "sha256": "300ccbaf6790cb545b2604af39bc51c3a13e006fc59be6f2f86ddd4ff578de74",
+      "use": "hideouts.io project presentation, responsive hero, or web icon"
+    },
+    {
+      "path": "website/hero-mobile.png",
+      "width": 941,
+      "height": 1672,
+      "transparent": false,
+      "bytes": 1637938,
+      "sha256": "8ef02e2e9ac246be5bba34d8ae83d42b82053538f2ad57fc9531898776efd2dd",
+      "use": "hideouts.io project presentation, responsive hero, or web icon"
+    },
+    {
+      "path": "website/hero-mobile.webp",
+      "width": 941,
+      "height": 1672,
+      "transparent": false,
+      "bytes": 87704,
+      "sha256": "2b031f6ac06ae3c1af8e500b8baa37f38ca941d029b4a72e66dda714446b2f5c",
+      "use": "hideouts.io project presentation, responsive hero, or web icon"
+    },
+    {
+      "path": "website/hero-tablet.png",
+      "width": 1536,
+      "height": 1024,
+      "transparent": false,
+      "bytes": 1000590,
+      "sha256": "61002250bc68ac5bb504598d46dc96afb2eb544bcc4ababff37fc42759aeebb2",
+      "use": "hideouts.io project presentation, responsive hero, or web icon"
+    },
+    {
+      "path": "website/hero-tablet.webp",
+      "width": 1536,
+      "height": 1024,
+      "transparent": false,
+      "bytes": 65762,
+      "sha256": "077b9be823bdb2335c709ac901fec4d08141b29ae32fefff8cb48633448a3640",
+      "use": "hideouts.io project presentation, responsive hero, or web icon"
+    },
+    {
+      "path": "website/logo-on-dark.svg",
+      "width": 1000,
+      "height": 1000,
+      "transparent": true,
+      "bytes": 1569,
+      "sha256": "33bfdc3bbcdc03d5b94afcd845206059bd565ee1de46db9da832437466285ca3",
+      "use": "hideouts.io project presentation, responsive hero, or web icon"
+    },
+    {
+      "path": "website/logo-on-light.svg",
+      "width": 1000,
+      "height": 1000,
+      "transparent": true,
+      "bytes": 1569,
+      "sha256": "54d682ef4cccc6e43b2c6526e878a0eb6700829d2a555307544195bc2a2f8185",
+      "use": "hideouts.io project presentation, responsive hero, or web icon"
+    },
+    {
+      "path": "website/og-image.png",
+      "width": 1200,
+      "height": 630,
+      "transparent": false,
+      "bytes": 505530,
+      "sha256": "4587a32b6ad476d91ff2ee8bc898efdfe3a0fb2beb99ca95956bccd64d46406c",
+      "use": "hideouts.io project presentation, responsive hero, or web icon"
+    },
+    {
+      "path": "website/project-card.png",
+      "width": 1200,
+      "height": 675,
+      "transparent": false,
+      "bytes": 533100,
+      "sha256": "9fbacd79b778fb4bc45bba6ac0ecd4a86e731ed45006ce4628ed4ba2c28d3bb7",
+      "use": "hideouts.io project presentation, responsive hero, or web icon"
+    },
+    {
+      "path": "website/project-card.webp",
+      "width": 1200,
+      "height": 675,
+      "transparent": false,
+      "bytes": 44912,
+      "sha256": "bdd1fd42c593e280a1929d12c01a76011617d1e1dfabb0513a075ea8a5b1703d",
+      "use": "hideouts.io project presentation, responsive hero, or web icon"
+    },
+    {
+      "path": "website/social-preview.png",
+      "width": 1200,
+      "height": 630,
+      "transparent": false,
+      "bytes": 505530,
+      "sha256": "4587a32b6ad476d91ff2ee8bc898efdfe3a0fb2beb99ca95956bccd64d46406c",
+      "use": "hideouts.io project presentation, responsive hero, or web icon"
+    },
+    {
+      "path": "website/social-sharing.webp",
+      "width": 1200,
+      "height": 630,
+      "transparent": false,
+      "bytes": 46540,
+      "sha256": "da4b0ef20e6a9dc1109b9a1281f20be9d78d91b3aaace925f29ed4c500525a78",
+      "use": "hideouts.io project presentation, responsive hero, or web icon"
+    },
+    {
+      "path": "website/web-app-icon-192.png",
+      "width": 192,
+      "height": 192,
+      "transparent": true,
+      "bytes": 7299,
+      "sha256": "78075bea00124eb12e6379f77e006f76628403d850964dd5ee36a19ab8c72c3d",
+      "use": "hideouts.io project presentation, responsive hero, or web icon"
+    },
+    {
+      "path": "website/web-app-icon-512.png",
+      "width": 512,
+      "height": 512,
+      "transparent": true,
+      "bytes": 22482,
+      "sha256": "2992b4a3fff43c9fa7ae03ade974275582b1e418705c733f18988ea2f9e872f3",
+      "use": "hideouts.io project presentation, responsive hero, or web icon"
+    },
+    {
+      "path": "website/web-icon-192.png",
+      "width": 192,
+      "height": 192,
+      "transparent": true,
+      "bytes": 7299,
+      "sha256": "78075bea00124eb12e6379f77e006f76628403d850964dd5ee36a19ab8c72c3d",
+      "use": "hideouts.io project presentation, responsive hero, or web icon"
+    },
+    {
+      "path": "website/web-icon-512.png",
+      "width": 512,
+      "height": 512,
+      "transparent": true,
+      "bytes": 22482,
+      "sha256": "2992b4a3fff43c9fa7ae03ade974275582b1e418705c733f18988ea2f9e872f3",
+      "use": "hideouts.io project presentation, responsive hero, or web icon"
+    }
+  ]
+}

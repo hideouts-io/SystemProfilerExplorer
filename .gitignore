@@ -3,6 +3,7 @@
 build/
 DerivedData/
 dist/
+output/
 xcuserdata/
 *.xcuserstate
 *.xcresult

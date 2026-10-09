@@ -81,6 +81,7 @@ fi
 
 mkdir -p -- "${STAGING_DIRECTORY}" "${DIST_DIRECTORY}"
 ditto "${BUILT_APP}" "${STAGED_APP}"
+ditto "${PROJECT_ROOT}/LICENSE" "${STAGED_APP}/Contents/Resources/LICENSE"
 codesign --force --sign - --timestamp=none --options runtime "${STAGED_APP}"
 
 plutil -lint "${INFO_PLIST}" >/dev/null
@@ -125,4 +126,4 @@ echo "Checksum file: ${CHECKSUM_PATH}"
 echo "Architectures: ${ARCHITECTURES}"
 echo "Minimum macOS: ${MINIMUM_SYSTEM_VERSION}"
 echo "Version: ${BUNDLE_VERSION} (${BUNDLE_BUILD})"
-echo "Signature: ad hoc; Developer ID signing and notarization are required before public distribution."
+echo "Signature: ad hoc; not Developer ID signed or Apple-notarized. Gatekeeper may require app-specific approval."

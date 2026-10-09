@@ -17,5 +17,11 @@ struct SystemProfilerExplorerApp: App {
         .commands {
             AppCommands()
         }
+
+        Window("About System Profiler Explorer", id: "about-system-profiler-explorer") {
+            AboutAppView()
+        }
+        .windowResizability(.contentSize)
+        .defaultPosition(.center)
     }
 }

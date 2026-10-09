@@ -594,9 +594,18 @@ private struct ReadinessCard: View {
 
     var body: some View {
         VStack(spacing: 18) {
-            Image(systemName: "waveform.path.ecg.rectangle")
-                .font(.system(size: 42, weight: .light))
-                .foregroundStyle(Color.accentColor)
+            if subject == .overview {
+                Image("WelcomeArtwork")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 340, height: 170)
+                    .accessibilityLabel("Open Layers: organized system information")
+                    .accessibilityIdentifier("welcome-brand-artwork")
+            } else {
+                Image(systemName: "waveform.path.ecg.rectangle")
+                    .font(.system(size: 42, weight: .light))
+                    .foregroundStyle(Color.accentColor)
+            }
 
             VStack(spacing: 7) {
                 Text("Ready to inspect this Mac")
@@ -643,7 +652,7 @@ private struct ReadinessCard: View {
             }
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 52)
+        .padding(.vertical, subject == .overview ? 32 : 52)
         .padding(.horizontal, 28)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 18))
         .overlay {
