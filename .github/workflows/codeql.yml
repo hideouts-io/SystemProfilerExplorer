@@ -60,6 +60,7 @@ jobs:
             COMPILATION_CACHE_ENABLE_CACHING=NO SWIFT_ENABLE_COMPILE_CACHE=NO \
             SWIFT_USE_INTEGRATED_DRIVER=NO SWIFT_ENABLE_EXPLICIT_MODULES=NO \
             SWIFT_COMPILATION_MODE=wholemodule \
+            SWIFT_OBJC_INTERFACE_HEADER_NAME= \
             build test
       - name: Analyze source without upload permissions
         uses: github/codeql-action/analyze@24c54180a607b1449ed407dd24f251e4e9147c8d # v4
