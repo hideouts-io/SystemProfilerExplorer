@@ -334,7 +334,9 @@ specifications and PCI Express rates the PCI-SIG specifications.
 | `spsata_linkwidth` | `x1`, `x2`, `x4`, `x8`, `x16` | Info | Standard | published (`x2`); others unconfirmed |
 
 Speeds written with a decimal comma, such as `1,5 Gigabit`, are read too, since
-the samples show sizes written that way in some languages. `spsata_power_off`
+the samples show sizes written that way in some languages. Lane counts require
+`x` followed by a complete unsigned ASCII integer in the supported set; signed
+or malformed suffixes stay unexplained. `spsata_power_off`
 and `spsata_async_notify` (both `No` in the samples) have no rule, because no
 source says what they report.
 
@@ -344,6 +346,10 @@ Sources: the glpi-agent samples, and the support levels and interconnects of
 Apple's Disc Recording framework (`DRDeviceSupportLevel…` and
 `DRDevicePhysicalInterconnect…`, listed in
 <https://developer.apple.com/library/archive/releasenotes/General/APIDiffsMacOSX10_10_3/modules/DiscRecording.html>).
+Apple SDK `DRDevice.h` and `DRCoreDevice.h` define support levels, physical
+interfaces, and medium-specific write capabilities. The installed
+`SPDiscBurningReporter` also contains the DVD format suffixes below; that
+confirms spellings, not a live drive's capabilities.
 
 | field | value | status | source | spelling |
 |---|---|---|---|---|
@@ -354,14 +360,24 @@ Apple's Disc Recording framework (`DRDeviceSupportLevel…` and
 | `device_readdvd` | `yes`, `no` | Info | Standard | published (`yes`) |
 | `interconnect` | `ATAPI` | Info | Apple | published |
 | `interconnect` | `USB`, `FireWire`, `SCSI` | Info | Apple | Apple constant |
-| `device_cdwrite`, `device_dvdwrite` | lists of `-R`, `-RW`, `+R`, `+RW`, `-R DL`, `+R DL` | Info | Standard | published |
-| `device_cdwrite`, `device_dvdwrite` | lists that include `-RAM` or `+RW DL` | Info | Standard | unconfirmed |
+| `device_cdwrite` | lists of `-R`, `-RW` only | Info | Standard | published |
+| `device_dvdwrite` | lists of `-R`, `-RW`, `+R`, `+RW`, `-R DL`, `+R DL` | Info | Standard | published |
+| `device_dvdwrite` | lists that include `-RW DL`, `-RAM`, or `+RW DL` | Info | Standard | Apple capability constants and installed reporter strings; not live-tested |
 | `device_strategies` | lists of `CD-TAO`, `CD-SAO`, `CD-Raw`, `DVD-DAO` | Info | Apple | published |
 | `device_strategies` | lists that include `BD-DAO` | Info | Apple | unconfirmed (Apple constant) |
 
-A list with an entry the app doesn't know is shown as not yet explained, rather
-than partly explained. `device_media` values other than `media_none` (a disc in
-the drive) are not explained yet.
+Format and strategy lists with an unknown or empty entry are shown as not yet
+explained, rather than partly explained. DVD-only formats in `device_cdwrite`
+remain unexplained. Raw values are unchanged. A listed format is a reported
+capability, not proof of a successful burn or compatible inserted media.
+`device_media` values other than `media_none` (a disc in the drive) are not
+explained yet.
+
+Support labels follow Apple's framework contract: AppleSupported means tested
+by Apple; VendorSupported means tested by a third party; Unsupported still lets
+the engine try the drive; None means no support from that engine. They don't
+prove a successful burn, maker-provided software, or read-only hardware.
+Interconnect values identify an interface, not internal/external location.
 
 ## Startup security, software overview, and hardware
 
@@ -469,6 +485,20 @@ Bluetooth profile abbreviations.
 A service list names any service the app doesn't know, and a list with none it
 knows is shown as not yet explained. The accessory types other than these are
 not explained yet.
+
+Battery levels require a complete unsigned ASCII integer from 0 through 100
+followed by `%`. Surrounding whitespace and a space/nonbreaking space before
+`%` are accepted for percent-formatter compatibility. Decimal, signed,
+out-of-range, or partially numeric text such as `85garbage%` stays unexplained;
+the raw value is retained. The 10% and 20% boundaries are app review thresholds,
+not vendor health diagnoses, and a reported level doesn't prove a current
+connection or charging state.
+
+Service lists require a complete `<…>` structure, optionally preceded by a
+hexadecimal `0x…` value. Extra surrounding text or nested brackets remain
+unexplained. Whitespace-separated unfamiliar names stay visible; the app does
+not infer token meanings from the bitmask. BLE and GATT are capabilities, not
+both profiles, and listing a capability doesn't prove active use.
 
 ## Settings and profiles
 

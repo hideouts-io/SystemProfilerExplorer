@@ -390,7 +390,7 @@ private let discDriveValueSamples: [ValueSample] = {
     samples += ["yes", "no"].map { ValueSample(.discBurning, ["device_readdvd"], $0) }
     samples += ["ATAPI", "USB", "FireWire", "SCSI"].map { ValueSample(.discBurning, ["interconnect"], $0) }
     samples += ["-R, -RW", "-R"].map { ValueSample(.discBurning, ["device_cdwrite"], $0) }
-    samples += ["-R, -R DL, -RW, +R, +R DL, +RW", "-R, -RAM", "+RW DL"].map { ValueSample(.discBurning, ["device_dvdwrite"], $0) }
+    samples += ["-R, -R DL, -RW, +R, +R DL, +RW", "-R, -RAM", "+RW DL", "-RW DL"].map { ValueSample(.discBurning, ["device_dvdwrite"], $0) }
     samples += ["CD-TAO, CD-SAO, CD-Raw, DVD-DAO", "CD-TAO", "BD-DAO"].map { ValueSample(.discBurning, ["device_strategies"], $0) }
     return samples
 }()
@@ -779,6 +779,29 @@ struct ValueCatalogTests {
 /// Values from drives, cards, disc drives, and Bluetooth accessories that the
 /// inventory Mac didn't have.
 struct DriveAndAccessoryValueTests {
+    @Test
+    func importedMalformedValuesRemainSearchableAndRoundTripUnchanged() throws {
+        let data: Data = Data(#"{"SPBluetoothDataType":[{"device_batteryLevelMain":"85garbage%","device_batteryLevelLeft":"10%"}],"SPDiscBurningDataType":[{"device_cdwrite":"-R, +RW","device_dvdwrite":"-R, -RW"}]}"#.utf8)
+        let report: SystemProfilerReport = try SystemProfilerParser().parseImportedReport(
+            data,
+            importedAt: Date(timeIntervalSince1970: 1_700_000_000)
+        )
+        let index: ReportPresentationIndex = try makeReportPresentationIndex(report)
+        let malformedBattery: ReportQueryResult = try index.queryResult(for: FindingQuery(text: "85garbage%", filter: .all))
+        let unsupportedCD: ReportQueryResult = try index.queryResult(for: FindingQuery(text: "-R, +RW", filter: .all))
+        let roundTrip: ReportExportEnvelope = try decodeReportExport(encodeReportExport(makeFullReportExport(report)))
+
+        #expect(malformedBattery.findingCount == 1)
+        #expect(unsupportedCD.findingCount == 1)
+        #expect(index.worthReviewingFindingCount == 1)
+        #expect(index.worthReviewingItems.first?.sourcePath.hasSuffix("device_batteryLevelLeft") == true)
+        #expect(roundTrip.report.sections == report.sections)
+        let bluetooth: SystemProfilerSection = try #require(roundTrip.report.sections.first { $0.dataType == .bluetooth })
+        #expect(bluetooth.items == [.object([
+            "device_batteryLevelMain": .string("85garbage%"), "device_batteryLevelLeft": .string("10%")
+        ])])
+    }
+
     // MARK: - Serial ATA drives and cards
 
     @Test
@@ -842,6 +865,65 @@ struct DriveAndAccessoryValueTests {
         #expect(valueExplanation(dataType: .discBurning, path: ["device_strategies"], scalar: .string("CD-TAO, HD-DAO"))?.status == .unknown)
     }
 
+    @Test(arguments: ["+R", "+RW", "-R DL", "-RW DL", "+R DL", "-RAM", "+RW DL", "-R, +RW"])
+    func dvdFormatsAreNotExplainedAsCDFormats(_ value: String) throws {
+        let explanation = try #require(valueExplanation(dataType: .discBurning, path: ["device_cdwrite"], scalar: .string(value)))
+
+        #expect(explanation.status == .unknown)
+        #expect(explanation.confidence == nil)
+        #expect(explanation == .unexplained(value))
+    }
+
+    @Test(arguments: ["", ",", "-R,", ",-R", "-R,, -RW", "-R, , -RW", "-R garbage", "-R, +HD"])
+    func malformedDiscFormatListsStayUnexplained(_ value: String) throws {
+        for field: String in ["device_cdwrite", "device_dvdwrite"] {
+            let explanation = try #require(valueExplanation(dataType: .discBurning, path: [field], scalar: .string(value)))
+
+            #expect(explanation.status == .unknown)
+            #expect(explanation.confidence == nil)
+            #expect(explanation == .unexplained(value))
+        }
+    }
+
+    @Test
+    func discFormatWhitespaceAndDVDOnlyFormatsAreRecognized() throws {
+        let cd = try #require(valueExplanation(dataType: .discBurning, path: ["device_cdwrite"], scalar: .string("  -R , -RW  ")))
+        let dvd = try #require(valueExplanation(dataType: .discBurning, path: ["device_dvdwrite"], scalar: .string("-R, -RW, +R, +RW, -R DL, -RW DL, +R DL, -RAM, +RW DL")))
+
+        #expect(cd.summary == "The drive can write CD-R and CD-RW.")
+        #expect(cd.confidence == .observed)
+        #expect(dvd.summary == "The drive can write DVD-R, DVD-RW, DVD+R, DVD+RW, DVD-R DL, DVD-RW DL, DVD+R DL, DVD-RAM, and DVD+RW DL.")
+        #expect(dvd.confidence == .observed)
+    }
+
+    @Test(arguments: [",CD-TAO", "CD-TAO,", "CD-TAO,,DVD-DAO", "CD-TAO, ,DVD-DAO"])
+    func incompleteDiscStrategyListsStayUnexplained(_ value: String) throws {
+        let explanation = try #require(valueExplanation(dataType: .discBurning, path: ["device_strategies"], scalar: .string(value)))
+
+        #expect(explanation == .unexplained(value))
+    }
+
+    @Test
+    func discSupportLevelsDoNotPromiseSuccessfulBurns() throws {
+        let unsupported = try #require(valueExplanation(dataType: .discBurning, path: ["burn_support"], scalar: .string("DRDeviceSupportLevelUnsupported")))
+        let none = try #require(valueExplanation(dataType: .discBurning, path: ["burn_support"], scalar: .string("DRDeviceSupportLevelNone")))
+        let vendor = try #require(valueExplanation(dataType: .discBurning, path: ["burn_support"], scalar: .string("DRDeviceSupportLevelVendorSupported")))
+
+        #expect(unsupported.summary.contains("will still try"))
+        #expect(unsupported.confidence == .documented)
+        #expect(none.detail?.contains("doesn't establish whether the hardware is read-only") == true)
+        #expect(vendor.summary.contains("third party tested"))
+    }
+
+    @Test(arguments: ["ATAPI", "USB", "FireWire", "SCSI"])
+    func discInterconnectDoesNotEstablishPhysicalLocation(_ value: String) throws {
+        let explanation = try #require(valueExplanation(dataType: .discBurning, path: ["interconnect"], scalar: .string(value)))
+
+        #expect(explanation.confidence == .documented)
+        #expect(explanation.summary.hasPrefix("A drive connected over"))
+        #expect(explanation.significance?.contains("Physical location is a separate property") == true)
+    }
+
     @Test
     func aDriveMacOSCantBurnWithIsInformation() {
         func status(_ value: String) -> ValueStatus? {
@@ -870,6 +952,35 @@ struct DriveAndAccessoryValueTests {
         #expect(explain("device_batteryLevelMain", "140%")?.status == .unknown)
     }
 
+    @Test(arguments: [
+        ("0%", ValueStatus.worthReviewing), ("10%", .worthReviewing),
+        ("11%", .informational), ("20%", .informational),
+        ("21%", .normal), ("100%", .normal), (" 85% ", .normal),
+        ("85 %", .normal), ("85\u{00A0}%", .normal)
+    ])
+    func accessoryBatteryBoundariesAreRecognized(_ value: String, _ expected: ValueStatus) throws {
+        for field: String in ["device_batteryLevelMain", "device_batteryLevelLeft", "device_batteryLevelRight", "device_batteryLevelCase"] {
+            let explanation = try #require(valueExplanation(dataType: .bluetooth, path: [field], scalar: .string(value)))
+
+            #expect(explanation.status == expected)
+            #expect(explanation.confidence == .observed)
+        }
+    }
+
+    @Test(arguments: [
+        "85garbage%", "85.5%", "8 5%", "85%%", "85%garbage", "85", "%", "",
+        "+85%", "-0%", "-1%", "101%", "999999999999999999999999%", "８５%", "85\n%"
+    ])
+    func malformedAccessoryBatteryTextStaysUnexplained(_ value: String) throws {
+        for field: String in ["device_batteryLevelMain", "device_batteryLevelLeft", "device_batteryLevelRight", "device_batteryLevelCase"] {
+            let explanation = try #require(valueExplanation(dataType: .bluetooth, path: [field], scalar: .string(value)))
+
+            #expect(explanation.status == .unknown)
+            #expect(explanation.confidence == nil)
+            #expect(explanation == .unexplained(value))
+        }
+    }
+
     @Test
     func accessoryTypesAreNotGuessed() {
         let path: [String] = ["device_not_connected", "[]", "Example Accessory", "device_minorType"]
@@ -890,6 +1001,34 @@ struct DriveAndAccessoryValueTests {
         #expect(apple.confidence?.reasons.isEmpty == false)
         #expect(valueExplanation(dataType: .bluetooth, path: path, scalar: .string("0x3 < XYZ >"))?.status == .unknown)
         #expect(valueExplanation(dataType: .bluetooth, path: path, scalar: .string("none"))?.status == .unknown)
+    }
+
+    @Test(arguments: [
+        "junk < A2DP > junk", "0x1 < A2DP > junk", "0x < A2DP >", "0xG < A2DP >",
+        "0xa\u{200d} < A2DP >", "0xa\u{FE0F} < A2DP >", "0x1 < < A2DP >", "0x1 < A2DP > >"
+    ])
+    func malformedServiceListsStayUnexplained(_ value: String) throws {
+        let explanation = try #require(valueExplanation(dataType: .bluetooth, path: ["device_services"], scalar: .string(value)))
+
+        #expect(explanation == .unexplained(value))
+    }
+
+    @Test(arguments: ["< A2DP >", " 0X1 < A2DP\tXYZ > ", "0x1 < A2DP\nXYZ >"])
+    func serviceListsAllowWhitespaceWithoutDiscardingUnknownTokens(_ value: String) throws {
+        let explanation = try #require(valueExplanation(dataType: .bluetooth, path: ["device_services"], scalar: .string(value)))
+
+        #expect(explanation.status == .informational)
+        #expect(explanation.summary.contains("stereo audio (A2DP)"))
+        if value.contains("XYZ") {
+            #expect(explanation.detail?.contains("XYZ") == true)
+        }
+    }
+
+    @Test(arguments: ["x+2", "x-2", "x2junk", "x2.0", "x", "x0", "x3", "x２"])
+    func malformedOrUnsupportedPCILaneCountsStayUnexplained(_ value: String) throws {
+        let explanation = try #require(valueExplanation(dataType: .serialATA, path: ["spsata_linkwidth"], scalar: .string(value)))
+
+        #expect(explanation == .unexplained(value))
     }
 
     @Test

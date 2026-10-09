@@ -1209,14 +1209,18 @@ private func bluetoothAccessoryTypeExplanation(_ value: String) -> ValueExplanat
 
 private func bluetoothBatteryExplanation(_ value: String, part: String) -> ValueExplanation? {
     let trimmed: String = value.trimmingCharacters(in: .whitespaces)
+    // Percent formatters can insert a space or nonbreaking space before the percent sign.
+    let digits: String = trimmed.dropLast().trimmingCharacters(in: .whitespaces)
 
     guard trimmed.hasSuffix("%"),
-          let percent = leadingInteger(trimmed),
+          !digits.isEmpty,
+          digits.allSatisfy({ ("0"..."9").contains($0) }),
+          let percent: Int = Int(digits),
           (0...100).contains(percent) else {
         return nil
     }
 
-    let detail: String = "This is the level the accessory reported while it was connected to this Mac."
+    let detail: String = "This is the accessory's reported battery level, not a measurement made by the app. It doesn't establish whether the accessory is connected or charging now."
     let why: String = "When the battery runs out, the accessory stops working until it's charged."
 
     if percent <= lowBatteryPercent {
@@ -1266,14 +1270,27 @@ private let bluetoothServiceNames: [String: String] = [
 /// Explains a service list such as `0x400000 < BLE >`. Services the app doesn't know are
 /// named as such, and a list with none it knows is left unexplained.
 private func bluetoothServicesExplanation(_ value: String, owner: String) -> ValueExplanation? {
-    guard let open = value.firstIndex(of: "<"),
-          let close = value.lastIndex(of: ">"),
+    let trimmed: String = value.trimmingCharacters(in: .whitespacesAndNewlines)
+
+    guard trimmed.hasSuffix(">"),
+          let open = trimmed.firstIndex(of: "<"),
+          let close = trimmed.lastIndex(of: ">"),
           open < close else {
         return nil
     }
 
-    let tokens: [String] = value[value.index(after: open)..<close]
-        .split(separator: " ")
+    let prefix: String = trimmed[..<open].trimmingCharacters(in: .whitespaces).lowercased()
+    let hexDigits: Substring = prefix.dropFirst(2)
+    let body: Substring = trimmed[trimmed.index(after: open)..<close]
+
+    guard prefix.isEmpty || (prefix.hasPrefix("0x") && !hexDigits.isEmpty
+          && hexDigits.unicodeScalars.allSatisfy({ (48...57).contains($0.value) || (97...102).contains($0.value) })),
+          !body.contains("<"), !body.contains(">") else {
+        return nil
+    }
+
+    let tokens: [String] = body
+        .split(whereSeparator: \.isWhitespace)
         .map(String.init)
     var known: [String] = []
     var unknown: [String] = []
@@ -1292,7 +1309,7 @@ private func bluetoothServicesExplanation(_ value: String, owner: String) -> Val
         return nil
     }
 
-    var detail: String = "Each service is a Bluetooth profile, a standard way of doing one job."
+    var detail: String = "The list names Bluetooth capabilities, including profiles, protocols, and connection types."
 
     if !unknown.isEmpty {
         detail += " The app doesn't recognize \(englishList(unknown)), so it isn't described here."

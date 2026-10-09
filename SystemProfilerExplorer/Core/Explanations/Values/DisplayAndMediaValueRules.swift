@@ -947,10 +947,10 @@ let discBurningValueRules: [ValueRule] = [
     },
 
     ValueRule(.discBurning, field: "device_cdwrite") { context in
-        discWriteFormats(context.reportedValue, disc: "CD").map { formats in
+        discWriteFormats(context.reportedValue, names: cdWriteFormatNames).map { formats in
             .info(
                 "The drive can write \(formats).",
-                detail: "R discs can be written once. RW discs can be erased and written again.",
+                detail: "R discs can be written once. RW discs can be erased and written again. These are reported capabilities, not a successful burn or a check of an inserted disc.",
                 why: "It tells you which blank CDs to buy for this drive.",
                 action: "Nothing to do.",
                 confidence: .observed
@@ -959,10 +959,10 @@ let discBurningValueRules: [ValueRule] = [
     },
 
     ValueRule(.discBurning, field: "device_dvdwrite") { context in
-        discWriteFormats(context.reportedValue, disc: "DVD").map { formats in
+        discWriteFormats(context.reportedValue, names: dvdWriteFormatNames).map { formats in
             .info(
                 "The drive can write \(formats).",
-                detail: "R discs can be written once and RW discs erased and written again. DL means dual-layer, which holds about twice as much. The minus and plus formats are two competing standards.",
+                detail: "R discs can be written once; RW and RAM discs can be written again. DL means dual-layer, which holds about twice as much. The minus and plus formats are two competing standards. These are reported capabilities, not a successful burn or a check of an inserted disc.",
                 why: "It tells you which blank DVDs to buy for this drive.",
                 action: "Nothing to do.",
                 confidence: .observed
@@ -984,45 +984,45 @@ let discBurningValueRules: [ValueRule] = [
 ]
 
 private func discSupportLevelExplanation(_ value: String) -> ValueExplanation? {
-    let why: String = "It decides whether the Finder and Music can burn discs with this drive."
+    let why: String = "It describes Apple's Disc Recording framework support. A successful burn also depends on the drive, blank media, and burning software."
 
     return switch value {
     case "DRDeviceSupportLevelAppleShipping":
         .normal(
-            "A drive Apple shipped in its Macs, so macOS fully supports burning with it.",
-            detail: "Apple's Disc Recording framework recognizes it as a drive Apple shipped.",
+            "This drive type shipped in an Apple Mac.",
+            detail: "Apple's Disc Recording framework identifies the drive as a type shipping in an Apple machine. This doesn't establish where this particular drive came from.",
             why: why,
             action: "Nothing to do.",
             confidence: .documented
         )
     case "DRDeviceSupportLevelAppleSupported":
         .normal(
-            "macOS supports burning with this drive.",
-            detail: "Apple's Disc Recording framework supports the drive, though Apple didn't ship it in a Mac.",
+            "Apple tested this drive type for Disc Recording support.",
+            detail: "This support level means Apple tested the drive for use with its Disc Recording framework. It doesn't guarantee that every disc will burn successfully.",
             why: why,
             action: "Nothing to do.",
             confidence: .documented
         )
     case "DRDeviceSupportLevelVendorSupported":
         .info(
-            "Burning with this drive is supported by software from the drive's maker.",
-            detail: "Apple's Disc Recording framework uses support the drive's maker provides.",
+            "A third party tested this drive type for Disc Recording support.",
+            detail: "This support level records third-party testing. It doesn't identify the tester or imply that software from the drive's maker is installed.",
             why: why,
             action: "Nothing to do. If burning fails, check the drive maker's site for a macOS update.",
             confidence: .documented
         )
     case "DRDeviceSupportLevelUnsupported":
         .info(
-            "macOS doesn't support burning with this drive. It may still read discs.",
-            detail: "Apple's Disc Recording framework recognizes the drive but doesn't support writing with it.",
+            "macOS will still try to burn with this drive despite its unsupported status.",
+            detail: "Apple's Disc Recording engine attempts to use the drive even though it lacks declared support. A successful burn is not confirmed by this label.",
             why: why,
             action: "If you need to burn discs, use a drive macOS supports or the drive maker's software.",
             confidence: .documented
         )
     case "DRDeviceSupportLevelNone":
         .info(
-            "The drive can't burn discs on this Mac.",
-            detail: "Apple's Disc Recording framework has no burning support for it, often because it's a read-only drive.",
+            "Apple's Disc Recording framework has no support for this drive.",
+            detail: "The drive cannot be used by that engine. This label alone doesn't establish whether the hardware is read-only or whether other software can write with it.",
             why: why,
             action: "Nothing to do unless you need to burn discs.",
             confidence: .documented
@@ -1038,13 +1038,13 @@ private func discInterconnectExplanation(_ value: String) -> ValueExplanation? {
 
     switch value.uppercased() {
     case "ATAPI":
-        summary = "A drive built into the Mac, connected over ATAPI."
-        detail = "ATAPI is how internal optical drives connect, over an ATA or SATA link."
+        summary = "A drive connected over ATAPI."
+        detail = "ATAPI is an interface for devices such as optical drives, over an ATA or SATA link. It doesn't by itself establish the drive's physical location."
     case "USB":
-        summary = "An external drive connected over USB, such as Apple's USB SuperDrive."
-        detail = "The drive is connected by a USB cable."
+        summary = "A drive connected over USB."
+        detail = "USB is the reported interface. This field alone doesn't establish whether the drive is built in or external."
     case "FIREWIRE":
-        summary = "An external drive connected over FireWire."
+        summary = "A drive connected over FireWire."
         detail = "FireWire was common on Macs before Thunderbolt."
     case "SCSI":
         summary = "A drive connected over SCSI, an older connection."
@@ -1056,25 +1056,36 @@ private func discInterconnectExplanation(_ value: String) -> ValueExplanation? {
     return .info(
         summary,
         detail: detail,
-        why: "It shows whether the drive is inside the Mac or plugged in, which helps if the drive stops appearing.",
+        why: "It identifies the reported connection interface, which helps choose where to investigate if the drive stops appearing. Physical location is a separate property.",
         action: "Nothing to do. If an external drive doesn't appear, connect it directly to the Mac.",
         confidence: .documented
     )
 }
 
-/// Turns a format list such as `-R, -R DL, -RW, +R` into words, or nil when a format is unfamiliar.
-private func discWriteFormats(_ value: String, disc: String) -> String? {
-    let known: Set<String> = ["-R", "-RW", "+R", "+RW", "-R DL", "+R DL", "-RAM", "+RW DL"]
-    let formats: [String] = value
-        .split(separator: ",")
-        .map { $0.trimmingCharacters(in: .whitespaces) }
-        .filter { !$0.isEmpty }
+private let cdWriteFormatNames: [String: String] = [
+    "-R": "CD-R", "-RW": "CD-RW"
+]
 
-    guard !formats.isEmpty, formats.allSatisfy({ known.contains($0) }) else {
+// Apple Disc Recording write-capability constants define these DVD media types.
+// The suffixes also appear in SPDiscBurningReporter's format strings.
+private let dvdWriteFormatNames: [String: String] = [
+    "-R": "DVD-R", "-RW": "DVD-RW", "+R": "DVD+R", "+RW": "DVD+RW",
+    "-R DL": "DVD-R DL", "-RW DL": "DVD-RW DL", "+R DL": "DVD+R DL",
+    "-RAM": "DVD-RAM", "+RW DL": "DVD+RW DL"
+]
+
+/// Names a complete format list; unfamiliar or empty entries leave the entire value unexplained.
+private func discWriteFormats(_ value: String, names: [String: String]) -> String? {
+    let formats: [String] = value
+        .split(separator: ",", omittingEmptySubsequences: false)
+        .map { $0.trimmingCharacters(in: .whitespaces) }
+    let named: [String] = formats.compactMap { names[$0] }
+
+    guard !formats.isEmpty, named.count == formats.count else {
         return nil
     }
 
-    return englishList(formats.map { "\(disc)\($0)" })
+    return englishList(named)
 }
 
 /// Names each burn strategy in a list such as `CD-TAO, CD-SAO, CD-Raw, DVD-DAO`, or nil
@@ -1088,9 +1099,8 @@ private func discBurnStrategies(_ value: String) -> String? {
         "BD-DAO": "Blu-ray disc at once"
     ]
     let strategies: [String] = value
-        .split(separator: ",")
+        .split(separator: ",", omittingEmptySubsequences: false)
         .map { $0.trimmingCharacters(in: .whitespaces) }
-        .filter { !$0.isEmpty }
     let named: [String] = strategies.compactMap { names[$0] }
 
     guard !strategies.isEmpty, named.count == strategies.count else {

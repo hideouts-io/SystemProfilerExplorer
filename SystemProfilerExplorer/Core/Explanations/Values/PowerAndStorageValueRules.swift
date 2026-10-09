@@ -1097,8 +1097,11 @@ func pciExpressGeneration(_ value: String) -> String? {
 /// Reads a lane count such as `x2`.
 func pciExpressLaneCount(_ value: String) -> Int? {
     let trimmed: String = value.trimmingCharacters(in: .whitespaces).lowercased()
+    let digits: Substring = trimmed.dropFirst()
 
-    guard trimmed.hasPrefix("x"), let lanes = Int(trimmed.dropFirst()), [1, 2, 4, 8, 16].contains(lanes) else {
+    guard trimmed.hasPrefix("x"), !digits.isEmpty,
+          digits.allSatisfy({ ("0"..."9").contains($0) }),
+          let lanes: Int = Int(digits), [1, 2, 4, 8, 16].contains(lanes) else {
         return nil
     }
 
