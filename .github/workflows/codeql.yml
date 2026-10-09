@@ -28,7 +28,7 @@ jobs:
       matrix:
         include:
           - language: swift
-            os: macos-26
+            os: macos-15
             build-mode: manual
           - language: javascript-typescript
             os: ubuntu-latest
@@ -37,7 +37,7 @@ jobs:
             os: ubuntu-latest
             build-mode: none
     env:
-      DEVELOPER_DIR: ${{ matrix.language == 'swift' && '/Applications/Xcode_26.4.1.app/Contents/Developer' || '' }}
+      DEVELOPER_DIR: ${{ matrix.language == 'swift' && '/Applications/Xcode_16.4.app/Contents/Developer' || '' }}
     steps:
       - name: Check out source
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -60,7 +60,6 @@ jobs:
             COMPILATION_CACHE_ENABLE_CACHING=NO SWIFT_ENABLE_COMPILE_CACHE=NO \
             SWIFT_USE_INTEGRATED_DRIVER=NO SWIFT_ENABLE_EXPLICIT_MODULES=NO \
             SWIFT_COMPILATION_MODE=wholemodule \
-            SWIFT_OBJC_INTERFACE_HEADER_NAME= \
             build test
       - name: Analyze source without upload permissions
         uses: github/codeql-action/analyze@24c54180a607b1449ed407dd24f251e4e9147c8d # v4
