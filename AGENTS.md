@@ -8,6 +8,7 @@
 - Keep collection read-only and separate reported values from interpretation. Tests and CodeQL do not establish live collection on every supported Mac or compromise.
 - Never include raw profiler reports, private snapshots, identifiers, installed-software inventories, host timestamps, or screenshots with private values in Git or PRs. Use synthetic fixtures; review the documented anonymized-sample exception before sharing.
 - Verify successful Swift, JavaScript/TypeScript, and GitHub Actions CodeQL analyses at the candidate revision; scanner configuration or an older run does not establish current coverage.
+- Keep CodeQL extraction/build jobs read-only. Upload SARIF in a separate job that runs no repository code, and preserve the strict `CodeQL results` gate across every language.
 
 ## Publication
 
