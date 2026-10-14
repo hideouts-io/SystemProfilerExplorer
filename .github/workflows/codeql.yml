@@ -37,7 +37,7 @@ jobs:
             os: ubuntu-latest
             build-mode: none
     env:
-      DEVELOPER_DIR: ${{ matrix.language == 'swift' && '/Applications/Xcode_26.4.1.app/Contents/Developer' || '' }}
+      DEVELOPER_DIR: ${{ matrix.language == 'swift' && '/Applications/Xcode_26.6.app/Contents/Developer' || '' }}
     steps:
       - name: Check out source
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -48,6 +48,13 @@ jobs:
         with:
           languages: ${{ matrix.language }}
           build-mode: ${{ matrix.build-mode }}
+      - name: Report Swift extraction toolchain
+        if: matrix.language == 'swift'
+        run: |
+          xcodebuild -version
+          xcrun swiftc --version
+          xcrun --sdk macosx --show-sdk-version
+          xcrun --sdk macosx --show-sdk-build-version
       - name: Build Swift source for extraction
         if: matrix.language == 'swift'
         run: |
