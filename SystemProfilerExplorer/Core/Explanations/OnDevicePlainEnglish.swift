@@ -120,7 +120,7 @@ private func generatePlainEnglishWithDeadline(
                 generating: GeneratedPlainEnglishExplanation.self,
                 includeSchemaInPrompt: true,
                 options: GenerationOptions(
-                    samplingMode: .greedy,
+                    sampling: .greedy,
                     temperature: nil,
                     maximumResponseTokens: 256
                 )
