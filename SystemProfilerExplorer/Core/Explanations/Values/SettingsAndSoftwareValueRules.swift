@@ -371,7 +371,10 @@ private func accessibilityFeatureRules(_ features: [(field: String, whenOn: Stri
 // Sources: spnvme_trim_support and spsata_trim_support are keys in Apple's SPNVMeReporter
 // and SPSerialATAReporter strings; Yes is seen in docs/value-inventory.md. The iocontent
 // values Apple_APFS, Apple_APFS_ISC, and Apple_APFS_Recovery are seen in the inventory;
-// the other partition types are the names `diskutil list` shows, and are unconfirmed in
+// EFI, Apple_HFS, Apple_Boot, and Apple_CoreStorage (Serial ATA volumes) and
+// Windows_FAT_32 (a card in a card reader) appear in the macOS samples in
+// https://github.com/glpi-project/glpi-agent (resources/macos/system_profiler). The other
+// partition types are the names `diskutil list` shows, and are unconfirmed in
 // system_profiler output. The Apple silicon containers are described in Apple Platform
 // Security ("Boot process for a Mac with Apple silicon").
 
@@ -384,7 +387,7 @@ let nvmeValueRules: [ValueRule] = [
         trimExplanation(context.reportedValue)
     },
 
-    ValueRule(.nvme, field: "iocontent") { context in
+    ValueRule(.nvme, .serialATA, .cardReader, field: "iocontent") { context in
         partitionContentExplanation(context.reportedValue)
     }
 ]
@@ -468,6 +471,14 @@ private func partitionContentExplanation(_ value: String) -> ValueExplanation? {
             detail: "Core Storage was the volume manager before APFS.",
             why: "It usually means the disk was set up by an older version of macOS.",
             action: "Nothing to do.",
+            confidence: .observed
+        )
+    case "Windows_FAT_32":
+        .info(
+            "A FAT32 partition, the format most memory cards and older USB drives come with.",
+            detail: "The partition type marks a FAT32 volume on a disk that uses the older Master Boot Record layout.",
+            why: "Cameras, Windows PCs, and Macs can all read and write it, but it can't hold a file of 4 GB or more.",
+            action: "Nothing to do. Eject the card or drive before removing it.",
             confidence: .observed
         )
     case "Microsoft Basic Data":

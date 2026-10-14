@@ -78,7 +78,7 @@ struct ReportComparisonView: View {
                         } else {
                             LazyVStack(spacing: 0) {
                                 ForEach(visibleChanges) { change in
-                                    ReportChangeRow(change: change)
+                                    ReportChangeRow(change: change, comparison: comparison)
 
                                     if change.id != visibleChanges.last?.id {
                                         Divider()
@@ -278,7 +278,7 @@ private struct ComparisonControls: View {
             HStack(spacing: 8) {
                 Image(systemName: "magnifyingglass")
                     .foregroundStyle(.secondary)
-                TextField("Search records, fields, and values", text: $searchText)
+                TextField("Search records, fields, values, and source locations", text: $searchText)
                     .textFieldStyle(.plain)
                     .accessibilityIdentifier("comparison-search")
                 if !searchText.isEmpty {
@@ -314,6 +314,7 @@ private struct ComparisonControls: View {
 
 private struct ReportChangeRow: View {
     let change: ReportChange
+    let comparison: ReportComparison
 
     @State private var isExpanded: Bool = false
 
@@ -354,10 +355,7 @@ private struct ReportChangeRow: View {
                     )
                 }
 
-                LabeledContent("Indexed source field", value: change.sourcePath)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .textSelection(.enabled)
+                ComparisonSourceLocations(change: change, comparison: comparison)
             }
             .padding(.top, 10)
             .padding(.bottom, 4)
@@ -393,6 +391,64 @@ private struct ChangeKindBadge: View {
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
             .background(changeKindColor(kind).opacity(0.1), in: Capsule())
+    }
+}
+
+/// Display only evidence locations that exist in the corresponding report.
+struct ComparisonSourceLocations: View {
+    let change: ReportChange
+    let comparison: ReportComparison
+
+    @State private var evidenceRequest: ComparisonEvidenceRequest?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if let path = change.baselineSourcePath {
+                ComparisonSourceLocationRow(
+                    title: "Baseline source location", path: path,
+                    identifier: "comparison-baseline-source-\(change.id)"
+                )
+                Button("View baseline raw evidence") {
+                    evidenceRequest = ComparisonEvidenceRequest(change: change, side: .baseline, comparison: comparison)
+                }
+                .accessibilityIdentifier("view-baseline-raw-evidence-\(change.id)")
+            }
+            if let path = change.currentSourcePath {
+                ComparisonSourceLocationRow(
+                    title: "Current source location", path: path,
+                    identifier: "comparison-current-source-\(change.id)"
+                )
+                Button("View current raw evidence") {
+                    evidenceRequest = ComparisonEvidenceRequest(change: change, side: .current, comparison: comparison)
+                }
+                .accessibilityIdentifier("view-current-raw-evidence-\(change.id)")
+            }
+            Text("Source locations use each report's original record order.")
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .accessibilityElement(children: .contain)
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .sheet(item: $evidenceRequest) { request in
+            ComparisonRawEvidenceView(request: request)
+        }
+    }
+}
+
+private struct ComparisonSourceLocationRow: View {
+    let title: String
+    let path: String
+    let identifier: String
+
+    var body: some View {
+        LabeledContent(title) {
+            Text(path)
+                .textSelection(.enabled)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(title)
+        .accessibilityValue(path)
+        .accessibilityIdentifier(identifier)
     }
 }
 
@@ -462,7 +518,7 @@ private struct NoMatchingChangesView: View {
 private struct ComparisonMethodNotice: View {
     var body: some View {
         DisclosureGroup("How findings are matched") {
-            Text("Records with a system_profiler _name are matched by that name even when their order changes. Unnamed records and array elements are matched by position. Added, removed, and changed describe structured value differences; they do not by themselves explain why the system changed or whether the change is harmful.")
+            Text("Top-level records and nested lists containing only object records are matched by a unique system_profiler _name, regardless of order. Duplicate names and unnamed records are matched only when their complete contents are identical, preserving repeated occurrences. If unmatched records remain on both sides of an ambiguous group, comparison stops rather than guessing and identifies the affected nested locations. A sole unnamed top-level section container, scalar lists, and mixed-type lists remain positional. Source paths retain the actual report indices, not matching identities. Added, removed, and changed describe structured value differences, not their cause or whether they are harmful.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -500,13 +556,15 @@ private func filteredChanges(
 }
 
 private func comparisonSearchValues(_ change: ReportChange) -> [String] {
-    [
+    let values: [String?] = [
         change.dataType.title,
         change.recordLabel,
-        change.sourcePath,
-        change.previousValue?.rawDescription ?? "",
-        change.currentValue?.rawDescription ?? ""
+        change.baselineSourcePath,
+        change.currentSourcePath,
+        change.previousValue?.rawDescription,
+        change.currentValue?.rawDescription
     ]
+    return values.compactMap { $0 }
 }
 
 private func comparisonFieldTitle(_ change: ReportChange) -> String {

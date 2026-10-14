@@ -58,8 +58,8 @@ struct WhatChangedDashboardView: View {
         .onChange(of: selectedSubject) { _ in
             comparison = nil
         }
-        // A rescan replaces the report, so a comparison with the old one no longer applies.
-        .onChange(of: selectedReportDate) { _ in
+        // Imports can share a file timestamp while containing different evidence.
+        .onChange(of: selectedReport) { _ in
             comparison = nil
         }
         .task {
@@ -76,11 +76,12 @@ struct WhatChangedDashboardView: View {
         } message: {
             Text(errorMessage ?? "The reports could not be compared.")
         }
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("what-changed-workspace")
     }
 
-    private var selectedReportDate: Date? {
-        selectedSubject.flatMap { reports[$0]?.completedAt }
+    private var selectedReport: SystemProfilerReport? {
+        selectedSubject.flatMap { reports[$0] }
     }
 
     private var errorBinding: Binding<Bool> {
@@ -154,8 +155,7 @@ struct WhatChangedDashboardView: View {
         }
 
         let comparedSubject: ProfilerSubject = selectedSubject
-        let comparedDate: Date = currentReport.completedAt
-
+        comparison = nil
         isPreparingComparison = true
 
         Task {
@@ -165,7 +165,7 @@ struct WhatChangedDashboardView: View {
                 }.value
 
                 // The user may have chosen another report, or rescanned, while this ran.
-                if self.selectedSubject == comparedSubject, selectedReportDate == comparedDate {
+                if self.selectedSubject == comparedSubject, reports[comparedSubject] == currentReport {
                     comparison = preparedComparison
                 }
             } catch is CancellationError {
@@ -258,6 +258,7 @@ private struct ComparisonSetupCard: View {
                     Divider()
 
                     Button("Choose File…", action: importBaseline)
+                        .accessibilityIdentifier("what-changed-choose-file")
                 } label: {
                     Label(snapshots.isEmpty ? "Choose Baseline" : "Other Baseline", systemImage: "square.and.arrow.down")
                 }
@@ -330,6 +331,8 @@ struct ContentCard: View {
 private struct WhatChangedResultsView: View {
     let comparison: ReportComparison
 
+    @State private var isShowingDetails: Bool = false
+
     private var insights: [ReportChangeInsight] {
         reportChangeInsights(comparison)
     }
@@ -343,6 +346,10 @@ private struct WhatChangedResultsView: View {
                 Text("Baseline \(comparison.baselineCompletedAt.formatted(date: .abbreviated, time: .shortened)) → Current \(comparison.currentCompletedAt.formatted(date: .abbreviated, time: .shortened))")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                Button("Review Details") {
+                    isShowingDetails = true
+                }
+                .accessibilityIdentifier("what-changed-review-details")
             }
 
             ChangeKindSummaryCards(summary: comparison.summary)
@@ -358,10 +365,13 @@ private struct WhatChangedResultsView: View {
                 ForEach(ChangeImportance.allCases) { importance in
                     let groupedInsights: [ReportChangeInsight] = insights.filter { $0.importance == importance }
                     if !groupedInsights.isEmpty {
-                        ChangeImportanceGroup(importance: importance, insights: groupedInsights)
+                        ChangeImportanceGroup(importance: importance, insights: groupedInsights, comparison: comparison)
                     }
                 }
             }
+        }
+        .sheet(isPresented: $isShowingDetails) {
+            ReportComparisonView(comparison: comparison)
         }
     }
 }
@@ -420,6 +430,7 @@ private struct ChangeImportanceNotice: View {
 private struct ChangeImportanceGroup: View {
     let importance: ChangeImportance
     let insights: [ReportChangeInsight]
+    let comparison: ReportComparison
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -440,7 +451,7 @@ private struct ChangeImportanceGroup: View {
 
             LazyVStack(spacing: 0) {
                 ForEach(insights) { insight in
-                    ChangeInsightRow(insight: insight)
+                    ChangeInsightRow(insight: insight, comparison: comparison)
                     if insight.id != insights.last?.id {
                         Divider()
                     }
@@ -465,6 +476,7 @@ private struct ChangeImportanceGroup: View {
 
 private struct ChangeInsightRow: View {
     let insight: ReportChangeInsight
+    let comparison: ReportComparison
 
     @State private var isExpanded: Bool = false
 
@@ -478,10 +490,7 @@ private struct ChangeInsightRow: View {
 
                 ChangeInsightValueRows(change: insight.change)
 
-                LabeledContent("Raw source location", value: insight.change.sourcePath)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .textSelection(.enabled)
+                ComparisonSourceLocations(change: insight.change, comparison: comparison)
             }
             .padding(.top, 8)
         } label: {
@@ -501,6 +510,7 @@ private struct ChangeInsightRow: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 11)
+        .accessibilityIdentifier("what-changed-insight-\(insight.id)")
     }
 }
 

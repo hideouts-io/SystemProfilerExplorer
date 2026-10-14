@@ -139,14 +139,16 @@ private struct ReasonLabelStyle: LabelStyle {
 /// never crowds out what the value means. It holds the explanation coverage note too.
 struct AboutThisFieldView: View {
     let presentation: FieldPresentation
+    let catalogPath: [String]
     let startsExpanded: Bool
     let openSourceLocation: (String) -> Void
 
     @Environment(\.explanationDetailMode) private var detailMode
     @State private var isExpanded: Bool
 
-    init(presentation: FieldPresentation, startsExpanded: Bool, openSourceLocation: @escaping (String) -> Void) {
+    init(presentation: FieldPresentation, catalogPath: [String], startsExpanded: Bool, openSourceLocation: @escaping (String) -> Void) {
         self.presentation = presentation
+        self.catalogPath = catalogPath
         self.startsExpanded = startsExpanded
         self.openSourceLocation = openSourceLocation
         _isExpanded = State(initialValue: startsExpanded)
@@ -172,6 +174,12 @@ struct AboutThisFieldView: View {
 
                 CoverageNote(coverage: explanationCoverage(for: presentation))
 
+                PlainEnglishExplanationButton(
+                    dataType: presentation.dataType,
+                    path: catalogPath,
+                    refreshValue: presentation.rawValue
+                )
+
                 if detailMode == .developer {
                     FieldSourceDetails(presentation: presentation, openSourceLocation: openSourceLocation)
                 }
@@ -182,12 +190,14 @@ struct AboutThisFieldView: View {
             Label("About this field", systemImage: "info.circle")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
+                .accessibilityIdentifier("about-this-field-toggle")
         }
         .font(.caption)
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
         .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 9))
         .padding(.top, 8)
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("about-this-field")
         // After a rescan the row can show a different value, so it returns to the
         // default for that value instead of keeping the old open or closed state.

@@ -326,7 +326,8 @@ private let valueRuleIndex: [ValueRuleKey: [ValueRule]] = {
         + displayValueRules + audioValueRules + thunderboltValueRules
         + legacySoftwareValueRules + syncServicesValueRules + syncServicesSummaryValueRules + internationalValueRules + accessibilityValueRules
         + nvmeValueRules + configurationProfileValueRules + printerValueRules + extensionValueRules
-        + vendorIdentifierValueRules + thirdWaveValueRules
+        + vendorIdentifierValueRules + thirdWaveValueRules + serialATAValueRules + discBurningValueRules
+        + bluetoothAccessoryValueRules
     var index: [ValueRuleKey: [ValueRule]] = [:]
 
     for rule in rules {
@@ -349,7 +350,8 @@ func hasValueRule(dataType: SystemProfilerDataType, path: [String]) -> Bool {
 /// where the field explanation is the whole story, and an honest fallback for
 /// enumeration values the catalog doesn't cover yet.
 func valueExplanation(for context: ValueContext) -> ValueExplanation? {
-    if context.reportedValue == redactedProfileValue {
+    if context.reportedValue == redactedProfileValue
+        || cameraIdentifierPath(dataType: context.dataType, path: context.path) {
         return nil
     }
 
@@ -432,6 +434,21 @@ func tokenSuffix(_ value: String, after marker: String) -> String? {
 func leadingInteger(_ value: String) -> Int? {
     let digits: String = String(value.trimmingCharacters(in: .whitespaces).prefix { $0 == "-" || $0.isNumber })
     return Int(digits)
+}
+
+/// Joins items as an English list: “a”, “a and b”, or “a, b, and c”. Explanations are
+/// written in English, so the list doesn't follow the system language.
+func englishList(_ items: [String]) -> String {
+    switch items.count {
+    case 0:
+        return ""
+    case 1:
+        return items[0]
+    case 2:
+        return "\(items[0]) and \(items[1])"
+    default:
+        return items.dropLast().joined(separator: ", ") + ", and " + (items.last ?? "")
+    }
 }
 
 func formattedByteCount(_ bytes: Int64) -> String {

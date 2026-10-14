@@ -1,4 +1,5 @@
 import Foundation
+import CoreGraphics
 import PDFKit
 import Testing
 @testable import SystemProfilerExplorer
@@ -128,6 +129,9 @@ struct ReviewWorkflowTests {
         let header: String = String(decoding: pdf.prefix(4), as: UTF8.self)
 
         #expect(header == "%PDF")
+        #expect(throws: SystemReviewPDFError.renderingFailed) {
+            try makeSystemReviewPDF(markdown: "")
+        }
     }
 
     @Test
@@ -143,6 +147,73 @@ struct ReviewWorkflowTests {
         #expect(document.page(at: 0)?.bounds(for: .mediaBox).size == CGSize(width: 612, height: 792))
         #expect(text.contains("Line 1:"))
         #expect(text.contains("Line 400:"))
+        #expect(text.split(whereSeparator: \.isNewline) == markdown.split(whereSeparator: \.isNewline))
+    }
+
+    @Test
+    @MainActor
+    func reviewPDFPreservesWrappedSummaryText() throws {
+        let report: SystemProfilerReport = workflowReport()
+        let selected: [SystemReviewFinding] = selectedSystemReviewFindings(
+            report: report,
+            selectedSourcePaths: ["SPHardwareDataType.physical_memory"]
+        )
+        let markdown: String = makeSystemReviewMarkdown(report: report, selectedFindings: selected)
+        let document: PDFDocument = try #require(PDFDocument(data: makeSystemReviewPDF(markdown: markdown)))
+        let text: String = try #require(document.string)
+
+        #expect(text.filter { !$0.isWhitespace } == markdown.filter { !$0.isWhitespace })
+        for index in 0..<document.pageCount {
+            #expect(document.page(at: index)?.bounds(for: .mediaBox).size == CGSize(width: 612, height: 792))
+        }
+    }
+
+    @Test(arguments: [("🧑‍💻", "🧑💻"), ("👩‍🔬", "👩🔬"), ("👨‍👩‍👧", "👨👩👧")])
+    @MainActor
+    func reviewPDFPreservesJoinedEmojiInLargeDocuments(joined: String, separated: String) throws {
+        // Short Core Text documents already join these glyphs; reproduce the
+        // mixed-script workload that exceeded its default typesetter limit.
+        let suffix: String = String(repeating: " ", count: 24) + "café e\u{301} 界 Ελληνικά 🙂 END\n"
+        let joinedWidth: Int = try reviewPDFLeadingInkWidth(String(repeating: joined + suffix, count: 300))
+        let separatedWidth: Int = try reviewPDFLeadingInkWidth(String(repeating: separated + suffix, count: 300))
+
+        #expect(joinedWidth * 5 < separatedWidth * 4)
+    }
+
+    @Test
+    @MainActor
+    func reviewPDFPaginatesUnicodeAndPreservesOriginalSummaryBytes() throws {
+        let unicode: String = "café e\u{301} 界 Ελληνικά 🙂"
+        let markdown: String = (1...400).map { "BEGIN-\($0) \(unicode) END-\($0)" }.joined(separator: "\r\n")
+        let document: PDFDocument = try #require(PDFDocument(data: makeSystemReviewPDF(markdown: markdown)))
+        let text: String = try #require(document.string)
+
+        #expect(document.pageCount > 1)
+        #expect(text.filter { !$0.isWhitespace } == markdown.filter { !$0.isWhitespace })
+        for index in 0..<document.pageCount {
+            #expect(document.page(at: index)?.bounds(for: .mediaBox).size == CGSize(width: 612, height: 792))
+        }
+
+        // PDFKit may omit invisible joiners when extracting correctly shaped
+        // glyphs. The raster test checks their appearance; original summary
+        // bytes must remain intact independently of PDF text extraction.
+        let original: String = unicode + " 🧑‍💻"
+        let report: SystemProfilerReport = SystemProfilerReport(
+            sections: [SystemProfilerSection(dataType: .hardware, items: [.object([
+                "_name": .string("Synthetic Unicode"),
+                "future_apple_field": .string(original)
+            ])])],
+            commandArguments: [],
+            standardError: "",
+            startedAt: Date(timeIntervalSince1970: 1_000),
+            completedAt: Date(timeIntervalSince1970: 1_001)
+        )
+        let selected: [SystemReviewFinding] = selectedSystemReviewFindings(
+            report: report,
+            selectedSourcePaths: ["SPHardwareDataType.future_apple_field"]
+        )
+        let summary: String = makeSystemReviewMarkdown(report: report, selectedFindings: selected)
+        #expect(Data(summary.utf8).range(of: Data(original.utf8)) != nil)
     }
 
     @Test
@@ -180,6 +251,47 @@ struct ReviewWorkflowTests {
         )
         #expect(try store.loadSnapshotHistory().snapshots.count == 2)
     }
+}
+
+@MainActor
+private func reviewPDFLeadingInkWidth(_ markdown: String) throws -> Int {
+    let document: PDFDocument = try #require(PDFDocument(data: makeSystemReviewPDF(markdown: markdown)))
+    let page: PDFPage = try #require(document.page(at: 0))
+    let width: Int = 1_224
+    let height: Int = 1_584
+    let bytesPerRow: Int = width * 4
+    var pixels: [UInt8] = [UInt8](repeating: 255, count: bytesPerRow * height)
+    try pixels.withUnsafeMutableBytes { buffer in
+        let context: CGContext = try #require(CGContext(
+            data: buffer.baseAddress,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: bytesPerRow,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue | CGBitmapInfo.byteOrder32Big.rawValue
+        ))
+        context.setFillColor(red: 1, green: 1, blue: 1, alpha: 1)
+        context.fill(CGRect(x: 0, y: 0, width: width, height: height))
+        context.scaleBy(x: 2, y: 2)
+        page.draw(with: .mediaBox, to: context)
+    }
+
+    var minimumX: Int = width
+    var maximumX: Int = -1
+    // Only the leading emoji column lies within the first 100 paper points.
+    // The same-host separated control avoids a font-version-specific golden image.
+    for y in 0..<height {
+        for x in 0..<200 {
+            let offset: Int = y * bytesPerRow + x * 4
+            if pixels[offset] < 240 || pixels[offset + 1] < 240 || pixels[offset + 2] < 240 {
+                minimumX = min(minimumX, x)
+                maximumX = max(maximumX, x)
+            }
+        }
+    }
+    try #require(maximumX >= minimumX)
+    return maximumX - minimumX + 1
 }
 
 private func workflowReport() -> SystemProfilerReport {

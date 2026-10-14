@@ -17,7 +17,7 @@ struct SystemProfilerIntegrationTests {
         let execution: SystemProfilerExecution = try await collector.collect(request)
         let report: SystemProfilerReport = try SystemProfilerParser().parse(execution)
 
-        #expect(report.sections.count == 1)
+        try #require(report.sections.count == 1)
         #expect(report.sections[0].dataType == .hardware)
         #expect(!report.sections[0].items.isEmpty)
         #expect(report.completedAt >= report.startedAt)
@@ -37,7 +37,7 @@ struct SystemProfilerIntegrationTests {
         let execution: SystemProfilerExecution = try await collector.collect(request)
         let report: SystemProfilerReport = try SystemProfilerParser().parse(execution)
 
-        #expect(report.sections.count == 1)
+        try #require(report.sections.count == 1)
         #expect(report.sections[0].dataType == .storage)
         #expect(!report.sections[0].items.isEmpty)
     }
@@ -56,7 +56,7 @@ struct SystemProfilerIntegrationTests {
         let execution: SystemProfilerExecution = try await collector.collect(request)
         let report: SystemProfilerReport = try SystemProfilerParser().parse(execution)
 
-        #expect(report.sections.count == 1)
+        try #require(report.sections.count == 1)
         #expect(report.sections[0].dataType == .power)
         #expect(!report.sections[0].items.isEmpty)
     }
