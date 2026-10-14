@@ -136,6 +136,24 @@ management reference for `VPN.OnDemandRulesElement`
 Apple removed its PPTP client in macOS Sierra
 (<https://support.apple.com/en-us/102003>). Ethernet media options are keys in
 Apple's `SPNetworkReporter` strings.
+Network volume mount metadata is described in Apple's `statfs(2)` manual
+(<https://developer.apple.com/library/archive/documentation/System/Conceptual/ManPages_iPhoneOS/man2/statfs.2.html>).
+The automounted value reports a mount attribute, not who initiated the mount:
+false does not prove a manual connection, and true does not identify a login
+item, management policy, or file activity. Complete boolean forms are accepted;
+unknown tokens and malformed suffixes stay unexplained. The inventory confirms
+the field but withheld its value, so these compatibility forms are not evidence
+of spellings observed on that Mac.
+Apple's SMB utility identifies `smbfs` in `statfs.f_fstypename`
+(<https://github.com/apple-oss-distributions/SMBClient/blob/99da2d9a4bbe17cde3cee382ad3edc16e25f5535/smbutil/statshares.c>),
+and Apple's NFS implementation registers the filesystem name `nfs`
+(<https://github.com/apple-oss-distributions/NFS/blob/93733ffccece4daee73bf6306b291d1ae69130c0/kext/nfs_vfsops.c>).
+These are filesystem identifiers, not negotiated protocol versions or security
+settings. Only exact lowercase strings are explained; other strings remain
+unexplained and are removed from anonymized samples. Full exports keep them
+unchanged, and redacted exports remove all scalar values. The inventory records
+the field but does not publish its value, so current profiler spellings on that
+Mac remain unconfirmed.
 
 | field | values | status | source | spelling |
 |---|---|---|---|---|
@@ -166,7 +184,8 @@ Apple's `SPNetworkReporter` strings.
 | `MediaSubType` | `autoselect`, `none` | Normal, Info | Apple | seen |
 | `MediaSubType` | fixed speeds such as `1000baseT`, `100baseTX`, `10GbaseT` | Info | Apple | Apple key (`100baseTX`, `1000baseT`); other speeds unconfirmed |
 | `MediaOptions` | `full-duplex`, `half-duplex`, `flow-control` | Normal, Info | Apple | Apple key |
-| `spnetworkvolume_automounted` | on, off | Info | Apple | seen (withheld values) |
+| `spnetworkvolume_automounted` | `yes`/`no`, `true`/`false`, `on`/`off`, `1`/`0` | Info | Apple | field seen; values withheld |
+| `spnetworkvolume_fstypename` | `smbfs`, `nfs` | Info | Apple | filesystem identifiers; current profiler spellings unconfirmed |
 
 `ACSPEnabled` is explained from its Apple name ("ACSP Enabled") and Apple's
 PPP documentation; what the server sends is not visible in the report.
@@ -572,6 +591,9 @@ Until then, a different spelling is shown as "not yet explained".
   other than `100baseTX` and `1000baseT`; `spethernet_pcie`,
   `spethernet_builtin`; USB link speeds other than `high_speed` (needs a USB
   Ethernet adapter on a faster port).
+- Network Volumes: `smbfs` and `nfs` for `spnetworkvolume_fstypename` are Apple
+  filesystem identifiers; confirm current profiler spellings with a recognized
+  SMB or NFS volume (the inventory does not publish this field's value).
 - Firewall: `spfirewall_globalstate_off` (turn the firewall off and scan).
 - Wi-Fi: `spairport_status_disconnected`, `_not_associated`; security modes
   `wpa3_enterprise`, `wpa2_wpa3_enterprise`, `owe`, `wpa_personal_mixed`;

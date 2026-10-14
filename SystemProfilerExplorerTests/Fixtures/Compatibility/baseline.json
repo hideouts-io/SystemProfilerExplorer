@@ -1,0 +1,13 @@
+{
+  "SPHardwareDataType": [
+    {
+      "_name": "Synthetic Hardware",
+      "physical_memory": "16 GB",
+      "_items": [
+        { "_name": "Synthetic Alpha", "version": "1" },
+        { "_name": "Synthetic Module", "version": "1" },
+        { "_name": "Synthetic Module", "version": "2" }
+      ]
+    }
+  ]
+}

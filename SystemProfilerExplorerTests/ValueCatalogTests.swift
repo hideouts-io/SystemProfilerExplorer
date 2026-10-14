@@ -196,6 +196,7 @@ private let networkValueSamples: [ValueSample] = {
         ValueSample(.network, ["Ethernet", "MediaOptions", "[]"], $0)
     }
     samples += ["yes", "no"].map { ValueSample(.networkVolumes, ["spnetworkvolume_automounted"], $0) }
+    samples += ["smbfs", "nfs"].map { ValueSample(.networkVolumes, ["spnetworkvolume_fstypename"], $0) }
     return samples
 }()
 

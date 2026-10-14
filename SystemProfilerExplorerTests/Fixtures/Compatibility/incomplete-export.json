@@ -1,0 +1,24 @@
+{
+  "formatIdentifier": "com.netctl.system-profiler-explorer.report",
+  "formatVersion": 1,
+  "privacy": "full",
+  "redactedValueCount": 0,
+  "summary": {
+    "recordCount": 1,
+    "findingCount": 1,
+    "explainedFindingCount": 1,
+    "privacyFindingCount": 0
+  },
+  "report": {
+    "sections": [
+      {
+        "dataType": "SPHardwareDataType",
+        "items": [{ "_name": "Synthetic Hardware", "physical_memory": "16 GB" }]
+      }
+    ],
+    "commandArguments": ["-json", "SPHardwareDataType", "SPAirPortDataType"],
+    "standardError": "",
+    "startedAt": "2000-01-01T00:00:00Z",
+    "completedAt": "2000-01-01T00:00:01Z"
+  }
+}

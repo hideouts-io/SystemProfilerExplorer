@@ -1849,25 +1849,53 @@ let networkLocationSettingValueRules: [ValueRule] = disconnectRules + dialUpRule
         mediaOptionExplanation(context.reportedValue)
     },
 
+    ValueRule(.networkVolumes, field: "spnetworkvolume_fstypename") { context in
+        // Apple's filesystem implementations use these exact identifiers.
+        // The filesystem name is not a negotiated protocol or security setting.
+        let summary: String
+        let detail: String
+
+        switch context.scalar {
+        case .string("smbfs"):
+            summary = "SMB file sharing is reported for this network volume."
+            detail = "SMB (Server Message Block) makes a share on another computer or network storage device available as a volume on this Mac. The smbfs identifier names the Mac's SMB filesystem."
+        case .string("nfs"):
+            summary = "NFS file sharing is reported for this network volume."
+            detail = "NFS (Network File System) makes a directory exported by a remote server available as a volume on this Mac. The nfs identifier names the Mac's NFS filesystem."
+        default:
+            return nil
+        }
+
+        return .info(
+            summary,
+            detail: detail,
+            why: "The filesystem family helps identify which file-sharing configuration to review. This name alone does not establish the protocol version, encryption, authentication, permissions, server trust, current reachability, or file activity.",
+            action: "Nothing to do just because this filesystem is reported. If the volume is unexpected or not working, review Network Volume Source and ask its administrator about the share and connection settings. Redact source names and mount paths before sharing a report.",
+            confidence: .documented
+        )
+    },
+
     ValueRule(.networkVolumes, field: "spnetworkvolume_automounted") { context in
-        switch decodeBooleanLike(context.reportedValue) {
-        case true?:
+        // Accept complete boolean forms, not the generic decoder's token suffixes.
+        // Apple's statfs(2) documents automount metadata, not the initiating actor.
+        switch context.reportedValue.lowercased() {
+        case "yes", "true", "on", "1":
             .info(
-                "Mounted automatically, for example by a login item, a saved server, or device management.",
-                detail: "The volume was connected without anyone choosing it in the Finder at the time.",
-                why: "Files on it may be opened or backed up without anyone connecting it by hand.",
-                action: "Nothing to do if you recognize the server. Check your login items if you don't.",
+                "macOS marks this network volume as automatically mounted.",
+                detail: "An automounter can make the volume available when its path is requested. This flag does not identify the person, application, or configuration that triggered the mount.",
+                why: "The flag describes mounting behavior, not file activity, server trust, or a particular login item.",
+                action: "Nothing to do if you recognize the volume. If it is unexpected, review your mount configuration with your administrator.",
                 confidence: .documented
             )
-        case false?:
+        case "no", "false", "off", "0":
             .info(
-                "Not mounted automatically: someone connected to it, for example with Connect to Server in the Finder.",
-                detail: "A person connected this volume by hand.",
-                why: "It stays connected until it's ejected or the Mac restarts.",
-                action: "Nothing to do.",
+                "macOS does not mark this network volume as automatically mounted.",
+                detail: "The absence of this flag does not identify who or what mounted the volume. A person, application, or script can initiate a mount without this flag.",
+                why: "A false value is not proof of a manual Finder connection, recent file access, or how long the connection will remain available.",
+                action: "Nothing to do if you recognize the volume. If it is unexpected, review your mount configuration with your administrator.",
                 confidence: .documented
             )
-        case nil:
+        default:
             nil
         }
     }

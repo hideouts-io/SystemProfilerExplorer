@@ -350,7 +350,8 @@ func hasValueRule(dataType: SystemProfilerDataType, path: [String]) -> Bool {
 /// where the field explanation is the whole story, and an honest fallback for
 /// enumeration values the catalog doesn't cover yet.
 func valueExplanation(for context: ValueContext) -> ValueExplanation? {
-    if context.reportedValue == redactedProfileValue {
+    if context.reportedValue == redactedProfileValue
+        || cameraIdentifierPath(dataType: context.dataType, path: context.path) {
         return nil
     }
 
