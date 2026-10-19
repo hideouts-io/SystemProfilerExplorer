@@ -243,12 +243,78 @@ struct ReviewWorkflowTests {
         #expect(history.snapshots.map(\.id) == [saved.id])
         #expect(history.unreadableFileNames == [damagedFileName, "renamed.systemprofiler-snapshot"].sorted())
 
+        let comparisonHistory: ComparisonSnapshotHistoryState = .load(from: store)
+        #expect(comparisonHistory == .loaded(history))
+        #expect(comparisonHistory.comparableSnapshots(with: workflowReport()).map(\.id) == [saved.id])
+        #expect(try Data(contentsOf: snapshotDirectoryURL.appendingPathComponent(damagedFileName)) == Data("not a snapshot".utf8))
+
         _ = try store.saveSnapshot(
             name: "After Update",
             privacy: .full,
             report: workflowReport(),
             retention: .five
         )
+        #expect(try store.loadSnapshotHistory().snapshots.count == 2)
+    }
+
+    @Test
+    func comparisonSnapshotHistoryDistinguishesMissingHistoryWithoutCreatingFiles() {
+        let applicationSupportURL: URL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let store: SnapshotStore = SnapshotStore(applicationSupportURL: applicationSupportURL)
+
+        #expect(ComparisonSnapshotHistoryState.load(from: store) == .loaded(
+            SnapshotHistory(snapshots: [], unreadableFileNames: [])
+        ))
+        #expect(!FileManager.default.fileExists(atPath: applicationSupportURL.path))
+    }
+
+    @Test
+    func comparisonSnapshotHistoryReportsDirectoryFailureAndCanBeRefreshedAfterRepair() throws {
+        let fileManager: FileManager = .default
+        let applicationSupportURL: URL = fileManager.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer {
+            do {
+                try fileManager.removeItem(at: applicationSupportURL)
+            } catch {
+                Issue.record(error)
+            }
+        }
+
+        let appDirectoryURL: URL = applicationSupportURL
+            .appendingPathComponent("com.netctl.SystemProfilerExplorer", isDirectory: true)
+        try fileManager.createDirectory(at: appDirectoryURL, withIntermediateDirectories: true)
+        let blockedDirectoryURL: URL = appDirectoryURL.appendingPathComponent("Snapshots")
+        let original: Data = Data("Task-owned directory obstruction".utf8)
+        try original.write(to: blockedDirectoryURL)
+        let store: SnapshotStore = SnapshotStore(applicationSupportURL: applicationSupportURL)
+
+        let failed: ComparisonSnapshotHistoryState = .load(from: store)
+        guard case let .unavailable(message) = failed else {
+            Issue.record("A snapshot directory failure must be visible instead of an empty history.")
+            return
+        }
+        #expect(!message.isEmpty)
+        #expect(failed.comparableSnapshots(with: workflowReport()).isEmpty)
+        #expect(try Data(contentsOf: blockedDirectoryURL) == original)
+
+        try fileManager.removeItem(at: blockedDirectoryURL)
+        let saved: SystemProfilerSnapshot = try store.saveSnapshot(
+            name: "Recovered Baseline",
+            privacy: .full,
+            report: workflowReport(),
+            retention: .unlimited
+        )
+        _ = try store.saveSnapshot(
+            name: "Redacted Baseline",
+            privacy: .redacted,
+            report: workflowReport(),
+            retention: .unlimited
+        )
+
+        let refreshed: ComparisonSnapshotHistoryState = .load(from: store)
+        #expect(refreshed.comparableSnapshots(with: workflowReport()).map(\.id) == [saved.id])
         #expect(try store.loadSnapshotHistory().snapshots.count == 2)
     }
 }

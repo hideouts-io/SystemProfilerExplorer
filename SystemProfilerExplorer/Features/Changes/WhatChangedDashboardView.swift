@@ -6,7 +6,8 @@ struct WhatChangedDashboardView: View {
 
     @State private var selectedSubject: ProfilerSubject?
     @State private var comparison: ReportComparison?
-    @State private var snapshots: [SnapshotSummary] = []
+    @State private var snapshotHistory: ComparisonSnapshotHistoryState = .loading
+    @State private var snapshotRefreshID: Int = 0
     @State private var isShowingBaselineImporter: Bool = false
     @State private var isPreparingComparison: Bool = false
     @State private var errorMessage: String?
@@ -21,7 +22,7 @@ struct WhatChangedDashboardView: View {
             return []
         }
 
-        return snapshots.filter { snapshotCanBeCompared($0, with: report) }
+        return snapshotHistory.comparableSnapshots(with: report)
     }
 
     var body: some View {
@@ -39,9 +40,11 @@ struct WhatChangedDashboardView: View {
                     availableSubjects: availableSubjects,
                     selectedSubject: $selectedSubject,
                     snapshots: comparableSnapshots,
+                    snapshotHistory: snapshotHistory,
                     isPreparingComparison: isPreparingComparison,
                     compareWithSnapshot: compare(with:),
-                    importBaseline: { isShowingBaselineImporter = true }
+                    importBaseline: { isShowingBaselineImporter = true },
+                    refreshSnapshots: { snapshotRefreshID += 1 }
                 )
 
                 if let comparison {
@@ -62,7 +65,7 @@ struct WhatChangedDashboardView: View {
         .onChange(of: selectedReport) { _ in
             comparison = nil
         }
-        .task {
+        .task(id: snapshotRefreshID) {
             await loadSnapshots()
         }
         .fileImporter(
@@ -104,11 +107,25 @@ struct WhatChangedDashboardView: View {
     }
 
     private func loadSnapshots() async {
-        let loaded: [SnapshotSummary]? = try? await Task.detached(priority: .userInitiated) {
-            try snapshotStore().loadSnapshotHistory().snapshots
+        guard !Task.isCancelled else {
+            return
+        }
+
+        snapshotHistory = .loading
+
+        let loaded: ComparisonSnapshotHistoryState = await Task.detached(priority: .userInitiated) {
+            do {
+                return ComparisonSnapshotHistoryState.load(from: try snapshotStore())
+            } catch {
+                return .unavailable(message: error.localizedDescription)
+            }
         }.value
 
-        snapshots = loaded ?? []
+        guard !Task.isCancelled else {
+            return
+        }
+
+        snapshotHistory = loaded
     }
 
     private func compare(with snapshot: SnapshotSummary) {
@@ -180,6 +197,34 @@ struct WhatChangedDashboardView: View {
     }
 }
 
+/// Keeps unavailable or partly unreadable history distinct from a genuinely empty
+/// history. Only readable, full snapshots of the current report can be baselines.
+enum ComparisonSnapshotHistoryState: Sendable, Equatable {
+    case loading
+    case loaded(SnapshotHistory)
+    case unavailable(message: String)
+
+    static func load(from store: SnapshotStore) -> ComparisonSnapshotHistoryState {
+        do {
+            return .loaded(try store.loadSnapshotHistory())
+        } catch {
+            return .unavailable(message: error.localizedDescription)
+        }
+    }
+
+    func comparableSnapshots(with report: SystemProfilerReport) -> [SnapshotSummary] {
+        guard case let .loaded(history) = self else {
+            return []
+        }
+
+        return history.snapshots.filter { snapshotCanBeCompared($0, with: report) }
+    }
+
+    var isLoading: Bool {
+        if case .loading = self { true } else { false }
+    }
+}
+
 struct WorkspaceHeading: View {
     let title: String
     let detail: String
@@ -207,14 +252,33 @@ private struct ComparisonSetupCard: View {
     let availableSubjects: [ProfilerSubject]
     @Binding var selectedSubject: ProfilerSubject?
     let snapshots: [SnapshotSummary]
+    let snapshotHistory: ComparisonSnapshotHistoryState
     let isPreparingComparison: Bool
     let compareWithSnapshot: (SnapshotSummary) -> Void
     let importBaseline: () -> Void
+    let refreshSnapshots: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 13) {
-            Label("Choose what to compare", systemImage: "arrow.left.arrow.right")
-                .font(.headline)
+            HStack {
+                Label("Choose what to compare", systemImage: "arrow.left.arrow.right")
+                    .font(.headline)
+                Spacer()
+                Button(action: refreshSnapshots) {
+                    Label("Refresh Snapshots", systemImage: "arrow.clockwise")
+                }
+                .disabled(snapshotHistory.isLoading || isPreparingComparison)
+                .accessibilityIdentifier("what-changed-refresh-snapshots")
+            }
+
+            ComparisonSnapshotHistoryNotice(history: snapshotHistory)
+
+            if case .loaded = snapshotHistory, snapshots.isEmpty {
+                Text("No readable, compatible full snapshots are available for this report.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("what-changed-no-snapshot-baselines")
+            }
 
             HStack(spacing: 12) {
                 Picker("Current report", selection: $selectedSubject) {
@@ -242,34 +306,37 @@ private struct ComparisonSetupCard: View {
                     .accessibilityIdentifier("what-changed-compare-latest-snapshot")
                 }
 
-                Menu {
+                Group {
                     if snapshots.isEmpty {
-                        Text("No saved snapshots of this report")
+                        Button(action: importBaseline) {
+                            Label("Choose File…", systemImage: "square.and.arrow.down")
+                        }
+                        .accessibilityIdentifier("what-changed-choose-file")
                     } else {
-                        Section("Snapshots") {
-                            ForEach(snapshots) { snapshot in
-                                Button("\(snapshot.name) — \(snapshot.createdAt.formatted(date: .abbreviated, time: .shortened))") {
-                                    compareWithSnapshot(snapshot)
+                        Menu {
+                            Section("Snapshots") {
+                                ForEach(snapshots) { snapshot in
+                                    Button("\(snapshot.name) — \(snapshot.createdAt.formatted(date: .abbreviated, time: .shortened))") {
+                                        compareWithSnapshot(snapshot)
+                                    }
                                 }
                             }
+
+                            Divider()
+
+                            Button("Choose File…", action: importBaseline)
+                                .accessibilityIdentifier("what-changed-choose-file")
+                        } label: {
+                            Label("Other Baseline", systemImage: "square.and.arrow.down")
                         }
+                        .accessibilityIdentifier("what-changed-choose-baseline")
                     }
-
-                    Divider()
-
-                    Button("Choose File…", action: importBaseline)
-                        .accessibilityIdentifier("what-changed-choose-file")
-                } label: {
-                    Label(snapshots.isEmpty ? "Choose Baseline" : "Other Baseline", systemImage: "square.and.arrow.down")
                 }
                 .fixedSize()
                 .disabled(isPreparingComparison || selectedSubject == nil)
-                .accessibilityIdentifier("what-changed-choose-baseline")
             }
 
-            Text(snapshots.isEmpty
-                ? "Save a snapshot from a report's Snapshots button to compare with it later, or choose a file: a full export from this app or system_profiler -json output."
-                : "Snapshots of the same report are listed here. You can also choose a file: a full export from this app or system_profiler -json output.")
+            Text("Only readable, full snapshots covering the same data types are listed. Redacted snapshots cannot be compared. Save a baseline from a report's Snapshots button, or choose a full export or system_profiler -json file.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -279,6 +346,38 @@ private struct ComparisonSetupCard: View {
         .overlay {
             RoundedRectangle(cornerRadius: 14)
                 .stroke(Color.accentColor.opacity(0.2), lineWidth: 1)
+        }
+    }
+}
+
+private struct ComparisonSnapshotHistoryNotice: View {
+    let history: ComparisonSnapshotHistoryState
+
+    var body: some View {
+        switch history {
+        case .loading:
+            HStack(spacing: 10) {
+                ProgressView().controlSize(.small)
+                Text("Loading local snapshots…")
+                    .foregroundStyle(.secondary)
+            }
+            .accessibilityIdentifier("what-changed-snapshots-loading")
+        case let .unavailable(message):
+            VStack(alignment: .leading, spacing: 4) {
+                Label("Snapshot history could not be loaded", systemImage: "exclamationmark.triangle.fill")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.orange)
+                Text(message)
+                    .textSelection(.enabled)
+                Text("Refresh Snapshots to try again. You can still choose a baseline file.")
+            }
+            .font(.caption)
+            .fixedSize(horizontal: false, vertical: true)
+            .accessibilityIdentifier("what-changed-snapshots-unavailable")
+        case let .loaded(history):
+            if !history.unreadableFileNames.isEmpty {
+                UnreadableSnapshotsNotice(fileNames: history.unreadableFileNames)
+            }
         }
     }
 }
