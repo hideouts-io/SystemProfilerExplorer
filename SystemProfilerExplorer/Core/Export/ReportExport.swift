@@ -73,7 +73,9 @@ func makeRedactedReportExport(_ report: SystemProfilerReport) -> ReportExportEnv
             sections: report.sections.map { section in
                 SystemProfilerSection(
                     dataType: section.dataType,
-                    items: section.items.map(redactProfileValue)
+                    items: section.items.map { value in
+                        redactProfileValue(value, dataType: section.dataType, path: [], keysAreNames: false)
+                    }
                 )
             },
             commandArguments: report.commandArguments,
@@ -121,19 +123,21 @@ func redactedReportExportFilename(completedAt: Date) -> String {
     "System-Profiler-Redacted-\(exportDateDescription(completedAt)).json"
 }
 
-private func redactProfileValue(_ value: ProfileValue) -> ProfileValue {
-    redactProfileValue(value, keysAreNames: false)
-}
-
 /// Some system_profiler dictionaries use names as keys: Bluetooth devices are keyed by
-/// device name and firewall rules by app identifier. Those keys are redacted too.
-private func redactProfileValue(_ value: ProfileValue, keysAreNames: Bool) -> ProfileValue {
+/// device name and firewall rules by app identifier. Camera identifier descendants
+/// also have opaque keys; traversal retains the original path to redact them.
+private func redactProfileValue(
+    _ value: ProfileValue,
+    dataType: SystemProfilerDataType,
+    path: [String],
+    keysAreNames: Bool
+) -> ProfileValue {
     switch value {
     case let .object(object):
-        return .object(redactedObject(object, keysAreNames: keysAreNames))
+        return .object(redactedObject(object, dataType: dataType, path: path, keysAreNames: keysAreNames))
     case let .array(values):
         return .array(values.map { item in
-            redactProfileValue(item, keysAreNames: isSingleNamedEntry(item))
+            redactProfileValue(item, dataType: dataType, path: path + ["[]"], keysAreNames: isSingleNamedEntry(item))
         })
     case .string, .integer, .decimal, .boolean, .null:
         return .string(redactedProfileValue)
@@ -142,6 +146,8 @@ private func redactProfileValue(_ value: ProfileValue, keysAreNames: Bool) -> Pr
 
 private func redactedObject(
     _ object: [String: ProfileValue],
+    dataType: SystemProfilerDataType,
+    path: [String],
     keysAreNames: Bool
 ) -> [String: ProfileValue] {
     var redacted: [String: ProfileValue] = [:]
@@ -152,10 +158,16 @@ private func redactedObject(
             preconditionFailure("The redacted profiler object changed during traversal.")
         }
 
-        let redactedKey: String = keysAreNames || keyLooksLikeIdentifier(key)
+        let redactedKey: String = keysAreNames || cameraIdentifierPath(dataType: dataType, path: path)
+            || keyLooksLikeIdentifier(key)
             ? "\(redactedProfileValue) \(position + 1)"
             : key
-        redacted[redactedKey] = redactProfileValue(value, keysAreNames: nameKeyedContainers.contains(key))
+        redacted[redactedKey] = redactProfileValue(
+            value,
+            dataType: dataType,
+            path: path + [key],
+            keysAreNames: nameKeyedContainers.contains(key)
+        )
     }
 
     return redacted
@@ -258,10 +270,22 @@ private func anonymizedValue(
     path: [String],
     keysAreNames: Bool
 ) -> ProfileValue {
+    if cameraIdentifierPath(dataType: dataType, path: path) {
+        switch value {
+        case .object, .array:
+            break
+        case .string, .integer, .decimal, .boolean, .null:
+            // Sample removal is independent of spelling and scalar type,
+            // including null. Full/raw reports keep the original value.
+            return .string(anonymizedSampleRemovedValue)
+        }
+    }
     switch value {
     case let .object(object):
         var anonymized: [String: ProfileValue] = [:]
         anonymized.reserveCapacity(object.count)
+        let cameraKeys: [String: String]? = cameraIdentifierPath(dataType: dataType, path: path)
+            ? anonymizedCameraObjectKeys(object.keys.sorted()) : nil
 
         for (position, key) in object.keys.sorted().enumerated() {
             guard let fieldValue = object[key] else {
@@ -270,8 +294,16 @@ private func anonymizedValue(
 
             // A key that is already a placeholder stays as it is, so anonymizing a sample
             // again doesn't change it.
-            let isName: Bool = (keysAreNames || keyLooksLikeIdentifier(key)) && !isSampleNamePlaceholder(key)
-            let sampleKey: String = isName ? "<name \(position + 1)>" : key
+            let sampleKey: String
+            if let cameraKeys {
+                guard let opaqueKey: String = cameraKeys[key] else {
+                    preconditionFailure("The Camera sample key map must include every original key.")
+                }
+                sampleKey = opaqueKey
+            } else {
+                let isName: Bool = (keysAreNames || keyLooksLikeIdentifier(key)) && !isSampleNamePlaceholder(key)
+                sampleKey = isName ? "<name \(position + 1)>" : key
+            }
             anonymized[sampleKey] = anonymizedValue(
                 fieldValue,
                 dataType: dataType,
@@ -293,6 +325,27 @@ private func anonymizedValue(
     case let .string(text):
         return .string(anonymizedText(text, dataType: dataType, path: path))
     }
+}
+
+/// Unexpected objects inside an identifier have opaque keys as well as values.
+/// Reserve existing placeholders before assigning names, so siblings cannot
+/// overwrite one another and reanonymizing preserves the same structure.
+private func anonymizedCameraObjectKeys(_ sortedKeys: [String]) -> [String: String] {
+    let reserved: Set<String> = Set(sortedKeys.filter(isSampleNamePlaceholder))
+    var names: [String: String] = [:]
+    var nextName: Int = 1
+    for key in sortedKeys {
+        if reserved.contains(key) {
+            names[key] = key
+        } else {
+            while reserved.contains("<name \(nextName)>") {
+                nextName += 1
+            }
+            names[key] = "<name \(nextName)>"
+            nextName += 1
+        }
+    }
+    return names
 }
 
 private func isSampleNamePlaceholder(_ key: String) -> Bool {
@@ -324,6 +377,20 @@ private func anonymizedText(_ text: String, dataType: SystemProfilerDataType, pa
 
     if fieldHoldsPersonalValues(field) || textLooksPersonal(text) {
         return anonymizedSampleRemovedValue
+    }
+
+    // This field can contain an unfamiliar filesystem name or arbitrary text.
+    // Keep only recognized identifiers, not generic token/Boolean-looking values.
+    if dataType == .networkVolumes && field == "spnetworkvolume_fstypename" {
+        guard let interpretation: ValueExplanation = valueExplanation(
+            dataType: dataType,
+            path: path,
+            scalar: .string(text)
+        ), interpretation.status != .unknown else {
+            return anonymizedSampleRemovedValue
+        }
+
+        return text
     }
 
     if decodeBooleanLike(text) != nil || isEnumeratedToken(text) || hasValueRule(dataType: dataType, path: path) {

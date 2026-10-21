@@ -306,6 +306,22 @@ func bluetoothExplanation(path: [String], reportedValue: String) -> FieldExplana
             interpretation: "A recorded address shows the accessory was paired at some point. It doesn't show when it last connected, and privacy features can make the address it uses over the air differ.",
             privacy: "This address can persistently identify the accessory and link it to its owner. Redact it from public reports."
         )
+    case "device_batteryLevelMain", "device_batteryLevelLeft", "device_batteryLevelRight", "device_batteryLevelCase":
+        FieldExplanation(
+            title: "Accessory Battery",
+            meaning: "This is the battery level a connected accessory reported, for the accessory itself or for one earbud or the charging case.",
+            significance: "It shows which part needs charging before it stops working.",
+            interpretation: "The level is a snapshot from when the scan ran. Accessories that aren't connected don't report one.",
+            privacy: nil
+        )
+    case "device_services":
+        FieldExplanation(
+            title: "Accessory Services",
+            meaning: "These are the Bluetooth services (profiles) the accessory supports, such as stereo audio or keyboard input.",
+            significance: "They show what the accessory can do with this Mac.",
+            interpretation: "A listed service is supported, not necessarily in use.",
+            privacy: nil
+        )
     case "device_caseVersion":
         FieldExplanation(
             title: "Charging Case Firmware",
@@ -372,26 +388,28 @@ func networkVolumeExplanation(path: [String], reportedValue: String) -> FieldExp
     case "spnetworkvolume_automounted":
         networkBooleanExplanation(
             title: "Automatically Mounted",
-            meaning: "This reports whether macOS considers the network volume automatically mounted rather than mounted only through an immediate manual action.",
-            significance: "Automatic mounts can originate from login items, managed configuration, saved server connections, or system services.",
-            interpretation: "The state does not identify who configured the mount, prove recent file access, or establish that the remote server is trustworthy.",
+            meaning: "This reports whether macOS marks the network volume as automatically mounted.",
+            significance: "An automounter can connect a volume when its path is requested. This field is mount metadata, not a history of how the connection started.",
+            interpretation: "Neither state identifies the person, application, or configuration that triggered the mount. It does not prove file access, current server reachability, or server trust.",
             reportedValue: reportedValue,
             privacy: nil
         )
     case "spnetworkvolume_fsmtnonname":
+        // Apple's SPNetworkVolumeReporter labels this key "Mount Point";
+        // statfs(2) distinguishes f_mntonname (a directory) from f_flags (options).
         FieldExplanation(
-            title: "Mount Options",
-            meaning: "This describes filesystem mount flags or options applied to the network volume.",
-            significance: "Mount options affect behavior such as read/write access, caching, execution, ownership, and filesystem semantics.",
-            interpretation: "The compact option string is configuration, not a complete access-control or activity audit. Server-side permissions still apply.",
-            privacy: nil
+            title: "Network Volume Mount Point",
+            meaning: "This is the local directory where macOS makes the network volume's files available, such as a directory under /Volumes.",
+            significance: "It distinguishes the path used to access the volume on this Mac from the remote server and share recorded in Network Volume Source.",
+            interpretation: "The value is a recorded mount path, not mount options or a permissions check. It does not prove that files were accessed, that the server remains reachable, or that the server is trustworthy.",
+            privacy: "Mount paths can reveal account, share, project, or organizational names. Redact them before sharing reports."
         )
     case "spnetworkvolume_fstypename":
         FieldExplanation(
             title: "Network Filesystem Type",
-            meaning: "This identifies the filesystem protocol used for the mounted network volume, such as SMB or NFS.",
-            significance: "The protocol determines authentication, permissions, discovery, compatibility, and performance behavior.",
-            interpretation: "The protocol name does not establish encryption, server identity, data sensitivity, or whether files were accessed.",
+            meaning: "This names the filesystem macOS reports for the mounted network volume, such as smbfs for SMB file sharing or nfs for Network File System.",
+            significance: "The filesystem family helps identify the relevant file-sharing configuration, compatibility, and troubleshooting checks.",
+            interpretation: "The type name alone does not establish the protocol version, authentication, permissions, encryption, server identity or trust, current reachability, or whether files were accessed.",
             privacy: nil
         )
     case "spnetworkvolume_mntfromname":

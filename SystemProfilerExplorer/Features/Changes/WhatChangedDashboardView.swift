@@ -6,10 +6,14 @@ struct WhatChangedDashboardView: View {
 
     @State private var selectedSubject: ProfilerSubject?
     @State private var comparison: ReportComparison?
-    @State private var snapshots: [SnapshotSummary] = []
+    @State private var snapshotHistory: ComparisonSnapshotHistoryState = .loading
+    @State private var snapshotRefreshID: Int = 0
     @State private var isShowingBaselineImporter: Bool = false
     @State private var isPreparingComparison: Bool = false
     @State private var errorMessage: String?
+    @State private var pendingComparison: PendingComparisonPair?
+    @State private var comparisonRequestID: UUID = UUID()
+    @State private var comparisonTask: Task<Void, Never>?
 
     private var availableSubjects: [ProfilerSubject] {
         reports.keys.sorted { $0.title < $1.title }
@@ -21,7 +25,7 @@ struct WhatChangedDashboardView: View {
             return []
         }
 
-        return snapshots.filter { snapshotCanBeCompared($0, with: report) }
+        return snapshotHistory.comparableSnapshots(with: report)
     }
 
     var body: some View {
@@ -39,9 +43,11 @@ struct WhatChangedDashboardView: View {
                     availableSubjects: availableSubjects,
                     selectedSubject: $selectedSubject,
                     snapshots: comparableSnapshots,
+                    snapshotHistory: snapshotHistory,
                     isPreparingComparison: isPreparingComparison,
                     compareWithSnapshot: compare(with:),
-                    importBaseline: { isShowingBaselineImporter = true }
+                    importBaseline: { isShowingBaselineImporter = true },
+                    refreshSnapshots: { snapshotRefreshID += 1 }
                 )
 
                 if let comparison {
@@ -56,13 +62,17 @@ struct WhatChangedDashboardView: View {
             selectInitialSubjectIfNeeded()
         }
         .onChange(of: selectedSubject) { _ in
-            comparison = nil
+            invalidateComparison()
         }
-        // A rescan replaces the report, so a comparison with the old one no longer applies.
-        .onChange(of: selectedReportDate) { _ in
-            comparison = nil
+        // Imports can share a file timestamp while containing different evidence.
+        .onChange(of: selectedReport) { _ in
+            invalidateComparison()
         }
-        .task {
+        .onChange(of: selectedReport?.originalSource?.id) { _ in
+            invalidateComparison()
+        }
+        .onDisappear(perform: invalidateComparison)
+        .task(id: snapshotRefreshID) {
             await loadSnapshots()
         }
         .fileImporter(
@@ -76,11 +86,20 @@ struct WhatChangedDashboardView: View {
         } message: {
             Text(errorMessage ?? "The reports could not be compared.")
         }
+        .alert("Same Mac not verified", isPresented: confirmationBinding, presenting: pendingComparison) { pair in
+            Button("Compare with warning") { completeComparison(pair) }
+                .accessibilityIdentifier("confirm-unverified-comparison")
+            Button("Cancel", role: .cancel) { pendingComparison = nil }
+                .accessibilityIdentifier("cancel-unverified-comparison")
+        } message: { _ in
+            Text("The selected reports do not contain matching machine-identifying metadata. Confirm that they describe the same Mac to continue. A persistent warning will remain visible; no additional identifiers will be collected.")
+        }
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("what-changed-workspace")
     }
 
-    private var selectedReportDate: Date? {
-        selectedSubject.flatMap { reports[$0]?.completedAt }
+    private var selectedReport: SystemProfilerReport? {
+        selectedSubject.flatMap { reports[$0] }
     }
 
     private var errorBinding: Binding<Bool> {
@@ -94,6 +113,27 @@ struct WhatChangedDashboardView: View {
         )
     }
 
+    private var confirmationBinding: Binding<Bool> {
+        Binding(get: { pendingComparison != nil }, set: { presented in
+            if !presented { pendingComparison = nil }
+        })
+    }
+
+    private func invalidateComparison() {
+        comparisonRequestID = UUID()
+        comparisonTask?.cancel()
+        comparisonTask = nil
+        pendingComparison = nil
+        comparison = nil
+        isPreparingComparison = false
+    }
+
+    private func isCurrentComparison(_ pair: PendingComparisonPair) -> Bool {
+        comparisonRequestID == pair.id && selectedSubject == pair.subject
+            && reports[pair.subject] == pair.current
+            && reports[pair.subject]?.originalSource?.id == pair.current.originalSource?.id
+    }
+
     private func selectInitialSubjectIfNeeded() {
         if let selectedSubject, reports[selectedSubject] != nil {
             return
@@ -103,11 +143,25 @@ struct WhatChangedDashboardView: View {
     }
 
     private func loadSnapshots() async {
-        let loaded: [SnapshotSummary]? = try? await Task.detached(priority: .userInitiated) {
-            try snapshotStore().loadSnapshotHistory().snapshots
+        guard !Task.isCancelled else {
+            return
+        }
+
+        snapshotHistory = .loading
+
+        let loaded: ComparisonSnapshotHistoryState = await Task.detached(priority: .userInitiated) {
+            do {
+                return ComparisonSnapshotHistoryState.load(from: try snapshotStore())
+            } catch {
+                return .unavailable(message: error.localizedDescription)
+            }
         }.value
 
-        snapshots = loaded ?? []
+        guard !Task.isCancelled else {
+            return
+        }
+
+        snapshotHistory = loaded
     }
 
     private func compare(with snapshot: SnapshotSummary) {
@@ -153,30 +207,97 @@ struct WhatChangedDashboardView: View {
             return
         }
 
-        let comparedSubject: ProfilerSubject = selectedSubject
-        let comparedDate: Date = currentReport.completedAt
-
+        invalidateComparison()
+        let requestID: UUID = comparisonRequestID
         isPreparingComparison = true
 
-        Task {
+        comparisonTask = Task {
+            let work = Task.detached(priority: .userInitiated) { try loadBaseline() }
             do {
-                let preparedComparison: ReportComparison = try await Task.detached(priority: .userInitiated) {
-                    try compareReports(baseline: loadBaseline(), current: currentReport)
-                }.value
-
-                // The user may have chosen another report, or rescanned, while this ran.
-                if self.selectedSubject == comparedSubject, selectedReportDate == comparedDate {
-                    comparison = preparedComparison
+                let baseline: SystemProfilerReport = try await withTaskCancellationHandler {
+                    try await work.value
+                } onCancel: { work.cancel() }
+                try Task.checkCancellation()
+                let pair = PendingComparisonPair(id: requestID, subject: selectedSubject, baseline: baseline, current: currentReport)
+                guard isCurrentComparison(pair) else { return }
+                switch comparisonMachineIdentity(baseline: baseline, current: currentReport) {
+                case .matched:
+                    completeComparison(pair)
+                case .unverified:
+                    pendingComparison = pair
+                    isPreparingComparison = false
+                case .conflicting:
+                    throw ReportComparisonError.conflictingMachineIdentifiers
                 }
             } catch is CancellationError {
-                isPreparingComparison = false
-                return
+                // Replaced requests never publish a result or error.
             } catch {
+                guard !Task.isCancelled, comparisonRequestID == requestID else { return }
                 errorMessage = "The reports could not be compared. \(error.localizedDescription)"
+                isPreparingComparison = false
             }
-
-            isPreparingComparison = false
         }
+    }
+
+    private func completeComparison(_ pair: PendingComparisonPair) {
+        guard isCurrentComparison(pair) else { return }
+        pendingComparison = nil
+        isPreparingComparison = true
+        comparisonTask = Task {
+            let work = Task.detached(priority: .userInitiated) {
+                try compareReports(baseline: pair.baseline, current: pair.current)
+            }
+            do {
+                let prepared: ReportComparison = try await withTaskCancellationHandler {
+                    try await work.value
+                } onCancel: { work.cancel() }
+                try Task.checkCancellation()
+                guard isCurrentComparison(pair) else { return }
+                comparison = prepared
+                isPreparingComparison = false
+            } catch is CancellationError {
+                // Cancelled comparisons cannot replace the active report pair.
+            } catch {
+                guard !Task.isCancelled, isCurrentComparison(pair) else { return }
+                errorMessage = "The reports could not be compared. \(error.localizedDescription)"
+                isPreparingComparison = false
+            }
+        }
+    }
+}
+
+private struct PendingComparisonPair: Identifiable, Sendable {
+    let id: UUID
+    let subject: ProfilerSubject
+    let baseline: SystemProfilerReport
+    let current: SystemProfilerReport
+}
+
+/// Keeps unavailable or partly unreadable history distinct from a genuinely empty
+/// history. Only readable, full snapshots of the current report can be baselines.
+enum ComparisonSnapshotHistoryState: Sendable, Equatable {
+    case loading
+    case loaded(SnapshotHistory)
+    case unavailable(message: String)
+
+    static func load(from store: SnapshotStore) -> ComparisonSnapshotHistoryState {
+        do {
+            return .loaded(try store.loadSnapshotHistory())
+        } catch {
+            return .unavailable(message: error.localizedDescription)
+        }
+    }
+
+    func comparableSnapshots(with report: SystemProfilerReport) -> [SnapshotSummary] {
+        guard case let .loaded(history) = self else {
+            return []
+        }
+
+        return history.snapshots.filter { snapshotCanBeCompared($0, with: report) }
+    }
+
+    var isLoading: Bool {
+        if case .loading = self { true } else { false }
     }
 }
 
@@ -207,14 +328,33 @@ private struct ComparisonSetupCard: View {
     let availableSubjects: [ProfilerSubject]
     @Binding var selectedSubject: ProfilerSubject?
     let snapshots: [SnapshotSummary]
+    let snapshotHistory: ComparisonSnapshotHistoryState
     let isPreparingComparison: Bool
     let compareWithSnapshot: (SnapshotSummary) -> Void
     let importBaseline: () -> Void
+    let refreshSnapshots: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 13) {
-            Label("Choose what to compare", systemImage: "arrow.left.arrow.right")
-                .font(.headline)
+            HStack {
+                Label("Choose what to compare", systemImage: "arrow.left.arrow.right")
+                    .font(.headline)
+                Spacer()
+                Button(action: refreshSnapshots) {
+                    Label("Refresh Snapshots", systemImage: "arrow.clockwise")
+                }
+                .disabled(snapshotHistory.isLoading || isPreparingComparison)
+                .accessibilityIdentifier("what-changed-refresh-snapshots")
+            }
+
+            ComparisonSnapshotHistoryNotice(history: snapshotHistory)
+
+            if case .loaded = snapshotHistory, snapshots.isEmpty {
+                Text("No readable, compatible full snapshots are available for this report.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("what-changed-no-snapshot-baselines")
+            }
 
             HStack(spacing: 12) {
                 Picker("Current report", selection: $selectedSubject) {
@@ -242,33 +382,37 @@ private struct ComparisonSetupCard: View {
                     .accessibilityIdentifier("what-changed-compare-latest-snapshot")
                 }
 
-                Menu {
+                Group {
                     if snapshots.isEmpty {
-                        Text("No saved snapshots of this report")
+                        Button(action: importBaseline) {
+                            Label("Choose File…", systemImage: "square.and.arrow.down")
+                        }
+                        .accessibilityIdentifier("what-changed-choose-file")
                     } else {
-                        Section("Snapshots") {
-                            ForEach(snapshots) { snapshot in
-                                Button("\(snapshot.name) — \(snapshot.createdAt.formatted(date: .abbreviated, time: .shortened))") {
-                                    compareWithSnapshot(snapshot)
+                        Menu {
+                            Section("Snapshots") {
+                                ForEach(snapshots) { snapshot in
+                                    Button("\(snapshot.name) — \(snapshot.createdAt.formatted(date: .abbreviated, time: .shortened))") {
+                                        compareWithSnapshot(snapshot)
+                                    }
                                 }
                             }
+
+                            Divider()
+
+                            Button("Choose File…", action: importBaseline)
+                                .accessibilityIdentifier("what-changed-choose-file")
+                        } label: {
+                            Label("Other Baseline", systemImage: "square.and.arrow.down")
                         }
+                        .accessibilityIdentifier("what-changed-choose-baseline")
                     }
-
-                    Divider()
-
-                    Button("Choose File…", action: importBaseline)
-                } label: {
-                    Label(snapshots.isEmpty ? "Choose Baseline" : "Other Baseline", systemImage: "square.and.arrow.down")
                 }
                 .fixedSize()
                 .disabled(isPreparingComparison || selectedSubject == nil)
-                .accessibilityIdentifier("what-changed-choose-baseline")
             }
 
-            Text(snapshots.isEmpty
-                ? "Save a snapshot from a report's Snapshots button to compare with it later, or choose a file: a full export from this app or system_profiler -json output."
-                : "Snapshots of the same report are listed here. You can also choose a file: a full export from this app or system_profiler -json output.")
+            Text("Only readable, full snapshots covering the same data types are listed. Redacted snapshots cannot be compared. Save a baseline from a report's Snapshots button, or choose a full export or system_profiler -json file.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -278,6 +422,38 @@ private struct ComparisonSetupCard: View {
         .overlay {
             RoundedRectangle(cornerRadius: 14)
                 .stroke(Color.accentColor.opacity(0.2), lineWidth: 1)
+        }
+    }
+}
+
+private struct ComparisonSnapshotHistoryNotice: View {
+    let history: ComparisonSnapshotHistoryState
+
+    var body: some View {
+        switch history {
+        case .loading:
+            HStack(spacing: 10) {
+                ProgressView().controlSize(.small)
+                Text("Loading local snapshots…")
+                    .foregroundStyle(.secondary)
+            }
+            .accessibilityIdentifier("what-changed-snapshots-loading")
+        case let .unavailable(message):
+            VStack(alignment: .leading, spacing: 4) {
+                Label("Snapshot history could not be loaded", systemImage: "exclamationmark.triangle.fill")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.orange)
+                Text(message)
+                    .textSelection(.enabled)
+                Text("Refresh Snapshots to try again. You can still choose a baseline file.")
+            }
+            .font(.caption)
+            .fixedSize(horizontal: false, vertical: true)
+            .accessibilityIdentifier("what-changed-snapshots-unavailable")
+        case let .loaded(history):
+            if !history.unreadableFileNames.isEmpty {
+                UnreadableSnapshotsNotice(fileNames: history.unreadableFileNames)
+            }
         }
     }
 }
@@ -330,11 +506,25 @@ struct ContentCard: View {
 private struct WhatChangedResultsView: View {
     let comparison: ReportComparison
 
+    @State private var isShowingDetails: Bool = false
+    @State private var selectedChange: ReportChange?
+
     private var insights: [ReportChangeInsight] {
         reportChangeInsights(comparison)
     }
 
     var body: some View {
+        HSplitView {
+            changeList.frame(minWidth: 360)
+            if let selectedChange {
+                ComparisonEvidenceInspector(change: selectedChange, comparison: comparison, close: { self.selectedChange = nil })
+                    .frame(minWidth: 550, idealWidth: 650)
+            }
+        }
+        .frame(minHeight: 550)
+    }
+
+    private var changeList: some View {
         VStack(alignment: .leading, spacing: 18) {
             HStack(alignment: .firstTextBaseline) {
                 Text("Comparison Results")
@@ -343,25 +533,34 @@ private struct WhatChangedResultsView: View {
                 Text("Baseline \(comparison.baselineCompletedAt.formatted(date: .abbreviated, time: .shortened)) → Current \(comparison.currentCompletedAt.formatted(date: .abbreviated, time: .shortened))")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                Button("Review Details") {
+                    isShowingDetails = true
+                }
+                .accessibilityIdentifier("what-changed-review-details")
             }
 
             ChangeKindSummaryCards(summary: comparison.summary)
+            ComparisonIdentityNotice(identity: comparison.machineIdentity)
+            UnresolvedComparisonMatchesView(comparison: comparison)
             ChangeImportanceNotice()
 
             if insights.isEmpty {
                 ContentCard(
-                    title: "No finding changes detected",
-                    detail: "Every comparable finding in the selected report matches the current collection.",
+                    title: comparison.unresolvedMatches.isEmpty ? "No finding changes detected" : "No confirmed finding changes",
+                    detail: comparison.unresolvedMatches.isEmpty ? "Every comparable finding in the selected report matches the current collection." : "Unresolved record matches still require review. No pairing was guessed.",
                     symbolName: "checkmark.circle"
                 )
             } else {
                 ForEach(ChangeImportance.allCases) { importance in
                     let groupedInsights: [ReportChangeInsight] = insights.filter { $0.importance == importance }
                     if !groupedInsights.isEmpty {
-                        ChangeImportanceGroup(importance: importance, insights: groupedInsights)
+                        ChangeImportanceGroup(importance: importance, insights: groupedInsights, comparison: comparison, inspect: { selectedChange = $0 })
                     }
                 }
             }
+        }
+        .sheet(isPresented: $isShowingDetails) {
+            ReportComparisonView(comparison: comparison)
         }
     }
 }
@@ -375,6 +574,7 @@ private struct ChangeKindSummaryCards: View {
             ChangeKindSummaryCard(title: "Removed", value: summary.removedCount, symbolName: "minus.circle.fill", tint: .red)
             ChangeKindSummaryCard(title: "Changed", value: summary.changedCount, symbolName: "pencil.circle.fill", tint: .orange)
         }
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("what-changed-summary")
     }
 }
@@ -420,6 +620,8 @@ private struct ChangeImportanceNotice: View {
 private struct ChangeImportanceGroup: View {
     let importance: ChangeImportance
     let insights: [ReportChangeInsight]
+    let comparison: ReportComparison
+    let inspect: (ReportChange) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -440,7 +642,7 @@ private struct ChangeImportanceGroup: View {
 
             LazyVStack(spacing: 0) {
                 ForEach(insights) { insight in
-                    ChangeInsightRow(insight: insight)
+                    ChangeInsightRow(insight: insight, comparison: comparison, inspect: { inspect(insight.change) })
                     if insight.id != insights.last?.id {
                         Divider()
                     }
@@ -465,6 +667,8 @@ private struct ChangeImportanceGroup: View {
 
 private struct ChangeInsightRow: View {
     let insight: ReportChangeInsight
+    let comparison: ReportComparison
+    let inspect: () -> Void
 
     @State private var isExpanded: Bool = false
 
@@ -478,10 +682,7 @@ private struct ChangeInsightRow: View {
 
                 ChangeInsightValueRows(change: insight.change)
 
-                LabeledContent("Raw source location", value: insight.change.sourcePath)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .textSelection(.enabled)
+                ComparisonSourceLocations(change: insight.change, inspect: inspect)
             }
             .padding(.top, 8)
         } label: {
@@ -501,6 +702,10 @@ private struct ChangeInsightRow: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 11)
+        .accessibilityIdentifier("what-changed-insight-\(insight.id)")
+        .onChange(of: isExpanded) { expanded in
+            if expanded { inspect() }
+        }
     }
 }
 

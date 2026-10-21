@@ -19,7 +19,8 @@ enum SystemProfilerParsingError: LocalizedError, Equatable {
 
 struct SystemProfilerParser: Sendable {
     func parse(_ execution: SystemProfilerExecution) throws -> SystemProfilerReport {
-        let payload: SystemProfilerPayload = try decodePayload(execution.standardOutput)
+        let input: Data = try ownedOriginalReportBytes(execution.standardOutput)
+        let payload: SystemProfilerPayload = try decodePayload(input)
 
         let sections: [SystemProfilerSection] = execution.request.dataTypes.compactMap { dataType in
             guard let items = payload.sections[dataType.rawValue] else {
@@ -34,12 +35,14 @@ struct SystemProfilerParser: Sendable {
             commandArguments: execution.request.arguments,
             standardError: execution.standardError,
             startedAt: execution.startedAt,
-            completedAt: execution.completedAt
+            completedAt: execution.completedAt,
+            originalSource: OriginalReportSource(ownedBytes: input, format: .systemProfiler)
         )
     }
 
     func parseImportedReport(_ data: Data, importedAt: Date) throws -> SystemProfilerReport {
-        let payload: SystemProfilerPayload = try decodePayload(data)
+        let input: Data = try ownedOriginalReportBytes(data)
+        let payload: SystemProfilerPayload = try decodePayload(input)
         let sections: [SystemProfilerSection] = SystemProfilerDataType.allCases.compactMap { dataType in
             guard let items = payload.sections[dataType.rawValue] else {
                 return nil
@@ -57,7 +60,8 @@ struct SystemProfilerParser: Sendable {
             commandArguments: [],
             standardError: "",
             startedAt: importedAt,
-            completedAt: importedAt
+            completedAt: importedAt,
+            originalSource: OriginalReportSource(ownedBytes: input, format: .systemProfiler)
         )
     }
 }
