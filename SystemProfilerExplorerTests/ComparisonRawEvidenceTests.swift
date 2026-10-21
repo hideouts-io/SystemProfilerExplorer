@@ -4,6 +4,45 @@ import Testing
 
 struct ComparisonRawEvidenceTests {
     @Test
+    func addressedEvidenceSeparatesExactOriginalFromReconstructedAndMissingSource() throws {
+        let input: String = #"{ "SPHardwareDataType" : [ { "value" : "escaped\u0020value 👩🏽‍💻" } ] }"#
+        let report: SystemProfilerReport = try rawEvidenceReport(json: input, completedAt: Date(timeIntervalSince1970: 1_000))
+        let address = ProfileValueAddress(dataType: .hardware, path: [.index(0), .field("value")])
+        let evidence: AddressedReportEvidence = try addressedReportEvidence(at: address, in: report)
+        #expect(evidence.value == .string("escaped value 👩🏽‍💻"))
+        #expect(try JSONDecoder().decode(ProfileValue.self, from: Data(evidence.structuredPages.joined().utf8)) == evidence.value)
+        guard case let .available(pages, byteRange) = evidence.original else {
+            Issue.record("Retained input must provide an original excerpt")
+            return
+        }
+        #expect(pages.joined() == #""escaped\u0020value 👩🏽‍💻""#)
+        #expect(Data(input.utf8).subdata(in: byteRange) == Data(pages.joined().utf8))
+
+        let reopened: SystemProfilerReport = try comparisonBaselineReport(from: makeFullReportExport(report))
+        let withoutSource: AddressedReportEvidence = try addressedReportEvidence(at: address, in: reopened)
+        #expect(withoutSource.value == evidence.value)
+        #expect(withoutSource.original == .unavailable)
+        let record = ProfileValueAddress(dataType: .hardware, path: [.index(0)])
+        let context: AddressedReportEvidence = try addressedReportEvidence(at: record, in: report)
+        guard case let .available(recordPages, _) = context.original else {
+            Issue.record("Surrounding record must retain original formatting")
+            return
+        }
+        #expect(recordPages.joined() == #"{ "value" : "escaped\u0020value 👩🏽‍💻" }"#)
+    }
+
+    @Test
+    func missingAddressFailsInsteadOfBecomingSourceUnavailable() throws {
+        let report: SystemProfilerReport = try rawEvidenceReport(json: #"{"SPHardwareDataType":[{"value":null}]}"#, completedAt: Date(timeIntervalSince1970: 1_000))
+        let absent = ProfileValueAddress(dataType: .hardware, path: [.index(0), .field("absent")])
+        #expect(throws: ProfileValueAddressError.missingField) {
+            _ = try addressedReportEvidence(at: absent, in: report)
+        }
+        let address = ProfileValueAddress(dataType: .hardware, path: [.index(0), .field("value")])
+        #expect(try addressedReportEvidence(at: address, in: report).value == .null)
+    }
+
+    @Test
     func importedLiteralKeysAndNestedPathsResolveDistinctEvidence() throws {
         let baseline: SystemProfilerReport = try rawEvidenceReport(
             json: #"{"SPHardwareDataType":[{"_name":"Synthetic Context","a.b":1,"a":{"b":2},"items[0]":3,"items":[4],"":5,"[]":6,"[0]":7,"x|y":8}]}"#,

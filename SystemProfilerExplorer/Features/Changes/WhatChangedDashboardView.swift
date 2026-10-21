@@ -11,6 +11,9 @@ struct WhatChangedDashboardView: View {
     @State private var isShowingBaselineImporter: Bool = false
     @State private var isPreparingComparison: Bool = false
     @State private var errorMessage: String?
+    @State private var pendingComparison: PendingComparisonPair?
+    @State private var comparisonRequestID: UUID = UUID()
+    @State private var comparisonTask: Task<Void, Never>?
 
     private var availableSubjects: [ProfilerSubject] {
         reports.keys.sorted { $0.title < $1.title }
@@ -59,12 +62,16 @@ struct WhatChangedDashboardView: View {
             selectInitialSubjectIfNeeded()
         }
         .onChange(of: selectedSubject) { _ in
-            comparison = nil
+            invalidateComparison()
         }
         // Imports can share a file timestamp while containing different evidence.
         .onChange(of: selectedReport) { _ in
-            comparison = nil
+            invalidateComparison()
         }
+        .onChange(of: selectedReport?.originalSource?.id) { _ in
+            invalidateComparison()
+        }
+        .onDisappear(perform: invalidateComparison)
         .task(id: snapshotRefreshID) {
             await loadSnapshots()
         }
@@ -78,6 +85,14 @@ struct WhatChangedDashboardView: View {
             Button("OK", role: .cancel) {}
         } message: {
             Text(errorMessage ?? "The reports could not be compared.")
+        }
+        .alert("Same Mac not verified", isPresented: confirmationBinding, presenting: pendingComparison) { pair in
+            Button("Compare with warning") { completeComparison(pair) }
+                .accessibilityIdentifier("confirm-unverified-comparison")
+            Button("Cancel", role: .cancel) { pendingComparison = nil }
+                .accessibilityIdentifier("cancel-unverified-comparison")
+        } message: { _ in
+            Text("The selected reports do not contain matching machine-identifying metadata. Confirm that they describe the same Mac to continue. A persistent warning will remain visible; no additional identifiers will be collected.")
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("what-changed-workspace")
@@ -96,6 +111,27 @@ struct WhatChangedDashboardView: View {
                 }
             }
         )
+    }
+
+    private var confirmationBinding: Binding<Bool> {
+        Binding(get: { pendingComparison != nil }, set: { presented in
+            if !presented { pendingComparison = nil }
+        })
+    }
+
+    private func invalidateComparison() {
+        comparisonRequestID = UUID()
+        comparisonTask?.cancel()
+        comparisonTask = nil
+        pendingComparison = nil
+        comparison = nil
+        isPreparingComparison = false
+    }
+
+    private func isCurrentComparison(_ pair: PendingComparisonPair) -> Bool {
+        comparisonRequestID == pair.id && selectedSubject == pair.subject
+            && reports[pair.subject] == pair.current
+            && reports[pair.subject]?.originalSource?.id == pair.current.originalSource?.id
     }
 
     private func selectInitialSubjectIfNeeded() {
@@ -171,30 +207,70 @@ struct WhatChangedDashboardView: View {
             return
         }
 
-        let comparedSubject: ProfilerSubject = selectedSubject
-        comparison = nil
+        invalidateComparison()
+        let requestID: UUID = comparisonRequestID
         isPreparingComparison = true
 
-        Task {
+        comparisonTask = Task {
+            let work = Task.detached(priority: .userInitiated) { try loadBaseline() }
             do {
-                let preparedComparison: ReportComparison = try await Task.detached(priority: .userInitiated) {
-                    try compareReports(baseline: loadBaseline(), current: currentReport)
-                }.value
-
-                // The user may have chosen another report, or rescanned, while this ran.
-                if self.selectedSubject == comparedSubject, reports[comparedSubject] == currentReport {
-                    comparison = preparedComparison
+                let baseline: SystemProfilerReport = try await withTaskCancellationHandler {
+                    try await work.value
+                } onCancel: { work.cancel() }
+                try Task.checkCancellation()
+                let pair = PendingComparisonPair(id: requestID, subject: selectedSubject, baseline: baseline, current: currentReport)
+                guard isCurrentComparison(pair) else { return }
+                switch comparisonMachineIdentity(baseline: baseline, current: currentReport) {
+                case .matched:
+                    completeComparison(pair)
+                case .unverified:
+                    pendingComparison = pair
+                    isPreparingComparison = false
+                case .conflicting:
+                    throw ReportComparisonError.conflictingMachineIdentifiers
                 }
             } catch is CancellationError {
-                isPreparingComparison = false
-                return
+                // Replaced requests never publish a result or error.
             } catch {
+                guard !Task.isCancelled, comparisonRequestID == requestID else { return }
                 errorMessage = "The reports could not be compared. \(error.localizedDescription)"
+                isPreparingComparison = false
             }
-
-            isPreparingComparison = false
         }
     }
+
+    private func completeComparison(_ pair: PendingComparisonPair) {
+        guard isCurrentComparison(pair) else { return }
+        pendingComparison = nil
+        isPreparingComparison = true
+        comparisonTask = Task {
+            let work = Task.detached(priority: .userInitiated) {
+                try compareReports(baseline: pair.baseline, current: pair.current)
+            }
+            do {
+                let prepared: ReportComparison = try await withTaskCancellationHandler {
+                    try await work.value
+                } onCancel: { work.cancel() }
+                try Task.checkCancellation()
+                guard isCurrentComparison(pair) else { return }
+                comparison = prepared
+                isPreparingComparison = false
+            } catch is CancellationError {
+                // Cancelled comparisons cannot replace the active report pair.
+            } catch {
+                guard !Task.isCancelled, isCurrentComparison(pair) else { return }
+                errorMessage = "The reports could not be compared. \(error.localizedDescription)"
+                isPreparingComparison = false
+            }
+        }
+    }
+}
+
+private struct PendingComparisonPair: Identifiable, Sendable {
+    let id: UUID
+    let subject: ProfilerSubject
+    let baseline: SystemProfilerReport
+    let current: SystemProfilerReport
 }
 
 /// Keeps unavailable or partly unreadable history distinct from a genuinely empty
@@ -431,12 +507,24 @@ private struct WhatChangedResultsView: View {
     let comparison: ReportComparison
 
     @State private var isShowingDetails: Bool = false
+    @State private var selectedChange: ReportChange?
 
     private var insights: [ReportChangeInsight] {
         reportChangeInsights(comparison)
     }
 
     var body: some View {
+        HSplitView {
+            changeList.frame(minWidth: 360)
+            if let selectedChange {
+                ComparisonEvidenceInspector(change: selectedChange, comparison: comparison, close: { self.selectedChange = nil })
+                    .frame(minWidth: 550, idealWidth: 650)
+            }
+        }
+        .frame(minHeight: 550)
+    }
+
+    private var changeList: some View {
         VStack(alignment: .leading, spacing: 18) {
             HStack(alignment: .firstTextBaseline) {
                 Text("Comparison Results")
@@ -452,19 +540,21 @@ private struct WhatChangedResultsView: View {
             }
 
             ChangeKindSummaryCards(summary: comparison.summary)
+            ComparisonIdentityNotice(identity: comparison.machineIdentity)
+            UnresolvedComparisonMatchesView(comparison: comparison)
             ChangeImportanceNotice()
 
             if insights.isEmpty {
                 ContentCard(
-                    title: "No finding changes detected",
-                    detail: "Every comparable finding in the selected report matches the current collection.",
+                    title: comparison.unresolvedMatches.isEmpty ? "No finding changes detected" : "No confirmed finding changes",
+                    detail: comparison.unresolvedMatches.isEmpty ? "Every comparable finding in the selected report matches the current collection." : "Unresolved record matches still require review. No pairing was guessed.",
                     symbolName: "checkmark.circle"
                 )
             } else {
                 ForEach(ChangeImportance.allCases) { importance in
                     let groupedInsights: [ReportChangeInsight] = insights.filter { $0.importance == importance }
                     if !groupedInsights.isEmpty {
-                        ChangeImportanceGroup(importance: importance, insights: groupedInsights, comparison: comparison)
+                        ChangeImportanceGroup(importance: importance, insights: groupedInsights, comparison: comparison, inspect: { selectedChange = $0 })
                     }
                 }
             }
@@ -530,6 +620,7 @@ private struct ChangeImportanceGroup: View {
     let importance: ChangeImportance
     let insights: [ReportChangeInsight]
     let comparison: ReportComparison
+    let inspect: (ReportChange) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -550,7 +641,7 @@ private struct ChangeImportanceGroup: View {
 
             LazyVStack(spacing: 0) {
                 ForEach(insights) { insight in
-                    ChangeInsightRow(insight: insight, comparison: comparison)
+                    ChangeInsightRow(insight: insight, comparison: comparison, inspect: { inspect(insight.change) })
                     if insight.id != insights.last?.id {
                         Divider()
                     }
@@ -576,6 +667,7 @@ private struct ChangeImportanceGroup: View {
 private struct ChangeInsightRow: View {
     let insight: ReportChangeInsight
     let comparison: ReportComparison
+    let inspect: () -> Void
 
     @State private var isExpanded: Bool = false
 
@@ -589,7 +681,7 @@ private struct ChangeInsightRow: View {
 
                 ChangeInsightValueRows(change: insight.change)
 
-                ComparisonSourceLocations(change: insight.change, comparison: comparison)
+                ComparisonSourceLocations(change: insight.change, inspect: inspect)
             }
             .padding(.top, 8)
         } label: {
@@ -610,6 +702,9 @@ private struct ChangeInsightRow: View {
         .padding(.horizontal, 14)
         .padding(.vertical, 11)
         .accessibilityIdentifier("what-changed-insight-\(insight.id)")
+        .onChange(of: isExpanded) { expanded in
+            if expanded { inspect() }
+        }
     }
 }
 

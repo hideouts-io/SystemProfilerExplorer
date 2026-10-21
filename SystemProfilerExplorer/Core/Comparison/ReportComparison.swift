@@ -1,5 +1,30 @@
 import Foundation
 
+enum ComparisonMachineIdentity: Sendable, Equatable {
+    case matched
+    case unverified
+    case conflicting
+}
+
+/// Candidate addresses locate whole records in their original report. They are not
+/// confirmed additions, removals, changes, or unchanged findings.
+struct UnresolvedRecordMatch: Identifiable, Sendable, Equatable {
+    let dataType: SystemProfilerDataType
+    let recordName: String?
+    let baselineCandidates: [ProfileValueAddress]
+    let currentCandidates: [ProfileValueAddress]
+
+    var id: String {
+        dataType.rawValue
+            + baselineCandidates.map { "b\($0.identity.utf8.count):\($0.identity)" }.joined()
+            + currentCandidates.map { "c\($0.identity.utf8.count):\($0.identity)" }.joined()
+    }
+
+    var reason: String {
+        "These records cannot be matched uniquely by name or complete value. Review the candidates in each report; they are excluded from confirmed comparison counts."
+    }
+}
+
 enum ReportChangeKind: String, CaseIterable, Identifiable, Sendable {
     case added
     case removed
@@ -32,6 +57,7 @@ struct ReportChange: Identifiable, Sendable, Equatable {
 }
 
 struct ReportComparisonSummary: Sendable, Equatable {
+    /// Counts include only findings outside unresolved candidate records.
     let baselineFindingCount: Int
     let currentFindingCount: Int
     let addedCount: Int
@@ -51,6 +77,37 @@ struct ReportComparison: Identifiable, Sendable, Equatable {
     let currentReport: SystemProfilerReport
     let summary: ReportComparisonSummary
     let changes: [ReportChange]
+    let unresolvedMatches: [UnresolvedRecordMatch]
+
+    init(
+        baselineReport: SystemProfilerReport,
+        currentReport: SystemProfilerReport,
+        summary: ReportComparisonSummary,
+        changes: [ReportChange]
+    ) {
+        self.init(
+            baselineReport: baselineReport, currentReport: currentReport,
+            summary: summary, changes: changes, unresolvedMatches: []
+        )
+    }
+
+    init(
+        baselineReport: SystemProfilerReport,
+        currentReport: SystemProfilerReport,
+        summary: ReportComparisonSummary,
+        changes: [ReportChange],
+        unresolvedMatches: [UnresolvedRecordMatch]
+    ) {
+        self.baselineReport = baselineReport
+        self.currentReport = currentReport
+        self.summary = summary
+        self.changes = changes
+        self.unresolvedMatches = unresolvedMatches
+    }
+
+    var machineIdentity: ComparisonMachineIdentity {
+        comparisonMachineIdentity(baseline: baselineReport, current: currentReport)
+    }
 
     var baselineCompletedAt: Date { baselineReport.completedAt }
     var currentCompletedAt: Date { currentReport.completedAt }
@@ -68,6 +125,7 @@ enum ReportComparisonError: LocalizedError, Equatable {
     case coverageMismatch(baseline: [String], current: [String])
     case repeatedSections(dataTypes: [SystemProfilerDataType])
     case incompleteCollection(baseline: [CollectionCoverageEntry], current: [CollectionCoverageEntry])
+    case conflictingMachineIdentifiers
     case ambiguousRecords(
         dataType: SystemProfilerDataType,
         recordName: String?,
@@ -99,6 +157,8 @@ enum ReportComparisonError: LocalizedError, Equatable {
             "The reports contain repeated profiler sections for \(dataTypes.map(\.title).joined(separator: ", ")). Each data type must appear only once. Re-export the reports before comparing; no comparison was produced."
         case let .incompleteCollection(baseline, current):
             incompleteComparisonDescription(baseline: baseline, current: current)
+        case .conflictingMachineIdentifiers:
+            "Comparison stopped because the Hardware overview machine identifiers conflict or are repeated. Select reports from the same Mac with one Hardware overview each, or collect and export them again. No comparison was produced."
         case let .ambiguousRecords(dataType, recordName, baselineCount, currentCount):
             ambiguousRecordDescription(
                 dataType: dataType,
@@ -115,6 +175,78 @@ enum ReportComparisonError: LocalizedError, Equatable {
             ) + " The affected array is at \(baselinePath) in the baseline and \(currentPath) in the current report."
         }
     }
+}
+
+/// Only the Hardware overview's direct fields identify the Mac. Peripheral records,
+/// nested serial numbers, provisioning identifiers, and matching model names do not.
+func comparisonMachineIdentity(
+    baseline: SystemProfilerReport,
+    current: SystemProfilerReport
+) -> ComparisonMachineIdentity {
+    let baselineIdentity: ComparisonHardwareIdentity = comparisonHardwareIdentity(baseline)
+    let currentIdentity: ComparisonHardwareIdentity = comparisonHardwareIdentity(current)
+    guard !baselineIdentity.repeatedOverview, !currentIdentity.repeatedOverview else {
+        return .conflicting
+    }
+    let commonIdentifiers: [(String?, String?)] = [
+        (baselineIdentity.serialNumber, currentIdentity.serialNumber),
+        (baselineIdentity.platformUUID, currentIdentity.platformUUID)
+    ]
+    var matched: Bool = false
+    for (baselineValue, currentValue) in commonIdentifiers {
+        guard let baselineValue, let currentValue else { continue }
+        guard baselineValue == currentValue else { return .conflicting }
+        matched = true
+    }
+    return matched ? .matched : .unverified
+}
+
+private struct ComparisonHardwareIdentity {
+    let serialNumber: String?
+    let platformUUID: String?
+    let repeatedOverview: Bool
+}
+
+private func comparisonHardwareIdentity(_ report: SystemProfilerReport) -> ComparisonHardwareIdentity {
+    let sections: [SystemProfilerSection] = report.sections.filter { $0.dataType == .hardware }
+    let overviews: [ProfileValue] = sections.flatMap { section in
+        section.items.filter {
+            $0.preferredName == "hardware_overview"
+                || ($0.preferredName == nil && section.items.count == 1)
+        }
+    }
+    guard sections.count <= 1, overviews.count <= 1 else {
+        return ComparisonHardwareIdentity(serialNumber: nil, platformUUID: nil, repeatedOverview: true)
+    }
+    guard let overview = overviews.first, case let .object(fields) = overview else {
+        return ComparisonHardwareIdentity(serialNumber: nil, platformUUID: nil, repeatedOverview: false)
+    }
+    let serialNumber: String? = usableComparisonIdentifier(fields["serial_number"])
+    let platformUUID: String? = usableComparisonIdentifier(fields["platform_UUID"])
+        .flatMap { UUID(uuidString: $0)?.uuidString }
+    return ComparisonHardwareIdentity(
+        serialNumber: serialNumber, platformUUID: platformUUID, repeatedOverview: false
+    )
+}
+
+private func usableComparisonIdentifier(_ value: ProfileValue?) -> String? {
+    guard case let .string(rawValue)? = value else { return nil }
+    let trimmedValue: String = rawValue.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard trimmedValue.unicodeScalars.allSatisfy({
+        (65...90).contains($0.value) || (97...122).contains($0.value)
+            || (48...57).contains($0.value) || $0.value == 45
+    }) else { return nil }
+    let value: String = trimmedValue.uppercased()
+    let placeholders: Set<String> = [
+        "", "REDACTED", "[REDACTED]", "UNKNOWN", "N/A", "NONE", "NULL",
+        "NOT AVAILABLE", "UNAVAILABLE", "NOT SPECIFIED", "TO BE FILLED BY O.E.M."
+    ]
+    guard !placeholders.contains(value) else { return nil }
+    let significantCharacters: String = value.replacingOccurrences(of: "-", with: "")
+    guard !significantCharacters.isEmpty,
+          !significantCharacters.allSatisfy({ $0 == "0" }),
+          !significantCharacters.allSatisfy({ $0 == "F" }) else { return nil }
+    return value
 }
 
 func comparisonBaselineReport(from export: ReportExportEnvelope) throws -> SystemProfilerReport {
@@ -183,15 +315,22 @@ func compareReports(
         )
     }
 
+    guard comparisonMachineIdentity(baseline: baseline, current: current) != .conflicting else {
+        throw ReportComparisonError.conflictingMachineIdentifiers
+    }
+
     let records: ComparedReportRecords = try comparisonRecords(baseline: baseline, current: current)
     let nestedPaths: ComparedNestedRecordPaths = try comparisonNestedRecordPaths(records)
+    let unresolvedMatches: [UnresolvedRecordMatch] = records.unresolvedMatches + nestedPaths.unresolvedMatches
     let baselineFindings: [ComparisonFindingKey: ComparableFinding] = comparableFindings(
         records.baseline,
-        nestedPaths: nestedPaths.baseline
+        nestedPaths: nestedPaths.baseline,
+        excludedAddresses: Set(unresolvedMatches.flatMap(\.baselineCandidates))
     )
     let currentFindings: [ComparisonFindingKey: ComparableFinding] = comparableFindings(
         records.current,
-        nestedPaths: nestedPaths.current
+        nestedPaths: nestedPaths.current,
+        excludedAddresses: Set(unresolvedMatches.flatMap(\.currentCandidates))
     )
     var changes: [ReportChange] = []
     var unchangedCount: Int = 0
@@ -252,7 +391,8 @@ func compareReports(
             changedCount: changedCount,
             unchangedCount: unchangedCount
         ),
-        changes: sortedChanges
+        changes: sortedChanges,
+        unresolvedMatches: unresolvedMatches
     )
 }
 
@@ -262,9 +402,9 @@ private enum ComparisonPathComponent: Sendable, Hashable {
     case record(String)
 }
 
-private enum ComparisonRecordLocation {
-    case section
-    case nested(baselinePath: String, currentPath: String)
+private struct ComparisonRecordMatches {
+    let currentIdentifiers: [String]
+    let unresolvedMatches: [UnresolvedRecordMatch]
 }
 
 private struct NestedRecordPath: Sendable, Hashable {
@@ -276,6 +416,7 @@ private struct NestedRecordPath: Sendable, Hashable {
 private struct ComparedNestedRecordPaths: Sendable {
     let baseline: [NestedRecordPath: String]
     let current: [NestedRecordPath: String]
+    let unresolvedMatches: [UnresolvedRecordMatch]
 }
 
 private struct ComparisonFindingKey: Sendable, Hashable {
@@ -305,6 +446,7 @@ private struct IdentifiedComparisonRecord: Sendable {
 private struct ComparedReportRecords: Sendable {
     let baseline: [IdentifiedComparisonRecord]
     let current: [IdentifiedComparisonRecord]
+    let unresolvedMatches: [UnresolvedRecordMatch]
 }
 
 /// Both reports have already passed the identical, unique data-type coverage checks.
@@ -320,22 +462,29 @@ private func comparisonRecords(
     }
     var baselineRecords: [IdentifiedComparisonRecord] = []
     var currentRecords: [IdentifiedComparisonRecord] = []
+    var unresolvedMatches: [UnresolvedRecordMatch] = []
 
     for (baselineSection, currentSection) in zip(baselineSections, currentSections) {
         try Task.checkCancellation()
-        let currentIdentifiers: [String]
+        let matches: ComparisonRecordMatches
         if baselineSection.items.count == 1 && currentSection.items.count == 1
             && baselineSection.items[0].preferredName == nil && currentSection.items[0].preferredName == nil {
-            currentIdentifiers = ["record:0"]
+            matches = ComparisonRecordMatches(currentIdentifiers: ["record:0"], unresolvedMatches: [])
         } else {
-            currentIdentifiers = try currentComparisonRecordIdentifiers(
+            matches = try currentComparisonRecordIdentifiers(
                 baseline: baselineSection.items,
                 current: currentSection.items,
                 dataType: baselineSection.dataType,
-                location: .section
+                baselinePath: [],
+                currentPath: []
             )
         }
-        baselineRecords += baselineSection.items.enumerated().map { index, value in
+        unresolvedMatches += matches.unresolvedMatches
+        let excludedBaseline: Set<ProfileValueAddress> = Set(matches.unresolvedMatches.flatMap(\.baselineCandidates))
+        let excludedCurrent: Set<ProfileValueAddress> = Set(matches.unresolvedMatches.flatMap(\.currentCandidates))
+        baselineRecords += baselineSection.items.enumerated().filter { index, _ in
+            !excludedBaseline.contains(ProfileValueAddress(dataType: baselineSection.dataType, path: [.index(index)]))
+        }.map { index, value in
             IdentifiedComparisonRecord(
                 dataType: baselineSection.dataType,
                 value: value,
@@ -343,29 +492,34 @@ private func comparisonRecords(
                 recordIndex: index
             )
         }
-        currentRecords += currentSection.items.enumerated().map { index, value in
+        currentRecords += currentSection.items.enumerated().filter { index, _ in
+            !excludedCurrent.contains(ProfileValueAddress(dataType: currentSection.dataType, path: [.index(index)]))
+        }.map { index, value in
             IdentifiedComparisonRecord(
                 dataType: currentSection.dataType,
                 value: value,
-                identifier: currentIdentifiers[index],
+                identifier: matches.currentIdentifiers[index],
                 recordIndex: index
             )
         }
     }
 
-    return ComparedReportRecords(baseline: baselineRecords, current: currentRecords)
+    return ComparedReportRecords(
+        baseline: baselineRecords, current: currentRecords, unresolvedMatches: unresolvedMatches
+    )
 }
 
 /// Match sibling records without inferring identity from encounter order. Names must be
-/// unique in the original sibling collections; exact matches consume one occurrence each.
-/// Unresolved records on both sides of an ambiguous group fail explicitly. The sole
+/// unique in the original sibling collections; exact values must occur once on each side.
+/// Remaining candidates on both sides are unresolved, including indistinguishable duplicates. The sole
 /// unnamed top-level section-container exception is handled by comparisonRecords.
 private func currentComparisonRecordIdentifiers(
     baseline: [ProfileValue],
     current: [ProfileValue],
     dataType: SystemProfilerDataType,
-    location: ComparisonRecordLocation
-) throws -> [String] {
+    baselinePath: [ProfileValuePathComponent],
+    currentPath: [ProfileValuePathComponent]
+) throws -> ComparisonRecordMatches {
     let baselineGroups: [String?: [Int]] = Dictionary(grouping: baseline.indices) {
         baseline[$0].preferredName
     }
@@ -377,6 +531,7 @@ private func currentComparisonRecordIdentifiers(
         .sorted()
     let groupNames: [String?] = namedGroups.map { Optional.some($0) } + [nil]
     var identifiers: [String] = current.indices.map { "current:\($0)" }
+    var unresolvedMatches: [UnresolvedRecordMatch] = []
 
     for recordName in groupNames {
         try Task.checkCancellation()
@@ -390,54 +545,49 @@ private func currentComparisonRecordIdentifiers(
             continue
         }
 
-        // Complete values are Dictionary keys, so hash collisions still require
-        // equality. Buckets retain occurrence order; cursors avoid repeated scans
-        // and removals while preserving the existing exact-match policy.
+        // Dictionary keys preserve complete value equality, including scalar types.
+        // Only singleton buckets establish identity; duplicates never consume by order.
+        var baselineOccurrences: [ProfileValue: [Int]] = [:]
         var currentOccurrences: [ProfileValue: [Int]] = [:]
+        for baselineIndex in baselineIndices {
+            try Task.checkCancellation()
+            baselineOccurrences[baseline[baselineIndex], default: []].append(baselineIndex)
+        }
         for currentIndex in currentIndices {
             try Task.checkCancellation()
             currentOccurrences[current[currentIndex], default: []].append(currentIndex)
         }
-        var consumedOccurrences: [ProfileValue: Int] = [:]
-        var unmatchedCurrentCount: Int = currentIndices.count
-        var unmatchedBaselineCount: Int = 0
+        var matchedBaseline: Set<Int> = []
+        var matchedCurrent: Set<Int> = []
         for baselineIndex in baselineIndices {
             try Task.checkCancellation()
             let value: ProfileValue = baseline[baselineIndex]
-            let consumed: Int = consumedOccurrences[value, default: 0]
-            if let occurrences = currentOccurrences[value], consumed < occurrences.count {
-                let currentIndex: Int = occurrences[consumed]
+            if baselineOccurrences[value]?.count == 1,
+               let occurrences = currentOccurrences[value], occurrences.count == 1,
+               let currentIndex = occurrences.first {
                 identifiers[currentIndex] = "record:\(baselineIndex)"
-                consumedOccurrences[value] = consumed + 1
-                unmatchedCurrentCount -= 1
-            } else {
-                unmatchedBaselineCount += 1
+                matchedBaseline.insert(baselineIndex)
+                matchedCurrent.insert(currentIndex)
             }
         }
 
-        guard unmatchedBaselineCount == 0 || unmatchedCurrentCount == 0 else {
-            switch location {
-            case .section:
-                throw ReportComparisonError.ambiguousRecords(
-                    dataType: dataType,
-                    recordName: recordName,
-                    baselineCount: baselineIndices.count,
-                    currentCount: currentIndices.count
-                )
-            case let .nested(baselinePath, currentPath):
-                throw ReportComparisonError.ambiguousNestedRecords(
-                    dataType: dataType,
-                    recordName: recordName,
-                    baselinePath: baselinePath,
-                    currentPath: currentPath,
-                    baselineCount: baselineIndices.count,
-                    currentCount: currentIndices.count
-                )
-            }
+        let unmatchedBaseline: [Int] = baselineIndices.filter { !matchedBaseline.contains($0) }
+        let unmatchedCurrent: [Int] = currentIndices.filter { !matchedCurrent.contains($0) }
+        if !unmatchedBaseline.isEmpty && !unmatchedCurrent.isEmpty {
+            unresolvedMatches.append(UnresolvedRecordMatch(
+                dataType: dataType,
+                recordName: recordName,
+                baselineCandidates: unmatchedBaseline.map {
+                    ProfileValueAddress(dataType: dataType, path: baselinePath + [.index($0)])
+                },
+                currentCandidates: unmatchedCurrent.map {
+                    ProfileValueAddress(dataType: dataType, path: currentPath + [.index($0)])
+                }
+            ))
         }
     }
 
-    return identifiers
+    return ComparisonRecordMatches(currentIdentifiers: identifiers, unresolvedMatches: unresolvedMatches)
 }
 
 /// Actual source indices locate evidence; sibling-scoped identities locate matching
@@ -452,6 +602,7 @@ private func comparisonNestedRecordPaths(
     }
     var baselinePaths: [NestedRecordPath: String] = [:]
     var currentPaths: [NestedRecordPath: String] = [:]
+    var unresolvedMatches: [UnresolvedRecordMatch] = []
 
     for baselineRecord in records.baseline {
         let key = ComparisonFindingKey(
@@ -470,9 +621,12 @@ private func comparisonNestedRecordPaths(
         )
         for (path, identifier) in paths.baseline { baselinePaths[path] = identifier }
         for (path, identifier) in paths.current { currentPaths[path] = identifier }
+        unresolvedMatches += paths.unresolvedMatches
     }
 
-    return ComparedNestedRecordPaths(baseline: baselinePaths, current: currentPaths)
+    return ComparedNestedRecordPaths(
+        baseline: baselinePaths, current: currentPaths, unresolvedMatches: unresolvedMatches
+    )
 }
 
 private func nestedRecordPaths(
@@ -486,6 +640,7 @@ private func nestedRecordPaths(
     try Task.checkCancellation()
     var baselinePaths: [NestedRecordPath: String] = [:]
     var currentPaths: [NestedRecordPath: String] = [:]
+    var unresolvedMatches: [UnresolvedRecordMatch] = []
 
     switch (baseline, current) {
     case let (.object(baselineObject), .object(currentObject)):
@@ -503,18 +658,19 @@ private func nestedRecordPaths(
             )
             for (path, identifier) in paths.baseline { baselinePaths[path] = identifier }
             for (path, identifier) in paths.current { currentPaths[path] = identifier }
+            unresolvedMatches += paths.unresolvedMatches
         }
     case let (.array(baselineValues), .array(currentValues)):
         if baselineValues.allSatisfy(isObjectRecord) && currentValues.allSatisfy(isObjectRecord) {
-            let identifiers: [String] = try currentComparisonRecordIdentifiers(
+            let matches: ComparisonRecordMatches = try currentComparisonRecordIdentifiers(
                 baseline: baselineValues,
                 current: currentValues,
                 dataType: dataType,
-                location: .nested(
-                    baselinePath: indexedSourcePath(dataType: dataType, path: baselinePath),
-                    currentPath: indexedSourcePath(dataType: dataType, path: currentPath)
-                )
+                baselinePath: baselinePath,
+                currentPath: currentPath
             )
+            unresolvedMatches += matches.unresolvedMatches
+            let excludedCurrent: Set<ProfileValueAddress> = Set(matches.unresolvedMatches.flatMap(\.currentCandidates))
             let baselineIndices: [String: Int] = Dictionary(uniqueKeysWithValues: baselineValues.indices.map {
                 ("record:\($0)", $0)
             })
@@ -526,13 +682,16 @@ private func nestedRecordPaths(
                 )] = "record:\(baselineIndex)"
             }
             for currentIndex in currentValues.indices {
-                let identifier: String = identifiers[currentIndex]
+                let identifier: String = matches.currentIdentifiers[currentIndex]
                 let childCurrentPath: [ProfileValuePathComponent] = currentPath + [.index(currentIndex)]
                 currentPaths[NestedRecordPath(
                     dataType: dataType,
                     recordIdentifier: recordIdentifier,
                     sourcePath: childCurrentPath
                 )] = identifier
+                guard !excludedCurrent.contains(ProfileValueAddress(
+                    dataType: dataType, path: childCurrentPath
+                )) else { continue }
                 guard let baselineIndex = baselineIndices[identifier] else { continue }
                 let paths: ComparedNestedRecordPaths = try nestedRecordPaths(
                     baseline: baselineValues[baselineIndex],
@@ -544,6 +703,7 @@ private func nestedRecordPaths(
                 )
                 for (path, childIdentifier) in paths.baseline { baselinePaths[path] = childIdentifier }
                 for (path, childIdentifier) in paths.current { currentPaths[path] = childIdentifier }
+                unresolvedMatches += paths.unresolvedMatches
             }
         } else {
             for (index, pair) in zip(baselineValues, currentValues).enumerated() {
@@ -557,13 +717,16 @@ private func nestedRecordPaths(
                 )
                 for (path, identifier) in paths.baseline { baselinePaths[path] = identifier }
                 for (path, identifier) in paths.current { currentPaths[path] = identifier }
+                unresolvedMatches += paths.unresolvedMatches
             }
         }
     default:
         break
     }
 
-    return ComparedNestedRecordPaths(baseline: baselinePaths, current: currentPaths)
+    return ComparedNestedRecordPaths(
+        baseline: baselinePaths, current: currentPaths, unresolvedMatches: unresolvedMatches
+    )
 }
 
 private func isObjectRecord(_ value: ProfileValue) -> Bool {
@@ -582,7 +745,8 @@ private func ambiguousRecordDescription(
 
 private func comparableFindings(
     _ records: [IdentifiedComparisonRecord],
-    nestedPaths: [NestedRecordPath: String]
+    nestedPaths: [NestedRecordPath: String],
+    excludedAddresses: Set<ProfileValueAddress>
 ) -> [ComparisonFindingKey: ComparableFinding] {
     records.reduce(into: [:]) { reportResult, record in
         let findings: [ComparableFinding] = flattenProfileValue(
@@ -593,7 +757,8 @@ private func comparableFindings(
             path: [],
             sourcePath: [.index(record.recordIndex)],
             catalogPath: [],
-            nestedPaths: nestedPaths
+            nestedPaths: nestedPaths,
+            excludedAddresses: excludedAddresses
         )
 
         for finding in findings {
@@ -610,9 +775,13 @@ private func flattenProfileValue(
     path: [ComparisonPathComponent],
     sourcePath: [ProfileValuePathComponent],
     catalogPath: [String],
-    nestedPaths: [NestedRecordPath: String]
+    nestedPaths: [NestedRecordPath: String],
+    excludedAddresses: Set<ProfileValueAddress>
 ) -> [ComparableFinding] {
-    switch value {
+    guard !excludedAddresses.contains(ProfileValueAddress(dataType: dataType, path: sourcePath)) else {
+        return []
+    }
+    return switch value {
     case let .object(object):
         object
             .filter { $0.key != "_name" }
@@ -625,7 +794,8 @@ private func flattenProfileValue(
                     path: path + [.field(field.key)],
                     sourcePath: sourcePath + [.field(field.key)],
                     catalogPath: catalogPath + [field.key],
-                    nestedPaths: nestedPaths
+                    nestedPaths: nestedPaths,
+                    excludedAddresses: excludedAddresses
                 )
             }
 
@@ -645,7 +815,8 @@ private func flattenProfileValue(
                 path: path + [childIdentifier.map(ComparisonPathComponent.record) ?? .index(index)],
                 sourcePath: childSourcePath,
                 catalogPath: catalogPath + ["[]"],
-                nestedPaths: nestedPaths
+                nestedPaths: nestedPaths,
+                excludedAddresses: excludedAddresses
             )
         }
 
@@ -727,13 +898,6 @@ private func comparableFinding(
         address: ProfileValueAddress(dataType: dataType, path: sourcePath),
         value: value
     )
-}
-
-private func indexedSourcePath(
-    dataType: SystemProfilerDataType,
-    path: [ProfileValuePathComponent]
-) -> String {
-    ProfileValueAddress(dataType: dataType, path: path).sourcePath
 }
 
 private func reportChange(

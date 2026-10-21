@@ -90,3 +90,43 @@ func comparisonRawEvidencePages(_ evidence: ComparisonRawEvidence) throws -> [St
     let data: Data = try encoder.encode(evidence.value)
     return try diagnosticLogPages(String(decoding: data, as: UTF8.self))
 }
+
+/// Original-source failures remain distinct from a successful structured lookup.
+enum OriginalEvidencePresentation: Sendable, Equatable {
+    case unavailable
+    case available(pages: [String], byteRange: Range<Int>)
+    case failed(message: String)
+}
+
+struct AddressedReportEvidence: Sendable, Equatable {
+    let value: ProfileValue
+    let structuredPages: [String]
+    let original: OriginalEvidencePresentation
+}
+
+/// Resolves retained immutable input only. No source file is reopened or persisted.
+func addressedReportEvidence(
+    at address: ProfileValueAddress,
+    in report: SystemProfilerReport
+) throws -> AddressedReportEvidence {
+    try Task.checkCancellation()
+    let value: ProfileValue = try profileValue(at: address, in: report)
+    let encoder: JSONEncoder = JSONEncoder()
+    encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+    let structured: Data = try encoder.encode(value)
+    let structuredPages: [String] = try diagnosticLogPages(String(decoding: structured, as: UTF8.self))
+    let original: OriginalEvidencePresentation
+    do {
+        if let excerpt = try originalSourceExcerpt(at: address, in: report) {
+            original = .available(pages: try diagnosticLogPages(excerpt.text), byteRange: excerpt.byteRange)
+        } else {
+            original = .unavailable
+        }
+    } catch is CancellationError {
+        throw CancellationError()
+    } catch {
+        original = .failed(message: error.localizedDescription)
+    }
+    try Task.checkCancellation()
+    return AddressedReportEvidence(value: value, structuredPages: structuredPages, original: original)
+}

@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		F1E1D2A301004AB0920A0001 /* OriginalReportSource.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1E1D2A301004AB0920B0001 /* OriginalReportSource.swift */; };
 		F1E1D2A301004AB0910A0001 /* ComparisonRawEvidence.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1E1D2A301004AB0910B0001 /* ComparisonRawEvidence.swift */; };
 		F1E1D2A301004AB0910A0002 /* ComparisonRawEvidenceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1E1D2A301004AB0910B0002 /* ComparisonRawEvidenceView.swift */; };
 		F1E1D2A301004AB0910A0003 /* ComparisonRawEvidenceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1E1D2A301004AB0910B0003 /* ComparisonRawEvidenceTests.swift */; };
@@ -127,6 +128,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		F1E1D2A301004AB0920B0001 /* OriginalReportSource.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OriginalReportSource.swift; sourceTree = "<group>"; };
 		F1E1D2A301004AB0910B0001 /* ComparisonRawEvidence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComparisonRawEvidence.swift; sourceTree = "<group>"; };
 		F1E1D2A301004AB0910B0002 /* ComparisonRawEvidenceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComparisonRawEvidenceView.swift; sourceTree = "<group>"; };
 		F1E1D2A301004AB0910B0003 /* ComparisonRawEvidenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComparisonRawEvidenceTests.swift; sourceTree = "<group>"; };
@@ -243,6 +245,7 @@
 			isa = PBXGroup;
 			children = (
 				CEE75C08C482A71C55927F92 /* SystemProfilerParser.swift */,
+				F1E1D2A301004AB0920B0001 /* OriginalReportSource.swift */,
 			);
 			path = Parsing;
 			sourceTree = "<group>";
@@ -734,6 +737,7 @@
 				B321B15EADFD1D966F559FF9 /* SystemProfilerDataType.swift in Sources */,
 				CF4AE65C768B9635443AFAC8 /* SystemProfilerExplorerApp.swift in Sources */,
 				4CF762F76B57796EE1586919 /* SystemProfilerParser.swift in Sources */,
+				F1E1D2A301004AB0920A0001 /* OriginalReportSource.swift in Sources */,
 				F35BDA59E1D813C22A89A2DE /* SystemProfilerReport.swift in Sources */,
 				4D38004930CA86BE1DF0A7D2 /* SystemProfilerRequest.swift in Sources */,
 				A1DAD36C9721BD5C2DA79631 /* SystemReviewPDF.swift in Sources */,

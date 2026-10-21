@@ -36,6 +36,7 @@ struct ReportComparisonView: View {
     @State private var searchText: String = ""
     @State private var selectedFilter: ComparisonChangeFilter = .all
     @State private var visibleChangeLimit: Int = comparisonPageSize
+    @State private var selectedChange: ReportChange?
 
     var body: some View {
         let matchingChanges: [ReportChange] = filteredChanges(
@@ -49,13 +50,21 @@ struct ReportComparisonView: View {
             ComparisonHeader(comparison: comparison)
             Divider()
 
+            HSplitView {
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
                     ComparisonSummaryStrip(summary: comparison.summary)
+                    ComparisonIdentityNotice(identity: comparison.machineIdentity)
                     ComparisonPrivacyNotice()
+                    UnresolvedComparisonMatchesView(comparison: comparison)
 
                     if comparison.summary.changeCount == 0 {
-                        NoReportChangesView()
+                        if comparison.unresolvedMatches.isEmpty {
+                            NoReportChangesView()
+                        } else {
+                            Text("No confirmed changes. Unresolved matches still require review.")
+                                .accessibilityIdentifier("comparison-unresolved-only")
+                        }
                     } else {
                         ComparisonControls(
                             searchText: $searchText,
@@ -64,10 +73,11 @@ struct ReportComparisonView: View {
 
                         HStack {
                             Text(comparisonResultDescription(
+                                visibleCount: visibleChanges.count,
                                 matchingCount: matchingChanges.count,
-                                totalCount: comparison.changes.count,
-                                isFiltered: isFiltering
+                                totalCount: comparison.changes.count
                             ))
+                                .accessibilityIdentifier("comparison-result-counts")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                             Spacer()
@@ -78,7 +88,7 @@ struct ReportComparisonView: View {
                         } else {
                             LazyVStack(spacing: 0) {
                                 ForEach(visibleChanges) { change in
-                                    ReportChangeRow(change: change, comparison: comparison)
+                                    ReportChangeRow(change: change, comparison: comparison, inspect: { selectedChange = change })
 
                                     if change.id != visibleChanges.last?.id {
                                         Divider()
@@ -117,6 +127,13 @@ struct ReportComparisonView: View {
                 }
                 .padding(24)
             }
+            .frame(minWidth: 370)
+
+            if let selectedChange {
+                ComparisonEvidenceInspector(change: selectedChange, comparison: comparison, close: { self.selectedChange = nil })
+                    .frame(minWidth: 550, idealWidth: 650)
+            }
+            }
 
             Divider()
 
@@ -130,18 +147,15 @@ struct ReportComparisonView: View {
             }
             .padding(18)
         }
-        .frame(width: 880, height: 780)
+        .frame(minWidth: 1020, idealWidth: 1280, minHeight: 700, idealHeight: 800)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("report-comparison-workspace")
         .onChange(of: searchText) { _ in
             visibleChangeLimit = comparisonPageSize
         }
         .onChange(of: selectedFilter) { _ in
             visibleChangeLimit = comparisonPageSize
         }
-    }
-
-    private var isFiltering: Bool {
-        !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            || selectedFilter != .all
     }
 
     private func clearFilters() {
@@ -274,7 +288,7 @@ private struct ComparisonControls: View {
     @Binding var selectedFilter: ComparisonChangeFilter
 
     var body: some View {
-        HStack(spacing: 12) {
+        VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 8) {
                 Image(systemName: "magnifyingglass")
                     .foregroundStyle(.secondary)
@@ -315,6 +329,7 @@ private struct ComparisonControls: View {
 private struct ReportChangeRow: View {
     let change: ReportChange
     let comparison: ReportComparison
+    let inspect: () -> Void
 
     @State private var isExpanded: Bool = false
 
@@ -355,7 +370,7 @@ private struct ReportChangeRow: View {
                     )
                 }
 
-                ComparisonSourceLocations(change: change, comparison: comparison)
+                ComparisonSourceLocations(change: change, inspect: inspect)
             }
             .padding(.top, 10)
             .padding(.bottom, 4)
@@ -378,6 +393,9 @@ private struct ReportChangeRow: View {
         .padding(.horizontal, 14)
         .padding(.vertical, 11)
         .accessibilityIdentifier("comparison-change-\(change.id)")
+        .onChange(of: isExpanded) { expanded in
+            if expanded { inspect() }
+        }
     }
 }
 
@@ -397,9 +415,7 @@ private struct ChangeKindBadge: View {
 /// Display only evidence locations that exist in the corresponding report.
 struct ComparisonSourceLocations: View {
     let change: ReportChange
-    let comparison: ReportComparison
-
-    @State private var evidenceRequest: ComparisonEvidenceRequest?
+    let inspect: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -408,30 +424,21 @@ struct ComparisonSourceLocations: View {
                     title: "Baseline source location", path: path,
                     identifier: "comparison-baseline-source-\(change.id)"
                 )
-                Button("View baseline raw evidence") {
-                    evidenceRequest = ComparisonEvidenceRequest(change: change, side: .baseline, comparison: comparison)
-                }
-                .accessibilityIdentifier("view-baseline-raw-evidence-\(change.id)")
             }
             if let path = change.currentSourcePath {
                 ComparisonSourceLocationRow(
                     title: "Current source location", path: path,
                     identifier: "comparison-current-source-\(change.id)"
                 )
-                Button("View current raw evidence") {
-                    evidenceRequest = ComparisonEvidenceRequest(change: change, side: .current, comparison: comparison)
-                }
-                .accessibilityIdentifier("view-current-raw-evidence-\(change.id)")
             }
             Text("Source locations use each report's original record order.")
                 .fixedSize(horizontal: false, vertical: true)
+            Button("Inspect baseline and current evidence", action: inspect)
+                .accessibilityIdentifier("inspect-comparison-evidence-\(change.id)")
         }
         .accessibilityElement(children: .contain)
         .font(.caption)
         .foregroundStyle(.secondary)
-        .sheet(item: $evidenceRequest) { request in
-            ComparisonRawEvidenceView(request: request)
-        }
     }
 }
 
@@ -518,7 +525,7 @@ private struct NoMatchingChangesView: View {
 private struct ComparisonMethodNotice: View {
     var body: some View {
         DisclosureGroup("How findings are matched") {
-            Text("Top-level records and nested lists containing only object records are matched by a unique system_profiler _name, regardless of order. Duplicate names and unnamed records are matched only when their complete contents are identical, preserving repeated occurrences. If unmatched records remain on both sides of an ambiguous group, comparison stops rather than guessing and identifies the affected nested locations. A sole unnamed top-level section container, scalar lists, and mixed-type lists remain positional. Source paths retain the actual report indices, not matching identities. Added, removed, and changed describe structured value differences, not their cause or whether they are harmful.")
+            Text("Top-level records and nested lists containing only object records are matched by a unique system_profiler _name, regardless of order. Duplicate names and unnamed records match by complete contents only when that value occurs once on each side. Non-unique candidates remain unresolved and are excluded from confirmed finding totals; the rest of the comparison continues. A sole unnamed top-level section container, scalar lists, and mixed-type lists remain positional. Source paths retain the actual report indices, not matching identities. Added, removed, and changed describe structured value differences, not their cause or whether they are harmful.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -617,13 +624,11 @@ private func changeKindColor(_ kind: ReportChangeKind) -> Color {
 }
 
 private func comparisonResultDescription(
+    visibleCount: Int,
     matchingCount: Int,
-    totalCount: Int,
-    isFiltered: Bool
+    totalCount: Int
 ) -> String {
-    isFiltered
-        ? "Showing \(matchingCount) of \(totalCount) changes"
-        : "\(totalCount) changes"
+    "Showing \(visibleCount) of \(matchingCount) matching changes · \(totalCount) confirmed total · \(totalCount - matchingCount) hidden by filters"
 }
 
 private func showMoreChangesTitle(visibleCount: Int, totalCount: Int) -> String {

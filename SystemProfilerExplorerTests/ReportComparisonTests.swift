@@ -4,6 +4,214 @@ import Testing
 
 struct ReportComparisonTests {
     @Test(arguments: [
+        ["serial_number": ProfileValue.string("SYNTHETICMACA")],
+        ["platform_UUID": ProfileValue.string("11111111-2222-3333-4444-555555555555")],
+        ["serial_number": ProfileValue.string("SYNTHETICMACA"),
+         "platform_UUID": .string("11111111-2222-3333-4444-555555555555")]
+    ])
+    func commonHardwareOverviewIdentifiersVerifyIdentity(fields: [String: ProfileValue]) throws {
+        let baseline: SystemProfilerReport = machineIdentityReport(fields: fields)
+        let current: SystemProfilerReport = machineIdentityReport(fields: fields)
+        #expect(comparisonMachineIdentity(baseline: baseline, current: current) == .matched)
+        #expect(try compareReports(baseline: baseline, current: current).machineIdentity == .matched)
+    }
+
+    @Test
+    func identifierWhitespaceAndCaseDoNotCreateMachineConflicts() {
+        let baseline: SystemProfilerReport = machineIdentityReport(fields: [
+            "serial_number": .string(" syntheticmaca \n"),
+            "platform_UUID": .string("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
+        ])
+        let current: SystemProfilerReport = machineIdentityReport(fields: [
+            "serial_number": .string("SYNTHETICMACA"),
+            "platform_UUID": .string("AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE")
+        ])
+        #expect(comparisonMachineIdentity(baseline: baseline, current: current) == .matched)
+    }
+
+    @Test(arguments: [
+        ProfileValue.null, .integer(1), .array([.string("SYNTHETICMACA")]),
+        .string(""), .string(" \n"), .string("[REDACTED]"), .string("REDACTED"),
+        .string("unknown"), .string("N/A"), .string("Not Available"),
+        .string("000000000000"), .string("not a serial"), .string("ſYNTHETICMACA")
+    ])
+    func missingOrUnusableSerialsNeverVerifyIdentity(value: ProfileValue) throws {
+        let report: SystemProfilerReport = machineIdentityReport(fields: ["serial_number": value])
+        #expect(comparisonMachineIdentity(baseline: report, current: report) == .unverified)
+        #expect(try compareReports(baseline: report, current: report).machineIdentity == .unverified)
+    }
+
+    @Test(arguments: [
+        "", "[REDACTED]", "unknown", "invalid-uuid",
+        "00000000-0000-0000-0000-000000000000", "FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF"
+    ])
+    func unusableUUIDsNeverVerifyIdentity(value: String) {
+        let report: SystemProfilerReport = machineIdentityReport(fields: ["platform_UUID": .string(value)])
+        #expect(comparisonMachineIdentity(baseline: report, current: report) == .unverified)
+    }
+
+    @Test
+    func absentHardwareAndDisjointIdentifyingFieldsRemainUnverified() throws {
+        let serialOnly: SystemProfilerReport = machineIdentityReport(fields: ["serial_number": .string("SYNTHETICMACA")])
+        let uuidOnly: SystemProfilerReport = machineIdentityReport(fields: [
+            "platform_UUID": .string("11111111-2222-3333-4444-555555555555")
+        ])
+        let missing: SystemProfilerReport = machineIdentityReport(fields: ["machine_model": .string("Synthetic Model")])
+        let noHardware: SystemProfilerReport = SystemProfilerReport(
+            sections: [SystemProfilerSection(dataType: .software, items: [.object(["value": .integer(1)])])],
+            commandArguments: [], standardError: "", startedAt: missing.startedAt, completedAt: missing.completedAt
+        )
+        for (baseline, current) in [(serialOnly, uuidOnly), (serialOnly, missing), (missing, serialOnly), (missing, missing), (noHardware, noHardware)] {
+            #expect(comparisonMachineIdentity(baseline: baseline, current: current) == .unverified)
+            #expect(try compareReports(baseline: baseline, current: current).machineIdentity == .unverified)
+        }
+    }
+
+    @Test(arguments: ["serial_number", "platform_UUID"])
+    func anyCommonIdentifierConflictBlocksComparisonEvenWhenAnotherAgrees(field: String) {
+        let fields: [String: ProfileValue] = [
+            "serial_number": .string("SYNTHETICMACA"),
+            "platform_UUID": .string("11111111-2222-3333-4444-555555555555")
+        ]
+        var conflictingFields: [String: ProfileValue] = fields
+        conflictingFields[field] = field == "serial_number"
+            ? .string("SYNTHETICMACB") : .string("99999999-2222-3333-4444-555555555555")
+        let baseline: SystemProfilerReport = machineIdentityReport(fields: fields)
+        let current: SystemProfilerReport = machineIdentityReport(fields: conflictingFields)
+        for (first, second) in [(baseline, current), (current, baseline)] {
+            #expect(comparisonMachineIdentity(baseline: first, current: second) == .conflicting)
+            #expect(throws: ReportComparisonError.conflictingMachineIdentifiers) {
+                _ = try compareReports(baseline: first, current: second)
+            }
+        }
+        let message: String = ReportComparisonError.conflictingMachineIdentifiers.localizedDescription
+        for value in Array(fields.values) + Array(conflictingFields.values) {
+            if case let .string(identifier) = value { #expect(!message.contains(identifier)) }
+        }
+        #expect(message.contains("same Mac"))
+        #expect(message.contains("Hardware overview"))
+    }
+
+    @Test(arguments: ["SYNTHETICMACA", "SYNTHETICMACB"])
+    func repeatedHardwareOverviewsCannotVerifyMachineIdentity(secondSerial: String) {
+        let overview: ProfileValue = namedRecord(name: "hardware_overview", fields: [
+            "serial_number": .string("SYNTHETICMACA")
+        ])
+        let duplicate: ProfileValue = namedRecord(name: "hardware_overview", fields: [
+            "serial_number": .string(secondSerial)
+        ])
+        let baseline: SystemProfilerReport = machineIdentityReport(fields: ["serial_number": .string("SYNTHETICMACA")])
+        let repeated: SystemProfilerReport = comparisonReport(
+            items: [overview, duplicate], completedAt: baseline.completedAt
+        )
+        for (first, second) in [(baseline, repeated), (repeated, baseline), (repeated, repeated)] {
+            #expect(comparisonMachineIdentity(baseline: first, current: second) == .conflicting)
+            #expect(throws: ReportComparisonError.conflictingMachineIdentifiers) {
+                _ = try compareReports(baseline: first, current: second)
+            }
+        }
+    }
+
+    @Test
+    func peripheralSerialsAndUUIDsNeverIdentifyTheMac() {
+        func report(_ suffix: String) -> SystemProfilerReport {
+            comparisonReport(items: [
+                namedRecord(name: "hardware_overview", fields: [
+                    "machine_model": .string("Synthetic Model"),
+                    "_items": .array([.object([
+                        "serial_number": .string("SYNTHETIC" + suffix),
+                        "platform_UUID": .string("11111111-2222-3333-4444-555555555555")
+                    ])])
+                ]),
+                namedRecord(name: "Peripheral", fields: [
+                    "serial_number": .string("SYNTHETIC" + suffix),
+                    "platform_UUID": .string("11111111-2222-3333-4444-555555555555")
+                ])
+            ], completedAt: Date(timeIntervalSince1970: 1_700_000_000))
+        }
+        let baseline: SystemProfilerReport = report("A")
+        #expect(comparisonMachineIdentity(baseline: baseline, current: baseline) == .unverified)
+        #expect(comparisonMachineIdentity(baseline: baseline, current: report("B")) == .unverified)
+        let unnamed: SystemProfilerReport = comparisonReport(
+            items: [.object(["serial_number": .string("SYNTHETICMACA")])], completedAt: baseline.completedAt
+        )
+        #expect(comparisonMachineIdentity(baseline: unnamed, current: unnamed) == .matched)
+    }
+
+    @Test
+    func sectionAmbiguityPreservesConfirmedChangesAndOriginalCandidateIndices() throws {
+        let exact: ProfileValue = namedRecord(name: "Device", fields: ["value": .integer(2)])
+        let baseline: SystemProfilerReport = comparisonReport(items: [
+            namedRecord(name: "Device", fields: ["value": .integer(1)]),
+            namedRecord(name: "Unique", fields: ["value": .integer(4)]), exact
+        ], completedAt: Date(timeIntervalSince1970: 1_700_000_000))
+        let current: SystemProfilerReport = comparisonReport(items: [
+            exact, namedRecord(name: "Device", fields: ["value": .integer(3)]),
+            namedRecord(name: "Unique", fields: ["value": .integer(5)])
+        ], completedAt: Date(timeIntervalSince1970: 1_700_000_001))
+        let comparison: ReportComparison = try compareReports(baseline: baseline, current: current)
+        #expect(comparison.summary.baselineFindingCount == 2)
+        #expect(comparison.summary.currentFindingCount == 2)
+        #expect(comparison.summary.changedCount == 1)
+        #expect(comparison.summary.unchangedCount == 1)
+        #expect(comparison.summary.addedCount == 0)
+        #expect(comparison.summary.removedCount == 0)
+        #expect(comparison.changes.first?.baselineAddress?.path == [.index(1), .field("value")])
+        #expect(comparison.changes.first?.currentAddress?.path == [.index(2), .field("value")])
+        let unresolved: UnresolvedRecordMatch = try #require(comparison.unresolvedMatches.first)
+        #expect(comparison.unresolvedMatches.count == 1)
+        #expect(unresolved.baselineCandidates.map(\.path) == [[.index(0)]])
+        #expect(unresolved.currentCandidates.map(\.path) == [[.index(1)]])
+        #expect(try profileValue(at: unresolved.baselineCandidates[0], in: baseline) == baseline.sections[0].items[0])
+        #expect(try profileValue(at: unresolved.currentCandidates[0], in: current) == current.sections[0].items[1])
+        #expect(try compareReports(baseline: baseline, current: current).unresolvedMatches == comparison.unresolvedMatches)
+    }
+
+    @Test
+    func nestedUnresolvedGroupsPreserveParentAndSiblingChangesAfterReordering() throws {
+        func parent(_ value: Int64, children: [ProfileValue]) -> ProfileValue {
+            namedRecord(name: "Parent", fields: [
+                "value": .integer(value), "children": .array(children),
+                "children[0]": .array([.object(["value": .integer(value)])])
+            ])
+        }
+        let duplicate: ProfileValue = namedRecord(name: "Device", fields: ["value": .integer(1)])
+        let baseline: SystemProfilerReport = nestedComparisonReport(children: [
+            parent(1, children: [duplicate, duplicate, namedRecord(name: "Unique", fields: ["value": .integer(3)])]),
+            namedRecord(name: "Other", fields: ["value": .integer(7)])
+        ])
+        let current: SystemProfilerReport = nestedComparisonReport(children: [
+            namedRecord(name: "Other", fields: ["value": .integer(8)]),
+            parent(2, children: [namedRecord(name: "Unique", fields: ["value": .integer(4)]), duplicate, duplicate])
+        ])
+        let comparison: ReportComparison = try compareReports(baseline: baseline, current: current)
+        #expect(comparison.summary.baselineFindingCount == 3)
+        #expect(comparison.summary.currentFindingCount == 3)
+        #expect(comparison.summary.changedCount == 3)
+        #expect(comparison.summary.unchangedCount == 0)
+        #expect(comparison.summary.addedCount == 0)
+        #expect(comparison.summary.removedCount == 0)
+        #expect(comparison.unresolvedMatches.count == 2)
+        #expect(Set(comparison.unresolvedMatches.map(\.id)).count == 2)
+        let duplicates: UnresolvedRecordMatch = try #require(comparison.unresolvedMatches.first { $0.recordName == "Device" })
+        #expect(duplicates.baselineCandidates.map(\.sourcePath) == [
+            "SPHardwareDataType[0]._items[0].children[0]", "SPHardwareDataType[0]._items[0].children[1]"
+        ])
+        #expect(duplicates.currentCandidates.map(\.sourcePath) == [
+            "SPHardwareDataType[0]._items[1].children[1]", "SPHardwareDataType[0]._items[1].children[2]"
+        ])
+        for group in comparison.unresolvedMatches {
+            for address in group.baselineCandidates { _ = try profileValue(at: address, in: baseline) }
+            for address in group.currentCandidates { _ = try profileValue(at: address, in: current) }
+        }
+        #expect(try compareReports(baseline: baseline, current: current).unresolvedMatches.map(\.id) == comparison.unresolvedMatches.map(\.id))
+        #expect(comparison.changes.contains {
+            $0.baselineSourcePath == "SPHardwareDataType[0]._items[0].children[2].value"
+                && $0.currentSourcePath == "SPHardwareDataType[0]._items[1].children[0].value"
+        })
+    }
+
+    @Test(arguments: [
         "", "collection timed out", "operation not permitted", "reporter unavailable"
     ])
     func omittedRequestedSectionsCannotProduceAComparison(standardError: String) throws {
@@ -189,14 +397,16 @@ struct ReportComparisonTests {
         #expect(movedChange.currentValue == .string("3"))
         #expect(movedChange.baselineSourcePath == "SPHardwareDataType[0]._items[0].version")
         #expect(movedChange.currentSourcePath == "SPHardwareDataType[0]._items[1].version")
-        #expect(throws: ReportComparisonError.ambiguousNestedRecords(
-            dataType: .hardware, recordName: "Synthetic Module",
-            baselinePath: "SPHardwareDataType[0]._items",
-            currentPath: "SPHardwareDataType[0]._items",
-            baselineCount: 2, currentCount: 2
-        )) {
-            _ = try compareReports(baseline: baseline, current: ambiguous)
-        }
+        let unresolvedComparison: ReportComparison = try compareReports(baseline: baseline, current: ambiguous)
+        #expect(unresolvedComparison.changes.isEmpty)
+        #expect(unresolvedComparison.summary.unchangedCount == 3)
+        #expect(unresolvedComparison.summary.baselineFindingCount == 3)
+        #expect(unresolvedComparison.summary.currentFindingCount == 3)
+        let unresolved: UnresolvedRecordMatch = try #require(unresolvedComparison.unresolvedMatches.first)
+        #expect(unresolvedComparison.unresolvedMatches.count == 1)
+        #expect(unresolved.recordName == "Synthetic Module")
+        #expect(unresolved.baselineCandidates.map(\.sourcePath) == ["SPHardwareDataType[0]._items[1]"])
+        #expect(unresolved.currentCandidates.map(\.sourcePath) == ["SPHardwareDataType[0]._items[2]"])
     }
 
     @Test
@@ -235,7 +445,7 @@ struct ReportComparisonTests {
             .object(["value": .integer(1)])
         ]
     ])
-    func identicalRecordsRemainMatchedWhenAmbiguousRecordsAreReordered(records: [ProfileValue]) throws {
+    func identicalDuplicatesRemainUnresolvedWhenReordered(records: [ProfileValue]) throws {
         let baseline: SystemProfilerReport = comparisonReport(
             items: records,
             completedAt: Date(timeIntervalSince1970: 1_700_000_000)
@@ -247,17 +457,20 @@ struct ReportComparisonTests {
 
         let comparison: ReportComparison = try compareReports(baseline: baseline, current: current)
 
-        #expect(comparison.summary.baselineFindingCount == 3)
-        #expect(comparison.summary.currentFindingCount == 3)
-        #expect(comparison.summary.unchangedCount == 3)
+        #expect(comparison.summary.baselineFindingCount == 1)
+        #expect(comparison.summary.currentFindingCount == 1)
+        #expect(comparison.summary.unchangedCount == 1)
         #expect(comparison.changes.isEmpty)
+        #expect(comparison.unresolvedMatches.count == 1)
+        #expect(comparison.unresolvedMatches.first?.baselineCandidates.map(\.path) == [[.index(0)], [.index(2)]])
+        #expect(comparison.unresolvedMatches.first?.currentCandidates.map(\.path) == [[.index(1)], [.index(2)]])
     }
 
     @Test(arguments: [
         namedRecord(name: "Device", fields: ["value": .integer(1)]),
         ProfileValue.object(["value": .integer(1)])
     ])
-    func duplicateMultiplicityIsPreserved(record: ProfileValue) throws {
+    func duplicateMultiplicityIsRetainedAsUnresolvedCandidates(record: ProfileValue) throws {
         let baseline: SystemProfilerReport = comparisonReport(
             items: [record, record],
             completedAt: Date(timeIntervalSince1970: 1_700_000_000)
@@ -270,16 +483,20 @@ struct ReportComparisonTests {
         let removal: ReportComparison = try compareReports(baseline: baseline, current: current)
         let addition: ReportComparison = try compareReports(baseline: current, current: baseline)
 
-        #expect(removal.summary.baselineFindingCount == 2)
-        #expect(removal.summary.currentFindingCount == 1)
-        #expect(removal.summary.unchangedCount == 1)
-        #expect(removal.summary.removedCount == 1)
+        #expect(removal.summary.baselineFindingCount == 0)
+        #expect(removal.summary.currentFindingCount == 0)
+        #expect(removal.summary.unchangedCount == 0)
+        #expect(removal.summary.removedCount == 0)
         #expect(removal.summary.changedCount == 0)
         #expect(removal.summary.addedCount == 0)
-        #expect(addition.summary.unchangedCount == 1)
-        #expect(addition.summary.addedCount == 1)
+        #expect(addition.summary.unchangedCount == 0)
+        #expect(addition.summary.addedCount == 0)
         #expect(addition.summary.changedCount == 0)
         #expect(addition.summary.removedCount == 0)
+        #expect(removal.unresolvedMatches.first?.baselineCandidates.map(\.path) == [[.index(0)], [.index(1)]])
+        #expect(removal.unresolvedMatches.first?.currentCandidates.map(\.path) == [[.index(0)]])
+        #expect(addition.unresolvedMatches.first?.baselineCandidates == removal.unresolvedMatches.first?.currentCandidates)
+        #expect(addition.unresolvedMatches.first?.currentCandidates == removal.unresolvedMatches.first?.baselineCandidates)
     }
 
     @Test(arguments: [
@@ -294,7 +511,7 @@ struct ReportComparisonTests {
             .object(["value": .integer(3)])
         ]
     ])
-    func unresolvedRecordsAreNotPairedAfterAnExactMatch(records: [ProfileValue]) {
+    func unresolvedRecordsAreNotPairedAfterAnExactMatch(records: [ProfileValue]) throws {
         let ambiguousPairs: [([ProfileValue], [ProfileValue])] = [
             ([records[0], records[1]], [records[1], records[2]]),
             ([records[0], records[1]], [records[2]])
@@ -309,27 +526,27 @@ struct ReportComparisonTests {
                 completedAt: Date(timeIntervalSince1970: 1_700_000_100)
             )
 
-            #expect(throws: ReportComparisonError.ambiguousRecords(
-                dataType: .hardware,
-                recordName: records[0].preferredName,
-                baselineCount: baselineItems.count,
-                currentCount: currentItems.count
-            )) {
-                _ = try compareReports(baseline: baseline, current: current)
+            let forward: ReportComparison = try compareReports(baseline: baseline, current: current)
+            let reverse: ReportComparison = try compareReports(baseline: current, current: baseline)
+            let exactCount: Int = currentItems.count == 2 ? 1 : 0
+            for comparison in [forward, reverse] {
+                #expect(comparison.changes.isEmpty)
+                #expect(comparison.summary.changeCount == 0)
+                #expect(comparison.summary.unchangedCount == exactCount)
+                #expect(comparison.summary.baselineFindingCount == exactCount)
+                #expect(comparison.summary.currentFindingCount == exactCount)
+                #expect(comparison.unresolvedMatches.count == 1)
+                #expect(comparison.unresolvedMatches.first?.recordName == records[0].preferredName)
             }
-            #expect(throws: ReportComparisonError.ambiguousRecords(
-                dataType: .hardware,
-                recordName: records[0].preferredName,
-                baselineCount: currentItems.count,
-                currentCount: baselineItems.count
-            )) {
-                _ = try compareReports(baseline: current, current: baseline)
-            }
+            #expect(forward.unresolvedMatches.first?.baselineCandidates.count == baselineItems.count - exactCount)
+            #expect(forward.unresolvedMatches.first?.currentCandidates.count == currentItems.count - exactCount)
+            #expect(reverse.unresolvedMatches.first?.baselineCandidates == forward.unresolvedMatches.first?.currentCandidates)
+            #expect(reverse.unresolvedMatches.first?.currentCandidates == forward.unresolvedMatches.first?.baselineCandidates)
         }
     }
 
     @Test
-    func aSingleUnnamedRecordAmongNamedRecordsHasNoAssumedIdentity() {
+    func aSingleUnnamedRecordAmongNamedRecordsHasNoAssumedIdentity() throws {
         let named: ProfileValue = namedRecord(name: "Device", fields: ["value": .integer(1)])
         let baseline: SystemProfilerReport = comparisonReport(
             items: [named, .object(["value": .integer(2)])],
@@ -340,14 +557,15 @@ struct ReportComparisonTests {
             completedAt: Date(timeIntervalSince1970: 1_700_000_100)
         )
 
-        #expect(throws: ReportComparisonError.ambiguousRecords(
-            dataType: .hardware,
-            recordName: nil,
-            baselineCount: 1,
-            currentCount: 1
-        )) {
-            _ = try compareReports(baseline: baseline, current: current)
-        }
+        let comparison: ReportComparison = try compareReports(baseline: baseline, current: current)
+        #expect(comparison.changes.isEmpty)
+        #expect(comparison.summary.unchangedCount == 1)
+        #expect(comparison.summary.baselineFindingCount == 1)
+        #expect(comparison.summary.currentFindingCount == 1)
+        #expect(comparison.unresolvedMatches.count == 1)
+        #expect(comparison.unresolvedMatches.first?.recordName == nil)
+        #expect(comparison.unresolvedMatches.first?.baselineCandidates.map(\.path) == [[.index(1)]])
+        #expect(comparison.unresolvedMatches.first?.currentCandidates.map(\.path) == [[.index(0)]])
     }
 
     @Test
@@ -499,54 +717,47 @@ struct ReportComparisonTests {
             .object(["value": .integer(3)])
         ]
     ])
-    func nestedResidualAmbiguityIsRejectedInBothDirections(records: [ProfileValue]) {
+    func nestedResidualAmbiguityRemainsUnresolvedInBothDirections(records: [ProfileValue]) throws {
         let baseline: SystemProfilerReport = nestedComparisonReport(children: [records[0], records[1]])
         let current: SystemProfilerReport = nestedComparisonReport(children: [records[1], records[2]])
 
-        #expect(throws: ReportComparisonError.ambiguousNestedRecords(
-            dataType: .hardware,
-            recordName: records[0].preferredName,
-            baselinePath: "SPHardwareDataType[0]._items",
-            currentPath: "SPHardwareDataType[0]._items",
-            baselineCount: 2,
-            currentCount: 2
-        )) {
-            _ = try compareReports(baseline: baseline, current: current)
+        let forward: ReportComparison = try compareReports(baseline: baseline, current: current)
+        let reverse: ReportComparison = try compareReports(baseline: current, current: baseline)
+        for comparison in [forward, reverse] {
+            #expect(comparison.changes.isEmpty)
+            #expect(comparison.summary.unchangedCount == 1)
+            #expect(comparison.summary.baselineFindingCount == 1)
+            #expect(comparison.summary.currentFindingCount == 1)
+            #expect(comparison.unresolvedMatches.count == 1)
+            #expect(comparison.unresolvedMatches.first?.recordName == records[0].preferredName)
         }
-        #expect(throws: ReportComparisonError.ambiguousNestedRecords(
-            dataType: .hardware,
-            recordName: records[0].preferredName,
-            baselinePath: "SPHardwareDataType[0]._items",
-            currentPath: "SPHardwareDataType[0]._items",
-            baselineCount: 2,
-            currentCount: 2
-        )) {
-            _ = try compareReports(baseline: current, current: baseline)
-        }
+        #expect(forward.unresolvedMatches.first?.baselineCandidates.map(\.sourcePath) == ["SPHardwareDataType[0]._items[0]"])
+        #expect(forward.unresolvedMatches.first?.currentCandidates.map(\.sourcePath) == ["SPHardwareDataType[0]._items[1]"])
+        #expect(reverse.unresolvedMatches.first?.baselineCandidates == forward.unresolvedMatches.first?.currentCandidates)
+        #expect(reverse.unresolvedMatches.first?.currentCandidates == forward.unresolvedMatches.first?.baselineCandidates)
     }
 
     @Test
-    func aSingleUnnamedNestedRecordDoesNotInheritTheSectionContainerException() {
+    func aSingleUnnamedNestedRecordDoesNotInheritTheSectionContainerException() throws {
         let baseline: SystemProfilerReport = nestedComparisonReport(children: [.object(["value": .integer(1)])])
         let current: SystemProfilerReport = nestedComparisonReport(children: [.object(["value": .integer(2)])])
 
-        #expect(throws: ReportComparisonError.ambiguousNestedRecords(
-            dataType: .hardware,
-            recordName: nil,
-            baselinePath: "SPHardwareDataType[0]._items",
-            currentPath: "SPHardwareDataType[0]._items",
-            baselineCount: 1,
-            currentCount: 1
-        )) {
-            _ = try compareReports(baseline: baseline, current: current)
-        }
+        let comparison: ReportComparison = try compareReports(baseline: baseline, current: current)
+        #expect(comparison.changes.isEmpty)
+        #expect(comparison.summary.baselineFindingCount == 0)
+        #expect(comparison.summary.currentFindingCount == 0)
+        #expect(comparison.summary.unchangedCount == 0)
+        #expect(comparison.unresolvedMatches.count == 1)
+        #expect(comparison.unresolvedMatches.first?.recordName == nil)
+        #expect(comparison.unresolvedMatches.first?.baselineCandidates.map(\.sourcePath) == ["SPHardwareDataType[0]._items[0]"])
+        #expect(comparison.unresolvedMatches.first?.currentCandidates.map(\.sourcePath) == ["SPHardwareDataType[0]._items[0]"])
     }
 
     @Test(arguments: [
         namedRecord(name: "Device", fields: ["value": .integer(1)]),
         ProfileValue.object(["value": .integer(1)])
     ])
-    func nestedDuplicateMultiplicityIsPreserved(record: ProfileValue) throws {
+    func nestedDuplicateMultiplicityRemainsUnresolved(record: ProfileValue) throws {
         let other: ProfileValue = namedRecord(name: "Other", fields: ["value": .integer(2)])
         let baseline: SystemProfilerReport = nestedComparisonReport(children: [record, other, record])
         let current: SystemProfilerReport = nestedComparisonReport(children: [other, record])
@@ -554,16 +765,26 @@ struct ReportComparisonTests {
         let removal: ReportComparison = try compareReports(baseline: baseline, current: current)
         let addition: ReportComparison = try compareReports(baseline: current, current: baseline)
 
-        #expect(removal.summary.unchangedCount == 2)
-        #expect(removal.summary.removedCount == 1)
+        #expect(removal.summary.unchangedCount == 1)
+        #expect(removal.summary.removedCount == 0)
         #expect(removal.summary.addedCount == 0)
         #expect(removal.summary.changedCount == 0)
-        #expect(removal.changes.first?.sourcePath == "SPHardwareDataType[0]._items[2].value")
-        #expect(addition.summary.unchangedCount == 2)
-        #expect(addition.summary.addedCount == 1)
+        #expect(removal.changes.isEmpty)
+        #expect(addition.summary.unchangedCount == 1)
+        #expect(addition.summary.addedCount == 0)
         #expect(addition.summary.removedCount == 0)
         #expect(addition.summary.changedCount == 0)
-        #expect(addition.changes.first?.sourcePath == "SPHardwareDataType[0]._items[2].value")
+        #expect(addition.changes.isEmpty)
+        #expect(removal.summary.baselineFindingCount == 1)
+        #expect(removal.summary.currentFindingCount == 1)
+        #expect(removal.unresolvedMatches.count == 1)
+        #expect(addition.unresolvedMatches.count == 1)
+        #expect(removal.unresolvedMatches.first?.baselineCandidates.map(\.sourcePath) == [
+            "SPHardwareDataType[0]._items[0]", "SPHardwareDataType[0]._items[2]"
+        ])
+        #expect(removal.unresolvedMatches.first?.currentCandidates.map(\.sourcePath) == ["SPHardwareDataType[0]._items[1]"])
+        #expect(addition.unresolvedMatches.first?.baselineCandidates == removal.unresolvedMatches.first?.currentCandidates)
+        #expect(addition.unresolvedMatches.first?.currentCandidates == removal.unresolvedMatches.first?.baselineCandidates)
     }
 
     @Test
@@ -774,11 +995,21 @@ struct ReportComparisonTests {
 
         let comparison: ReportComparison = try compareReports(baseline: baseline, current: current)
 
-        #expect(comparison.summary.unchangedCount == 10)
-        #expect(comparison.summary.removedCount == 3)
+        #expect(comparison.summary.unchangedCount == 5)
+        #expect(comparison.summary.baselineFindingCount == 5)
+        #expect(comparison.summary.currentFindingCount == 5)
+        #expect(comparison.summary.removedCount == 0)
         #expect(comparison.summary.addedCount == 0)
         #expect(comparison.summary.changedCount == 0)
-        #expect(comparison.changes.allSatisfy { $0.baselineAddress?.path.prefix(3) == [.index(0), .field("_items"), .index(1)] })
+        #expect(comparison.changes.isEmpty)
+        #expect(comparison.unresolvedMatches.count == 1)
+        #expect(comparison.unresolvedMatches.first?.baselineCandidates.map(\.sourcePath) == [
+            "SPHardwareDataType[0]._items[0]", "SPHardwareDataType[0]._items[1]",
+            "SPHardwareDataType[0]._items[7]", "SPHardwareDataType[0]._items[8]"
+        ])
+        #expect(comparison.unresolvedMatches.first?.currentCandidates.map(\.sourcePath) == [
+            "SPHardwareDataType[0]._items[0]", "SPHardwareDataType[0]._items[1]", "SPHardwareDataType[0]._items[7]"
+        ])
     }
 
     @Test
@@ -799,7 +1030,7 @@ struct ReportComparisonTests {
     }
 
     @Test
-    func nestedAmbiguityReportsBothLocationsAfterItsParentMoves() {
+    func nestedAmbiguityReportsBothLocationsAfterItsParentMoves() throws {
         let other: ProfileValue = namedRecord(name: "Other", fields: ["value": .integer(4)])
         let baseline: SystemProfilerReport = nestedComparisonReport(children: [
             namedRecord(name: "Parent", fields: ["children": .array([.object(["value": .integer(1)])])]),
@@ -810,16 +1041,21 @@ struct ReportComparisonTests {
             namedRecord(name: "Parent", fields: ["children": .array([.object(["value": .integer(2)])])])
         ])
 
-        #expect(throws: ReportComparisonError.ambiguousNestedRecords(
-            dataType: .hardware,
-            recordName: nil,
-            baselinePath: "SPHardwareDataType[0]._items[0].children",
-            currentPath: "SPHardwareDataType[0]._items[1].children",
-            baselineCount: 1,
-            currentCount: 1
-        )) {
-            _ = try compareReports(baseline: baseline, current: current)
-        }
+        let comparison: ReportComparison = try compareReports(baseline: baseline, current: current)
+        #expect(comparison.changes.isEmpty)
+        #expect(comparison.summary.unchangedCount == 1)
+        #expect(comparison.unresolvedMatches.count == 1)
+        let unresolved: UnresolvedRecordMatch = try #require(comparison.unresolvedMatches.first)
+        #expect(unresolved.dataType == .hardware)
+        #expect(unresolved.recordName == nil)
+        #expect(unresolved.baselineCandidates == [ProfileValueAddress(
+            dataType: .hardware, path: [.index(0), .field("_items"), .index(0), .field("children"), .index(0)]
+        )])
+        #expect(unresolved.currentCandidates == [ProfileValueAddress(
+            dataType: .hardware, path: [.index(0), .field("_items"), .index(1), .field("children"), .index(0)]
+        )])
+        #expect(try profileValue(at: unresolved.baselineCandidates[0], in: baseline) == .object(["value": .integer(1)]))
+        #expect(try profileValue(at: unresolved.currentCandidates[0], in: current) == .object(["value": .integer(2)]))
     }
 
     @Test
@@ -950,6 +1186,13 @@ private func namedRecord(
 private func nestedComparisonReport(children: [ProfileValue]) -> SystemProfilerReport {
     comparisonReport(
         items: [namedRecord(name: "Container", fields: ["_items": .array(children)])],
+        completedAt: Date(timeIntervalSince1970: 1_700_000_000)
+    )
+}
+
+private func machineIdentityReport(fields: [String: ProfileValue]) -> SystemProfilerReport {
+    comparisonReport(
+        items: [namedRecord(name: "hardware_overview", fields: fields)],
         completedAt: Date(timeIntervalSince1970: 1_700_000_000)
     )
 }
