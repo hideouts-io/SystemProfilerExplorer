@@ -223,6 +223,7 @@ private struct ComparisonSummaryStrip: View {
                 color: .secondary
             )
         }
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("comparison-summary")
     }
 }

@@ -52,12 +52,14 @@ private struct ComparisonEvidenceColumn: View {
                     AddressedEvidenceContent(address: address, report: report, side: side)
                         .padding(8)
                         .background(tint.opacity(0.07), in: RoundedRectangle(cornerRadius: 8))
-                    DisclosureGroup("Surrounding record", isExpanded: $isShowingContext) {
-                        if isShowingContext, let first = address.path.first {
-                            AddressedEvidenceContent(address: ProfileValueAddress(dataType: address.dataType, path: [first]), report: report, side: side)
-                        }
+                    Button(isShowingContext ? "Hide surrounding record" : "Show surrounding record") {
+                        isShowingContext.toggle()
                     }
+                    .accessibilityValue(isShowingContext ? "Expanded" : "Collapsed")
                     .accessibilityIdentifier("comparison-context-\(side.rawValue)")
+                    if isShowingContext, let first = address.path.first {
+                        AddressedEvidenceContent(address: ProfileValueAddress(dataType: address.dataType, path: [first]), report: report, side: side)
+                    }
                 } else {
                     Text("Field not present in this report. This is not a reported null value.")
                         .font(.callout)
@@ -103,7 +105,7 @@ private struct AddressedEvidenceContent: View {
             } else if let evidence {
                 Text("Type: \(evidenceValueType(evidence.value))").font(.caption)
                 Text("Structured evidence · reconstructed JSON").font(.subheadline.weight(.semibold))
-                EvidenceTextPages(pages: evidence.structuredPages, identifier: "comparison-structured-\(side.rawValue)")
+                EvidenceTextPages(pages: evidence.structuredPages, identifier: "comparison-structured-\(side.rawValue)-\(address.identity)")
                     .id(evidenceID)
                 Divider()
                 Text("Original source · exact input excerpt").font(.subheadline.weight(.semibold))
@@ -118,7 +120,7 @@ private struct AddressedEvidenceContent: View {
                         .accessibilityIdentifier("comparison-original-error-\(side.rawValue)")
                 case let .available(pages, byteRange):
                     Text("Input bytes \(byteRange.lowerBound)..<\(byteRange.upperBound) (zero-based)").font(.caption.monospaced())
-                    EvidenceTextPages(pages: pages, identifier: "comparison-original-\(side.rawValue)")
+                    EvidenceTextPages(pages: pages, identifier: "comparison-original-\(side.rawValue)-\(address.identity)")
                         .id(evidenceID)
                 }
             } else {
@@ -182,6 +184,7 @@ struct ComparisonIdentityNotice: View {
         if identity == .unverified {
             Label("Same Mac not verified", systemImage: "exclamationmark.triangle")
                 .font(.callout.weight(.semibold)).foregroundStyle(.orange)
+                .accessibilityElement(children: .combine)
                 .accessibilityIdentifier("comparison-machine-unverified")
         } else if identity == .matched {
             Text("Machine identifiers match. This does not authenticate the reports.")
@@ -203,13 +206,31 @@ struct UnresolvedComparisonMatchesView: View {
                 Text("These records cannot be matched uniquely. Candidates are not counted as confirmed changes; no pairing was guessed.")
                     .font(.callout).foregroundStyle(.secondary)
                 ForEach(comparison.unresolvedMatches) { match in
-                    DisclosureGroup("\(match.dataType.title) · \(match.recordName ?? "Unnamed records")") {
-                        HStack(alignment: .top, spacing: 12) {
-                            UnresolvedCandidatesColumn(candidates: match.baselineCandidates, report: comparison.baselineReport, side: .baseline)
-                            UnresolvedCandidatesColumn(candidates: match.currentCandidates, report: comparison.currentReport, side: .current)
-                        }
-                    }
-                    .accessibilityIdentifier("comparison-unresolved-\(match.id)")
+                    UnresolvedMatchView(match: match, comparison: comparison)
+                }
+            }
+        }
+    }
+}
+
+private struct UnresolvedMatchView: View {
+    let match: UnresolvedRecordMatch
+    let comparison: ReportComparison
+    @State private var isExpanded: Bool = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Button {
+                isExpanded.toggle()
+            } label: {
+                Label("\(match.dataType.title) · \(match.recordName ?? "Unnamed records")", systemImage: isExpanded ? "chevron.down" : "chevron.right")
+            }
+            .accessibilityValue(isExpanded ? "Expanded" : "Collapsed")
+            .accessibilityIdentifier("comparison-unresolved-\(match.id)")
+            if isExpanded {
+                HStack(alignment: .top, spacing: 12) {
+                    UnresolvedCandidatesColumn(candidates: match.baselineCandidates, report: comparison.baselineReport, side: .baseline)
+                    UnresolvedCandidatesColumn(candidates: match.currentCandidates, report: comparison.currentReport, side: .current)
                 }
             }
         }
@@ -244,11 +265,13 @@ private struct UnresolvedCandidateView: View {
     @State private var isExpanded: Bool = false
 
     var body: some View {
-        DisclosureGroup(address.sourcePath, isExpanded: $isExpanded) {
+        VStack(alignment: .leading, spacing: 8) {
+            Button(address.sourcePath) { isExpanded.toggle() }
+                .accessibilityValue(isExpanded ? "Expanded" : "Collapsed")
+                .accessibilityIdentifier("comparison-candidate-\(side.rawValue)-\(address.identity)")
             if isExpanded { AddressedEvidenceContent(address: address, report: report, side: side) }
         }
         .font(.caption)
-        .accessibilityIdentifier("comparison-candidate-\(side.rawValue)-\(address.identity)")
     }
 }
 

@@ -574,6 +574,7 @@ private struct ChangeKindSummaryCards: View {
             ChangeKindSummaryCard(title: "Removed", value: summary.removedCount, symbolName: "minus.circle.fill", tint: .red)
             ChangeKindSummaryCard(title: "Changed", value: summary.changedCount, symbolName: "pencil.circle.fill", tint: .orange)
         }
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("what-changed-summary")
     }
 }
