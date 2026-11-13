@@ -20,6 +20,7 @@ enum ProfileScalar: Sendable, Equatable {
 
 struct FieldPresentation: Sendable, Equatable {
     let dataType: SystemProfilerDataType
+    let fieldPath: [String]
     let title: String
     let displayedValue: String
     let rawValue: String
@@ -32,7 +33,7 @@ struct FieldPresentation: Sendable, Equatable {
     var searchableValueTexts: [String] {
         var texts: [String] = [displayedValue, rawValue]
 
-        if isEnumeratedToken(rawValue) {
+        if !cameraIdentifierPath(dataType: dataType, path: fieldPath), isEnumeratedToken(rawValue) {
             texts.append(displayName(for: rawValue))
         }
 
@@ -92,8 +93,10 @@ func fieldPresentation(
 
     return FieldPresentation(
         dataType: dataType,
+        fieldPath: path,
         title: fieldExplanation?.title ?? displayName(for: finalKey),
-        displayedValue: (dataType == .logs || dataType == .syncServices) && finalKey == "contents"
+        displayedValue: ((dataType == .logs || dataType == .syncServices) && finalKey == "contents")
+            || cameraIdentifierPath(dataType: dataType, path: path)
             ? rawValue : formattedValue(scalar, path: path),
         rawValue: rawValue,
         sourcePath: ([dataType.rawValue] + path).joined(separator: "."),
@@ -107,6 +110,11 @@ func explanationCoverage(for presentation: FieldPresentation) -> ExplanationCove
     }
 
     switch presentation.dataType {
+    case .camera:
+        // Use the original terminal component, never a split display path.
+        // Unknown children and array elements do not become curated fields.
+        return presentation.fieldPath.last.flatMap(CameraIdentifierField.init(rawValue:)) != nil
+            ? .curatedField : .generalDataTypeContext
     case .hardware, .storage, .power, .network, .ethernet, .wifi, .bluetooth,
          .networkLocation, .networkVolumes, .software, .applications, .developerTools,
          .extensions, .frameworks, .fonts, .installHistory, .international,

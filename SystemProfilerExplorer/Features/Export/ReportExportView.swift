@@ -102,6 +102,7 @@ struct ReportExportReviewView: View {
                     dismiss()
                 }
                 .keyboardShortcut(.cancelAction)
+                .accessibilityIdentifier("close-report-export")
 
                 Spacer()
 

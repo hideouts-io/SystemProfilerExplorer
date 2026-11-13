@@ -214,7 +214,7 @@ struct SnapshotTimelineView: View {
     }
 }
 
-private struct UnreadableSnapshotsNotice: View {
+struct UnreadableSnapshotsNotice: View {
     let fileNames: [String]
 
     var body: some View {

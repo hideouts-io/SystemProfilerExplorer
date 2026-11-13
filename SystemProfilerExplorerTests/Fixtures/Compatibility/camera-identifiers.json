@@ -1,0 +1,10 @@
+{
+  "SPCameraDataType": [
+    {
+      "_name": "Synthetic Camera",
+      "spcamera_model-id": "synthetic_camera_model",
+      "spcamera_unique-id": "synthetic_camera_unit_enabled",
+      "future_camera_field": "future_camera_value"
+    }
+  ]
+}

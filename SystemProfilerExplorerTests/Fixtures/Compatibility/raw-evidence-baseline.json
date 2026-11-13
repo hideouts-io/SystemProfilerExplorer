@@ -1,0 +1,16 @@
+{
+  "SPHardwareDataType": [
+    {
+      "_name": "Synthetic Evidence",
+      "a.b": 1,
+      "a": { "b": 2 },
+      "items[0]": 3,
+      "items": [4],
+      "": 5,
+      "[]": 6,
+      "nullable": null,
+      "removed_field": "retained only in baseline"
+    },
+    { "_name": "Synthetic Other", "version": "unchanged" }
+  ]
+}

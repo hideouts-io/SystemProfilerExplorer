@@ -10,6 +10,10 @@ Each `*.sample.json` file here is an anonymized report from a real Mac. The test
 
 1. In the app, switch to **Developer** mode, scan (the Full Report gives the most coverage), then choose **Share › Anonymized Sample…**.
 2. Open the file and read it. The export keeps field names, numbers, on/off values, enumeration tokens, the Mac model, the macOS version, and the values of fields the app explains. It removes names, serial numbers, addresses, paths, and log text. If anything personal remains, don't share the file; open an issue describing the field instead.
+   Camera `spcamera_model-id` and `spcamera_unique-id` contents are removed regardless
+   of spelling or scalar type, including null and unexpected nested values and keys. Their
+   maintained field descriptions are not finite-value rules or permission to retain
+   identifiers. Full private exports preserve the original values separately.
 3. Keep the file name the export suggests, such as `Sample-Mac15,3-macOS-26.0.sample.json`, and add it to this folder.
 4. Run `./scripts/check-publication-boundary.sh` and the tests.
 

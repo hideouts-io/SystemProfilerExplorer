@@ -79,6 +79,7 @@ struct SystemReviewSummaryView: View {
                     }
                     .pickerStyle(.segmented)
                     .frame(maxWidth: 280)
+                    .accessibilityIdentifier("system-review-export-format")
 
                     Text("Markdown is easy to paste into a message or support request; PDF is ready to print. To share the full scan data, choose Share › Report File instead.")
                         .font(.callout)
@@ -93,6 +94,7 @@ struct SystemReviewSummaryView: View {
             HStack {
                 Button("Cancel", role: .cancel, action: dismiss.callAsFunction)
                     .keyboardShortcut(.cancelAction)
+                    .accessibilityIdentifier("close-system-review")
                 Spacer()
                 Button(action: prepareExport) {
                     Label("Choose Save Location…", systemImage: "square.and.arrow.up")

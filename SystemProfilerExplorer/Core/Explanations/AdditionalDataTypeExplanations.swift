@@ -20,6 +20,9 @@ func additionalDataTypeExplanation(
             limitation: "The inventory does not prove that audio was recorded or played, identify the application using a device, or measure current signal quality."
         )
     case .camera:
+        if let key = path.last, let field = CameraIdentifierField(rawValue: key) {
+            return field.explanation
+        }
         context = DataTypeExplanationContext(
             subject: "a camera recognized by macOS",
             significance: "Camera identity and connection metadata help distinguish built-in and attached imaging hardware during compatibility and privacy reviews.",
@@ -145,4 +148,43 @@ private func storageInterfaceContext(_ subject: String) -> DataTypeExplanationCo
         significance: "Controller, device, transport, capacity, firmware, and health metadata help map storage hardware and assess compatibility or troubleshooting scope.",
         limitation: "Enumeration and a passing summary do not prove data integrity, complete device health, firmware authenticity, or that the storage was mounted or accessed."
     )
+}
+
+/// Exact reporter keys, not a whitelist of identifier values. The inspected
+/// SPCameraReporter 1.2.0 maps these to AVCaptureDevice.modelID and uniqueID.
+/// Apple documents those properties at:
+/// https://developer.apple.com/documentation/avfoundation/avcapturedevice/modelid
+/// https://developer.apple.com/documentation/avfoundation/avcapturedevice/uniqueid
+enum CameraIdentifierField: String, Sendable {
+    case model = "spcamera_model-id"
+    case device = "spcamera_unique-id"
+
+    var explanation: FieldExplanation {
+        let limits: String = "A maintained field explanation does not validate an imported value's type or format. Camera presence and identifiers do not establish application access, image capture, recording, transmission, ownership, or compromise. Camera permissions and activity indicators are separate evidence."
+        switch self {
+        case .model:
+            return FieldExplanation(
+                title: "Camera Model Identifier",
+                meaning: "The model identifier macOS reports for this camera entry. Apple's capture-device API uses a model identifier shared by devices of the same model, rather than identifying one particular unit.",
+                significance: "Compare the exact model strings when checking camera inventory or investigating compatibility and enumeration changes. Several camera entries can legitimately share a model identifier.",
+                interpretation: "This is not necessarily a retail model name or serial number. The app does not decode undocumented string components into a manufacturer, resolution, capabilities, or authenticity verdict. The inspected Apple reporter uses AVFoundation's modelID; other macOS versions and imported reports are not verified by that mapping. \(limits)",
+                privacy: "A model identifier may contribute to hardware fingerprinting. Review and remove it before sharing an inventory publicly."
+            )
+        case .device:
+            return FieldExplanation(
+                title: "Camera Device Identifier",
+                meaning: "The identifier macOS reports for distinguishing this camera device entry, rather than the model shared by several devices.",
+                significance: "Compare the exact identifier in private reports when tracking which camera entry was enumerated. Apple documents same-system persistence for AVFoundation's uniqueID across reconnects, application restarts, and reboots.",
+                interpretation: "The inspected Apple reporter uses AVFoundation's uniqueID. That API contract does not validate an imported report or guarantee identity across different systems, driver changes, replacement hardware, or every macOS version. Do not assume this string is a serial number or a record of camera use. \(limits)",
+                privacy: "A unique camera identifier may correlate device entries across reports. Treat it as potentially identifying and redact it before sharing."
+            )
+        }
+    }
+}
+
+/// Identity contents remain opaque and private even when an imported identifier
+/// unexpectedly contains an object or array. Exact ancestor keys protect its
+/// scalar leaves without parsing display paths or changing the original report.
+func cameraIdentifierPath(dataType: SystemProfilerDataType, path: [String]) -> Bool {
+    dataType == .camera && path.contains { CameraIdentifierField(rawValue: $0) != nil }
 }

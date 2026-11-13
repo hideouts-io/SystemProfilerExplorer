@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import SystemProfilerExplorer
 
@@ -145,6 +146,179 @@ struct NetworkExplanationTests {
         ]
 
         expectExplanations(dataType: .networkVolumes, fields: fields)
+    }
+
+    @Test
+    func networkMountPointsRemainExactAndParticipateInPrivacyReview() throws {
+        let data: Data = Data(
+            #"{"SPNetworkVolumeDataType":[{"spnetworkvolume_fsmtnonname":"/Volumes/Example_Share","spnetworkvolume_automounted":false}]}"#.utf8
+        )
+        let report: SystemProfilerReport = try SystemProfilerParser().parseImportedReport(
+            data,
+            importedAt: Date(timeIntervalSince1970: 3_000)
+        )
+        let section: SystemProfilerSection = try #require(report.sections.first)
+        guard case let .object(volume) = try #require(section.items.first),
+              case let .string(mountPoint)? = volume["spnetworkvolume_fsmtnonname"] else {
+            Issue.record("The imported network mount point must remain a string.")
+            return
+        }
+        let presentation: FieldPresentation = fieldPresentation(
+            dataType: section.dataType,
+            path: ["spnetworkvolume_fsmtnonname"],
+            scalar: .string(mountPoint)
+        )
+        let field: FieldExplanation = try #require(presentation.explanation)
+
+        #expect(presentation.title == "Network Volume Mount Point")
+        #expect(presentation.rawValue == "/Volumes/Example_Share")
+        #expect(presentation.sourcePath == "SPNetworkVolumeDataType.spnetworkvolume_fsmtnonname")
+        #expect(field.privacy != nil)
+
+        let index: ReportPresentationIndex = try makeReportPresentationIndex(report)
+        let privacyResult: ReportQueryResult = try index.queryResult(
+            for: FindingQuery(text: mountPoint, filter: .privacy)
+        )
+        #expect(index.summary.privacyFindingCount == 1)
+        #expect(privacyResult.findingCount == 1)
+
+        let full: ReportExportEnvelope = try decodeReportExport(encodeReportExport(makeFullReportExport(report)))
+        #expect(full.report.sections == report.sections)
+        let redacted: String = String(decoding: try encodeReportExport(makeRedactedReportExport(report)), as: UTF8.self)
+        let anonymized: String = String(decoding: try encodeAnonymizedSample(makeAnonymizedSample(report)), as: UTF8.self)
+        #expect(!redacted.contains(mountPoint))
+        #expect(!anonymized.contains(mountPoint))
+    }
+
+    @Test(arguments: [
+        ProfileScalar.string("yes"), .string("no"), .string("true"), .string("false"),
+        .string("on"), .string("off"), .string("1"), .string("0"),
+        .string("YES"), .string("FaLsE"), .boolean(true), .boolean(false),
+        .integer(1), .integer(0)
+    ])
+    func networkAutomountValuesDescribeTheFlagWithoutIdentifyingAnActor(_ scalar: ProfileScalar) throws {
+        let result: ValueExplanation = try #require(valueExplanation(
+            dataType: .networkVolumes,
+            path: ["spnetworkvolume_automounted"],
+            scalar: scalar
+        ))
+
+        #expect(result.status == .informational)
+        #expect(result.detail?.contains("does not identify") == true)
+        #expect(result.suggestedAction?.contains("mount configuration") == true)
+    }
+
+    @Test(arguments: [
+        ProfileScalar.string(""), .string("maybe"), .string("unknown_yes"),
+        .string("not_automounted_no"), .string("yes garbage"), .string("no\nextra"),
+        .string("2"), .integer(-1), .integer(2), .decimal(0.5), .decimal(1), .null
+    ])
+    func malformedNetworkAutomountValuesStayUnexplained(_ scalar: ProfileScalar) throws {
+        let result: ValueExplanation = try #require(valueExplanation(
+            dataType: .networkVolumes,
+            path: ["spnetworkvolume_automounted"],
+            scalar: scalar
+        ))
+
+        #expect(result.status == .unknown)
+        #expect(result.confidence == nil)
+        #expect(fieldPresentation(
+            dataType: .networkVolumes,
+            path: ["spnetworkvolume_automounted"],
+            scalar: scalar
+        ).rawValue == scalar.rawDescription)
+    }
+
+    @Test(arguments: ["smbfs", "nfs"])
+    func networkFilesystemValuesExplainTheFamilyWithoutClaimingConnectionSecurity(_ value: String) throws {
+        let result: ValueExplanation = try #require(valueExplanation(
+            dataType: .networkVolumes,
+            path: ["spnetworkvolume_fstypename"],
+            scalar: .string(value)
+        ))
+
+        #expect(result.status == .informational)
+        #expect(result.confidence == .documented)
+        #expect(result.summary.contains(value == "smbfs" ? "SMB" : "NFS"))
+        #expect(result.significance?.contains("protocol version") == true)
+        #expect(result.significance?.contains("encryption") == true)
+        #expect(result.significance?.contains("server trust") == true)
+        #expect(result.significance?.contains("file activity") == true)
+        #expect(result.suggestedAction?.contains("Network Volume Source") == true)
+    }
+
+    @Test(arguments: [
+        ProfileScalar.string(""), .string("SMB"), .string("NFS"), .string("smb"),
+        .string("nfs4"), .string("smbfs_extra"), .string("smbfs,nfs"),
+        .string(" smbfs"), .string("nfs "), .string("nfs\n"),
+        .string("smbfs\u{200B}"), .string("nfs\u{0000}"), .string("apfs"),
+        .string("ExamplePrivateVolume"), .boolean(false), .integer(0), .null
+    ])
+    func unknownNetworkFilesystemValuesStayUnexplainedAndExact(_ scalar: ProfileScalar) throws {
+        let result: ValueExplanation = try #require(valueExplanation(
+            dataType: .networkVolumes,
+            path: ["spnetworkvolume_fstypename"],
+            scalar: scalar
+        ))
+
+        #expect(result.status == .unknown)
+        #expect(result.confidence == nil)
+        #expect(fieldPresentation(
+            dataType: .networkVolumes,
+            path: ["spnetworkvolume_fstypename"],
+            scalar: scalar
+        ).rawValue == scalar.rawDescription)
+    }
+
+    @Test(arguments: [
+        "smbfs", "nfs", "ExamplePrivateVolume", "smbfs_extra", "future_fs_token",
+        " smbfs", "NFS", "unknown_yes", "true", "nfs\u{0000}"
+    ])
+    func networkFilesystemSamplesKeepOnlyKnownTypesAndFullExportsRemainExact(_ value: String) throws {
+        let report: SystemProfilerReport = SystemProfilerReport(
+            sections: [SystemProfilerSection(
+                dataType: .networkVolumes,
+                items: [.object([
+                    "_name": .string("ExamplePrivateVolume"),
+                    "spnetworkvolume_fstypename": .string(value),
+                    "spnetworkvolume_fsmtnonname": .string("/Volumes/Example_Share"),
+                    "spnetworkvolume_mntfromname": .string("//example.invalid/Example_Share")
+                ])]
+            )],
+            commandArguments: [],
+            standardError: "",
+            startedAt: Date(timeIntervalSince1970: 3_000),
+            completedAt: Date(timeIntervalSince1970: 3_000)
+        )
+        let full: ReportExportEnvelope = try decodeReportExport(encodeReportExport(makeFullReportExport(report)))
+        #expect(full.report.sections == report.sections)
+
+        let sample: [String: [ProfileValue]] = makeAnonymizedSample(report)
+        let expectedType: String = ["smbfs", "nfs"].contains(value) ? value : anonymizedSampleRemovedValue
+        #expect(sample[SystemProfilerDataType.networkVolumes.rawValue] == [.object([
+            "_name": .string(anonymizedSampleRemovedValue),
+            "spnetworkvolume_fstypename": .string(expectedType),
+            "spnetworkvolume_fsmtnonname": .string(anonymizedSampleRemovedValue),
+            "spnetworkvolume_mntfromname": .string(anonymizedSampleRemovedValue)
+        ])])
+        let reopened: SystemProfilerReport = try SystemProfilerParser().parseImportedReport(
+            encodeAnonymizedSample(sample),
+            importedAt: Date(timeIntervalSince1970: 3_000)
+        )
+        #expect(makeAnonymizedSample(reopened) == sample)
+
+        let redacted: ReportExportEnvelope = try decodeReportExport(encodeReportExport(makeRedactedReportExport(report)))
+        #expect(redacted.report.sections.first?.items == [.object([
+            "_name": .string(redactedProfileValue),
+            "spnetworkvolume_fstypename": .string(redactedProfileValue),
+            "spnetworkvolume_fsmtnonname": .string(redactedProfileValue),
+            "spnetworkvolume_mntfromname": .string(redactedProfileValue)
+        ])])
+        #expect(valueExplanation(
+            dataType: .networkVolumes,
+            path: ["spnetworkvolume_fstypename"],
+            scalar: .string(redactedProfileValue)
+        ) == nil)
     }
 
     @Test

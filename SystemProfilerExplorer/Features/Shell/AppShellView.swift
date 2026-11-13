@@ -433,6 +433,7 @@ private struct AppSidebar: View {
             }
         }
         .listStyle(.sidebar)
+        .accessibilityIdentifier("workspace-sidebar")
     }
 }
 

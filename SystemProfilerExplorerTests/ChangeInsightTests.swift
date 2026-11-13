@@ -12,6 +12,8 @@ struct ChangeInsightTests {
             recordLabel: "Example",
             catalogPath: ["profile_identifier"],
             sourcePath: "SPConfigurationProfileDataType.profile_identifier",
+            baselineAddress: ProfileValueAddress(dataType: .configurationProfiles, path: [.index(0), .field("profile_identifier")]),
+            currentAddress: ProfileValueAddress(dataType: .configurationProfiles, path: [.index(0), .field("profile_identifier")]),
             previousValue: .string("old.example"),
             currentValue: .string("new.example")
         )
@@ -32,6 +34,8 @@ struct ChangeInsightTests {
             recordLabel: "Example App",
             catalogPath: ["version"],
             sourcePath: "SPApplicationsDataType.version",
+            baselineAddress: nil,
+            currentAddress: ProfileValueAddress(dataType: .applications, path: [.index(0), .field("version")]),
             previousValue: nil,
             currentValue: .string("1.0")
         )

@@ -211,11 +211,13 @@ struct ProfileReportView: View {
                 isShowingSystemReview = true
             }
             .help("A readable Markdown or PDF summary")
+            .accessibilityIdentifier("share-system-review")
 
             Button("Report File…") {
                 isShowingExportReview = true
             }
             .help("The full scan data as JSON, redacted or complete")
+            .accessibilityIdentifier("share-report-file")
 
             if detailMode == .developer {
                 Divider()
@@ -224,6 +226,7 @@ struct ProfileReportView: View {
                     isConfirmingSampleExport = true
                 }
                 .help("A copy without personal values, for contributing a test sample to the project")
+                .accessibilityIdentifier("share-anonymized-sample")
             }
         } label: {
             Label("Share", systemImage: "square.and.arrow.up")
@@ -232,8 +235,9 @@ struct ProfileReportView: View {
         .accessibilityIdentifier("share-report")
         .confirmationDialog("Export an anonymized sample?", isPresented: $isConfirmingSampleExport) {
             Button("Export…", action: prepareSampleExport)
+                .accessibilityIdentifier("confirm-anonymized-sample-export")
         } message: {
-            Text("The sample keeps field names, numbers, on/off values, and the values the app explains, so it shows how this Mac reports them. Names, serial numbers, addresses, paths, and log text are removed. Open the file and check it before you share it.")
+            Text("The sample keeps field names, numbers, on/off values, and the values the app explains, so it shows how this Mac reports them. Names, serial numbers, addresses, paths, and log text are removed. Camera model and device identifiers are removed even if they look like tokens or numbers; unexpected identifier objects also have their keys removed. Open the file and check it before you share it.")
         }
         .fileExporter(
             isPresented: $isShowingSampleExporter,
@@ -1292,6 +1296,7 @@ private struct ProfileValueDisclosure: View {
 
         return ScalarProfileRow(
             presentation: presentation,
+            catalogPath: path,
             location: location,
             valueExplanation: presentation.isLogContent ? nil : valueExplanation(
                 dataType: dataType,
@@ -1450,6 +1455,7 @@ private struct ProfileGroupLabel: View {
 
 private struct ScalarProfileRow: View {
     let presentation: FieldPresentation
+    let catalogPath: [String]
     /// This value's exact position, used for its bookmark and "show source" link.
     let location: String
     let valueExplanation: ValueExplanation?
@@ -1474,6 +1480,7 @@ private struct ScalarProfileRow: View {
             } else {
                 AboutThisFieldView(
                     presentation: presentation,
+                    catalogPath: catalogPath,
                     startsExpanded: aboutThisFieldStartsExpanded(valueExplanation: valueExplanation),
                     openSourceLocation: openThisLocation
                 )
@@ -1508,6 +1515,7 @@ private struct ScalarProfileRow: View {
                 copyToPasteboard(findingMarkdown(presentation: presentation, valueExplanation: valueExplanation))
             }
         }
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("finding-\(presentation.sourcePath)")
     }
 

@@ -1,6 +1,6 @@
 import Foundation
 
-indirect enum ProfileValue: Sendable, Equatable, Codable {
+indirect enum ProfileValue: Sendable, Equatable, Hashable, Codable {
     case object([String: ProfileValue])
     case array([ProfileValue])
     case string(String)

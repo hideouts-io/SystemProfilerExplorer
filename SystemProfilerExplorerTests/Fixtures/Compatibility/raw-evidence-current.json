@@ -1,0 +1,16 @@
+{
+  "SPHardwareDataType": [
+    { "_name": "Synthetic Other", "version": "unchanged" },
+    {
+      "_name": "Synthetic Evidence",
+      "a.b": 11,
+      "a": { "b": 12 },
+      "items[0]": 13,
+      "items": [14],
+      "": 15,
+      "[]": 16,
+      "nullable": false,
+      "added_field": "retained only in current"
+    }
+  ]
+}

@@ -9,11 +9,13 @@ func loadViewableReport(
     importedAt: Date,
     parser: SystemProfilerParser = SystemProfilerParser()
 ) throws -> SystemProfilerReport {
-    guard isReportExport(data) else {
-        return try parser.parseImportedReport(data, importedAt: importedAt)
+    let input: Data = try ownedOriginalReportBytes(data)
+    guard isReportExport(input) else {
+        return try parser.parseImportedReport(input, importedAt: importedAt)
     }
 
-    let export: ReportExportEnvelope = try decodeReportExport(data)
+    let export: ReportExportEnvelope = try decodeReportExport(input)
+    try validateReportJSONKeys(input)
 
     guard !export.report.sections.isEmpty else {
         throw SystemProfilerParsingError.noSupportedDataTypes
@@ -24,7 +26,11 @@ func loadViewableReport(
         commandArguments: export.report.commandArguments,
         standardError: export.report.standardError ?? "",
         startedAt: export.report.startedAt ?? importedAt,
-        completedAt: export.report.completedAt ?? importedAt
+        completedAt: export.report.completedAt ?? importedAt,
+        originalSource: OriginalReportSource(
+            ownedBytes: input,
+            format: .reportExport(sectionDataTypes: export.report.sections.map(\.dataType))
+        )
     )
 }
 
@@ -35,11 +41,25 @@ func loadComparisonBaseline(
     importedAt: Date,
     parser: SystemProfilerParser = SystemProfilerParser()
 ) throws -> SystemProfilerReport {
-    guard isReportExport(data) else {
-        return try parser.parseImportedReport(data, importedAt: importedAt)
+    let input: Data = try ownedOriginalReportBytes(data)
+    guard isReportExport(input) else {
+        return try parser.parseImportedReport(input, importedAt: importedAt)
     }
 
-    return try comparisonBaselineReport(from: decodeReportExport(data))
+    let export: ReportExportEnvelope = try decodeReportExport(input)
+    try validateReportJSONKeys(input)
+    let report: SystemProfilerReport = try comparisonBaselineReport(from: export)
+    return SystemProfilerReport(
+        sections: report.sections,
+        commandArguments: report.commandArguments,
+        standardError: report.standardError,
+        startedAt: report.startedAt,
+        completedAt: report.completedAt,
+        originalSource: OriginalReportSource(
+            ownedBytes: input,
+            format: .reportExport(sectionDataTypes: report.sections.map(\.dataType))
+        )
+    )
 }
 
 private struct ReportExportProbe: Decodable {
