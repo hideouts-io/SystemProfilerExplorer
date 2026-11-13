@@ -805,6 +805,41 @@ struct DriveAndAccessoryValueTests {
 
     // MARK: - Serial ATA drives and cards
 
+    @Test(arguments: [SystemProfilerDataType.nvme, .serialATA, .cardReader])
+    func importedNonStartupAPFSContainerDoesNotImplyStartupContents(_ dataType: SystemProfilerDataType) throws {
+        let data: Data = Data("""
+            {"\(dataType.rawValue)":[{"_name":"Synthetic storage controller","_items":[{
+                "_name":"Synthetic archive drive","is_internal_disk":"no","removable_media":"yes",
+                "volumes":[{"_name":"Synthetic archive container","iocontent":"Apple_APFS"}]
+            }]}]}
+            """.utf8)
+        let report: SystemProfilerReport = try SystemProfilerParser().parseImportedReport(
+            data,
+            importedAt: Date(timeIntervalSince1970: 3_000)
+        )
+        let index: ReportPresentationIndex = try makeReportPresentationIndex(report)
+        let sharedSpace: ReportQueryResult = try index.queryResult(
+            for: FindingQuery(text: "volumes share", filter: .all)
+        )
+        let claimedContents: ReportQueryResult = try index.queryResult(
+            for: FindingQuery(text: "holds macOS and your data", filter: .all)
+        )
+        let explanation: ValueExplanation = try #require(valueExplanation(
+            dataType: dataType,
+            path: ["_items", "[]", "volumes", "[]", "iocontent"],
+            scalar: .string("Apple_APFS")
+        ))
+
+        #expect(sharedSpace.findingCount == 1)
+        #expect(sharedSpace.visibleLocations?.contains("\(dataType.rawValue)[0]._items.[0].volumes.[0].iocontent") == true)
+        #expect(claimedContents.findingCount == 0)
+        #expect(explanation.significance?.contains("type alone") == true)
+        #expect(explanation.significance?.contains("main part of the startup disk") == false)
+        #expect(explanation.status == .informational)
+        #expect(explanation.confidence == .documented)
+        #expect(explanation.suggestedAction == "Nothing to do.")
+    }
+
     @Test
     func aMemoryCardIsExplainedLikeAnyOtherDrive() throws {
         let card: [String] = ["_items", "[]"]

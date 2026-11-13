@@ -15,6 +15,7 @@ func loadViewableReport(
     }
 
     let export: ReportExportEnvelope = try decodeReportExport(input)
+    try validateReportJSONKeys(input)
 
     guard !export.report.sections.isEmpty else {
         throw SystemProfilerParsingError.noSupportedDataTypes
@@ -46,6 +47,7 @@ func loadComparisonBaseline(
     }
 
     let export: ReportExportEnvelope = try decodeReportExport(input)
+    try validateReportJSONKeys(input)
     let report: SystemProfilerReport = try comparisonBaselineReport(from: export)
     return SystemProfilerReport(
         sections: report.sections,

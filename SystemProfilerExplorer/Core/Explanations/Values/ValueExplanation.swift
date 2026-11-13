@@ -339,8 +339,8 @@ private let valueRuleIndex: [ValueRuleKey: [ValueRule]] = {
     return index
 }()
 
-/// Whether any value rule covers this field. Anonymized samples keep these fields'
-/// values, since the rules are what the samples exercise.
+/// Whether any value rule covers this field. Registration alone does not validate
+/// a reported value or establish that its text is safe for an anonymized sample.
 func hasValueRule(dataType: SystemProfilerDataType, path: [String]) -> Bool {
     let context: ValueContext = ValueContext(dataType: dataType, path: path, scalar: .null, siblings: [:], report: .empty)
     return valueRuleIndex[ValueRuleKey(dataType: dataType, field: context.field)] != nil

@@ -379,6 +379,29 @@ private func anonymizedText(_ text: String, dataType: SystemProfilerDataType, pa
         return anonymizedSampleRemovedValue
     }
 
+    // Accessory fields may contain free text even though they have value rules.
+    // Decide their safety before generic token and Boolean retention.
+    if dataType == .bluetooth {
+        switch field {
+        case "device_services", "controller_supportedServices":
+            return bluetoothServicesAreFullyRecognized(text) ? text : anonymizedSampleRemovedValue
+        case "device_minorType", "device_batteryLevelMain", "device_batteryLevelLeft",
+             "device_batteryLevelRight", "device_batteryLevelCase":
+            guard let interpretation: ValueExplanation = valueExplanation(
+                dataType: dataType,
+                path: path,
+                scalar: .string(text),
+                siblings: [:],
+                report: .empty
+            ), interpretation.status != .unknown else {
+                return anonymizedSampleRemovedValue
+            }
+            return text
+        default:
+            break
+        }
+    }
+
     // This field can contain an unfamiliar filesystem name or arbitrary text.
     // Keep only recognized identifiers, not generic token/Boolean-looking values.
     if dataType == .networkVolumes && field == "spnetworkvolume_fstypename" {
@@ -393,7 +416,17 @@ private func anonymizedText(_ text: String, dataType: SystemProfilerDataType, pa
         return text
     }
 
-    if decodeBooleanLike(text) != nil || isEnumeratedToken(text) || hasValueRule(dataType: dataType, path: path) {
+    if decodeBooleanLike(text) != nil || isEnumeratedToken(text) {
+        return text
+    }
+
+    if let interpretation: ValueExplanation = valueExplanation(
+        dataType: dataType,
+        path: path,
+        scalar: .string(text),
+        siblings: [:],
+        report: .empty
+    ), interpretation.status != .unknown {
         return text
     }
 

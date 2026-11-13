@@ -1267,9 +1267,7 @@ private let bluetoothServiceNames: [String: String] = [
     "AACP": "Apple accessory features (AACP)"
 ]
 
-/// Explains a service list such as `0x400000 < BLE >`. Services the app doesn't know are
-/// named as such, and a list with none it knows is left unexplained.
-private func bluetoothServicesExplanation(_ value: String, owner: String) -> ValueExplanation? {
+private func bluetoothServiceTokens(_ value: String) -> [String]? {
     let trimmed: String = value.trimmingCharacters(in: .whitespacesAndNewlines)
 
     guard trimmed.hasSuffix(">"),
@@ -1289,9 +1287,25 @@ private func bluetoothServicesExplanation(_ value: String, owner: String) -> Val
         return nil
     }
 
-    let tokens: [String] = body
+    return body
         .split(whereSeparator: \.isWhitespace)
         .map(String.init)
+}
+
+/// Samples retain a complete service list only when every token is recognized.
+func bluetoothServicesAreFullyRecognized(_ value: String) -> Bool {
+    guard let tokens: [String] = bluetoothServiceTokens(value), !tokens.isEmpty else {
+        return false
+    }
+    return tokens.allSatisfy { bluetoothServiceNames[$0.uppercased()] != nil }
+}
+
+/// Explains a service list such as `0x400000 < BLE >`. Services the app doesn't know are
+/// named as such, and a list with none it knows is left unexplained.
+private func bluetoothServicesExplanation(_ value: String, owner: String) -> ValueExplanation? {
+    guard let tokens: [String] = bluetoothServiceTokens(value) else {
+        return nil
+    }
     var known: [String] = []
     var unknown: [String] = []
 

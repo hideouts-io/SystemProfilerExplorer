@@ -5,6 +5,50 @@ import Testing
 
 struct ReportFileLoadingTests {
     @Test
+    func duplicateIdentityKeysCannotEnterAnExportOrSnapshotBaseline() throws {
+        let importedAt: Date = Date(timeIntervalSince1970: 5_000)
+        let report: SystemProfilerReport = try SystemProfilerParser().parseImportedReport(
+            Data(#"{"SPHardwareDataType":[{"_name":"hardware_overview","serial_number":"SYNTHETICMACA"}]}"#.utf8),
+            importedAt: importedAt
+        )
+        let export: ReportExportEnvelope = makeFullReportExport(report)
+        let snapshot: SystemProfilerSnapshot = SystemProfilerSnapshot(
+            id: UUID(), name: "Synthetic baseline", createdAt: importedAt,
+            privacy: .full, report: export
+        )
+        let originalField: String = #""serial_number" : "SYNTHETICMACA""#
+        let duplicateFields: String = #""serial_number":"SYNTHETICMACA","serial_number":"SYNTHETICMACB""#
+        let exportJSON: String = String(decoding: try encodeReportExport(export), as: UTF8.self)
+        let snapshotJSON: String = String(decoding: try encodeSnapshot(snapshot), as: UTF8.self)
+        try #require(exportJSON.contains(originalField))
+        try #require(snapshotJSON.contains(originalField))
+        let ambiguousExport: Data = Data(exportJSON.replacingOccurrences(of: originalField, with: duplicateFields).utf8)
+        let ambiguousSnapshot: Data = Data(snapshotJSON.replacingOccurrences(of: originalField, with: duplicateFields).utf8)
+        #expect {
+            _ = try loadViewableReport(from: ambiguousExport, importedAt: importedAt)
+        } throws: { error in
+            guard let sourceError = error as? OriginalReportSourceError,
+                  case .ambiguousDuplicateKey = sourceError else { return false }
+            return true
+        }
+        #expect {
+            _ = try loadComparisonBaseline(from: ambiguousExport, importedAt: importedAt)
+        } throws: { error in
+            guard let sourceError = error as? OriginalReportSourceError,
+                  case .ambiguousDuplicateKey = sourceError else { return false }
+            return true
+        }
+        #expect {
+            _ = try decodeSnapshot(ambiguousSnapshot)
+        } throws: { error in
+            guard let sourceError = error as? OriginalReportSourceError,
+                  case .ambiguousDuplicateKey = sourceError else { return false }
+            return true
+        }
+        #expect(report.sections == export.report.sections)
+    }
+
+    @Test
     func rawSystemProfilerJSONLoadsForViewingAndComparison() throws {
         let data = Data(#"{"SPSoftwareDataType":[{"_name":"os_overview","os_version":"macOS 27.0"}]}"#.utf8)
         let importedAt = Date(timeIntervalSince1970: 5_000)

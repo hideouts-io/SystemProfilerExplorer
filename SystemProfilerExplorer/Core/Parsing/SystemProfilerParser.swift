@@ -74,6 +74,7 @@ private func decodePayload(_ data: Data) throws -> SystemProfilerPayload {
             throw SystemProfilerParsingError.invalidDataTypeSection(identifier: invalidIdentifier)
         }
 
+        try validateReportJSONKeys(data)
         return payload
     } catch let error as DecodingError {
         throw SystemProfilerParsingError.invalidJSON(reason: decodingErrorDescription(error))

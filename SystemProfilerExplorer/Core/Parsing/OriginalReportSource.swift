@@ -41,7 +41,7 @@ enum OriginalReportSourceError: LocalizedError, Equatable {
         case .unsupportedEncoding:
             "Exact source excerpts require UTF-8 JSON. The retained input uses an unsupported encoding. Collect or import a UTF-8 report to view original bytes."
         case let .ambiguousDuplicateKey(byteOffset):
-            "The retained JSON repeats an object key at byte \(byteOffset), so an exact source address is ambiguous. Collect or import a report with unique object keys."
+            "The JSON repeats an object key at UTF-8 validation byte \(byteOffset), so its values and machine identity are ambiguous. Collect or import a report with unique object keys."
         case .sourceMismatch:
             "The requested value does not match its retained JSON source. Close this viewer and reopen or collect the report before requesting original bytes."
         case .invalidByteRange:
@@ -65,6 +65,48 @@ func ownedOriginalReportBytes(_ data: Data) throws -> Data {
     }
     try Task.checkCancellation()
     return owned
+}
+
+/// Run after Foundation validates the document's syntax, before decoded values
+/// can become a report or stored baseline. Duplicate keys must not silently lose
+/// conflicting occurrences. Transcoding is validation-only; retained bytes stay
+/// untouched and exact excerpts still require their original UTF-8 encoding.
+func validateReportJSONKeys(_ data: Data) throws {
+    try Task.checkCancellation()
+    let input: Data = try utf8JSONValidationBytes(data)
+    try input.withUnsafeBytes { (buffer: UnsafeRawBufferPointer) in
+        var locator: OriginalJSONLocator = OriginalJSONLocator(bytes: buffer, path: [])
+        _ = try locator.locate()
+    }
+}
+
+/// JSON's ASCII root and whitespace distinguish its UTF-16/32 byte orders even
+/// without a BOM. Select the declared/detected encoding, never a trial fallback.
+private func utf8JSONValidationBytes(_ data: Data) throws -> Data {
+    let encoding: String.Encoding? = data.withUnsafeBytes { (bytes: UnsafeRawBufferPointer) in
+        guard bytes.count >= 4 else { return nil }
+        if (bytes[0] == 0x00 && bytes[1] == 0x00 && bytes[2] == 0xFE && bytes[3] == 0xFF)
+            || (bytes[0] == 0x00 && bytes[1] == 0x00 && bytes[2] == 0x00) {
+            return .utf32BigEndian
+        }
+        if (bytes[0] == 0xFF && bytes[1] == 0xFE && bytes[2] == 0x00 && bytes[3] == 0x00)
+            || (bytes[1] == 0x00 && bytes[2] == 0x00 && bytes[3] == 0x00) {
+            return .utf32LittleEndian
+        }
+        if (bytes[0] == 0xFE && bytes[1] == 0xFF) || (bytes[0] == 0x00 && bytes[2] == 0x00) {
+            return .utf16BigEndian
+        }
+        if (bytes[0] == 0xFF && bytes[1] == 0xFE) || (bytes[1] == 0x00 && bytes[3] == 0x00) {
+            return .utf16LittleEndian
+        }
+        return nil
+    }
+    guard let encoding else { return data }
+    guard let text: String = String(data: data, encoding: encoding) else {
+        throw OriginalReportSourceError.unsupportedEncoding
+    }
+    try Task.checkCancellation()
+    return Data(text.utf8)
 }
 
 /// Returns nil only when the report has no retained input. A shorter typed address

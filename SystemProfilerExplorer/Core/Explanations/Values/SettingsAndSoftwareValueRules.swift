@@ -377,6 +377,7 @@ private func accessibilityFeatureRules(_ features: [(field: String, whenOn: Stri
 // partition types are the names `diskutil list` shows, and are unconfirmed in
 // system_profiler output. The Apple silicon containers are described in Apple Platform
 // Security ("Boot process for a Mac with Apple silicon").
+// APFS volume space sharing: https://support.apple.com/guide/disk-utility/add-delete-or-erase-apfs-volumes-dskua9e6a110/mac
 
 let nvmeValueRules: [ValueRule] = [
     ValueRule(.nvme, field: "spnvme_trim_support", unrecognizedValues: .ignore) { context in
@@ -419,9 +420,9 @@ private func partitionContentExplanation(_ value: String) -> ValueExplanation? {
     switch value {
     case "Apple_APFS":
         .info(
-            "An APFS container that holds macOS and your data.",
-            detail: "The container holds the system, data, and other APFS volumes, which share its space.",
-            why: "It's the main part of the startup disk.",
+            "An APFS container whose volumes share its available space.",
+            detail: "A container can hold multiple APFS volumes; each uses the container's free space.",
+            why: "The partition type alone doesn't show whether this is a startup disk or what its volumes contain.",
             action: "Nothing to do.",
             confidence: .documented
         )

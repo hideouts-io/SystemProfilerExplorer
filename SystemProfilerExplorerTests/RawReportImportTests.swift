@@ -3,6 +3,45 @@ import Testing
 @testable import SystemProfilerExplorer
 
 struct RawReportImportTests {
+    @Test(arguments: [
+        String.Encoding.utf8, .utf16, .utf16LittleEndian, .utf16BigEndian,
+        .utf32LittleEndian, .utf32BigEndian
+    ])
+    func rejectsDuplicateIdentityKeysAcrossStandardJSONEncodings(encoding: String.Encoding) throws {
+        let unique: String = #"{"SPHardwareDataType":[{"_name":"hardware_overview","serial_number":"SYNTHETICMACA"}]}"#
+        let ambiguous: [String] = [
+            #"{"SPHardwareDataType":[{"_name":"hardware_overview","serial_number":"SYNTHETICMACA","serial_number":"SYNTHETICMACB"}]}"#,
+            #"{"SPHardwareDataType":[{"_name":"hardware_overview","serial_number":"SYNTHETICMACA","serial_\u006eumber":"SYNTHETICMACB"}]}"#,
+            #"{"SPHardwareDataType":[{"_name":"hardware_overview","platform_UUID":"11111111-2222-3333-4444-555555555555","platform_UUID":"99999999-2222-3333-4444-555555555555"}]}"#,
+            #"{"SPHardwareDataType":[{"serial_number":"SYNTHETICMACA"}],"SPHardwareDataType":[{"serial_number":"SYNTHETICMACB"}]}"#
+        ]
+        let input: Data = try #require(unique.data(using: encoding))
+        let importedAt: Date = Date(timeIntervalSince1970: 5_000)
+        let report: SystemProfilerReport = try SystemProfilerParser().parseImportedReport(input, importedAt: importedAt)
+        #expect(comparisonMachineIdentity(baseline: report, current: report) == .matched)
+        for json in ambiguous {
+            let bytes: Data = try #require(json.data(using: encoding))
+            #expect {
+                _ = try SystemProfilerParser().parseImportedReport(bytes, importedAt: importedAt)
+            } throws: { error in
+                guard let sourceError = error as? OriginalReportSourceError,
+                      case .ambiguousDuplicateKey = sourceError else { return false }
+                return true
+            }
+            let execution: SystemProfilerExecution = SystemProfilerExecution(
+                request: SystemProfilerRequest(dataTypes: [.hardware], detailLevel: .full, timeoutSeconds: 90),
+                standardOutput: bytes, standardError: "", startedAt: importedAt, completedAt: importedAt
+            )
+            #expect {
+                _ = try SystemProfilerParser().parse(execution)
+            } throws: { error in
+                guard let sourceError = error as? OriginalReportSourceError,
+                      case .ambiguousDuplicateKey = sourceError else { return false }
+                return true
+            }
+        }
+    }
+
     @Test
     func importsRecognizedSectionsAndIgnoresUnrelatedRootData() throws {
         let data: Data = Data(
@@ -148,8 +187,21 @@ struct RawReportImportTests {
         #"{"SPHardwareDataType":[{"value":1}],"SPHardwareDataType":[{"value":1}]}"#
     ])
     func ambiguousDuplicateKeysFailExplicitly(_ json: String) throws {
-        let report: SystemProfilerReport = try SystemProfilerParser().parseImportedReport(
-            Data(json.utf8), importedAt: Date(timeIntervalSince1970: 5_000)
+        let input: Data = Data(json.utf8)
+        #expect {
+            _ = try SystemProfilerParser().parseImportedReport(input, importedAt: Date(timeIntervalSince1970: 5_000))
+        } throws: { error in
+            guard let sourceError = error as? OriginalReportSourceError,
+                  case .ambiguousDuplicateKey = sourceError else { return false }
+            return true
+        }
+        // A legacy in-memory capture must still fail explicitly at lookup, even
+        // though new imports now reject this ambiguity before creating a report.
+        let report: SystemProfilerReport = SystemProfilerReport(
+            sections: [SystemProfilerSection(dataType: .hardware, items: [.object(["value": .integer(1)])])],
+            commandArguments: [], standardError: "",
+            startedAt: Date(timeIntervalSince1970: 5_000), completedAt: Date(timeIntervalSince1970: 5_000),
+            originalSource: OriginalReportSource(ownedBytes: input, format: .systemProfiler)
         )
         #expect {
             _ = try originalSourceExcerpt(

@@ -249,9 +249,11 @@ func encodeSnapshot(_ snapshot: SystemProfilerSnapshot) throws -> Data {
 }
 
 func decodeSnapshot(_ data: Data) throws -> SystemProfilerSnapshot {
+    let input: Data = try ownedOriginalReportBytes(data)
     let decoder: JSONDecoder = JSONDecoder()
     decoder.dateDecodingStrategy = .iso8601
-    let snapshot: SystemProfilerSnapshot = try decoder.decode(SystemProfilerSnapshot.self, from: data)
+    let snapshot: SystemProfilerSnapshot = try decoder.decode(SystemProfilerSnapshot.self, from: input)
+    try validateReportJSONKeys(input)
 
     guard snapshot.report.formatIdentifier == reportExportFormatIdentifier else {
         throw ReportExportError.invalidFormat(identifier: snapshot.report.formatIdentifier)
